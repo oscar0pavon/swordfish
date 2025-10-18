@@ -133,10 +133,11 @@ VkBuffer pe_vk_vertex_create_index_buffer(Array *indices) {
 
 void pe_vk_models_create() {
 
-  actual_model_array = &array_models_loaded;
+  //actual_model_array = &array_models_loaded;
   //pe_loader_model(file_peon_glb);//TODO
 
-  test_model = selected_model;
+  //test_model = selected_model; //TODO
+  PModel* selected_model;
 
   test_model->vertex_buffer =
       pe_vk_vertex_create_buffer(&selected_model->vertex_array);

@@ -10,3 +10,5 @@ void pe_vk_command_init();
 void pe_vk_commands_pool_init();
 VkCommandBuffer pe_vk_begin_single_time_cmd();
 void pe_vk_end_single_time_cmd(VkCommandBuffer buffer);
+
+void pe_vk_commands_end(int i);

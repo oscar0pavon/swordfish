@@ -7,7 +7,6 @@
 #include "uniform_buffer.h"
 #include "vk_vertex.h"
 #include "vulkan.h"
-#include <engine/engine.h>
 #include <engine/macros.h>
 #include <vulkan/vulkan_core.h>
 

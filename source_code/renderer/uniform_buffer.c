@@ -7,7 +7,6 @@
 
 #include <vulkan/vulkan_core.h>
 
-#include <engine/model.h>
 
 PUniformBufferObject ubo;
 

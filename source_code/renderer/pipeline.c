@@ -266,10 +266,10 @@ void pe_vk_pipelines_init() {
   // array_add(&pe_vk_pipeline_infos, &base_pipeline_info);
   //
   // // vertex buffer model
-  // VkPipelineShaderStageCreateInfo in_position[2];
-  // pe_vk_shader_load(in_position,
-  //                   file_in_position_spv,
-  //                   file_frag_spv);
+  VkPipelineShaderStageCreateInfo in_position[2];
+   pe_vk_shader_load(in_position,
+                    "vert.spv",
+                    "frag.spv");
 
   base_pipeline_info.pStages = in_position;
   PPipelineInfo in_position_pipeline_info;

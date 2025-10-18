@@ -4,6 +4,7 @@
 
 #include "vk_buffer.h"
 
+#include <engine/model.h>
 
 PBufferCreateInfo buffer_color;
 

@@ -21,16 +21,10 @@
 #include <vulkan/vulkan_core.h>
 
 const char *validation_layers[] = {"VK_LAYER_KHRONOS_validation"};
-// For Linux support
-#ifdef DESKTOP
+
 const char *instance_extension[] = {"VK_KHR_surface", "VK_KHR_xcb_surface",
                                     VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
-#endif
-// For Android support
-#ifdef ANDROID
-const char *instance_extension[] = {"VK_KHR_surface", "VK_KHR_android_surface",
-                                    VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
-#endif
+
 const char *devices_extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
 VkDeviceQueueCreateInfo queues_creates_infos[2];

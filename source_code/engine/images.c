@@ -1,4 +1,8 @@
 #include "images.h"
+#include <vulkan/vulkan.h>
+#include <engine/macros.h>
+#include <engine/file_loader.h>
+#include <engine/log.h>
 
 
 PTexture* texture_current_to_load;
@@ -60,16 +64,12 @@ int pe_load_image(const char* path, PImage* image){
 
 void pe_gpu_load_texture(PTexture *texture) {
 
-  if (pe_renderer_type == PEWMOPENGLES2) {
-    pe_tex_to_gpu(texture);
-  }
 
-  if (pe_renderer_type == PEWMVULKAN) {
 
     VkImage image;
     ZERO(image);
     //pe_vk_image_create(texture->image.width,texture->image.heigth,texture->image.pixels_data,&image);
-  }
+
 }
 
 int texture_load_from_memory(PTexture *texture, u32 size, void *data) {
