@@ -24,15 +24,11 @@ int main(){
   
    //draw cube 
     printf("Compiling..\n");
-    sleep(2);
+    sleep(1);
 
   }
 
-  
-  XDestroyWindow(display,swordfish_window);
-
-  
-  XCloseDisplay(display);
+  close_window();  
 
 
 

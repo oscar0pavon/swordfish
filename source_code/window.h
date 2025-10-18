@@ -17,5 +17,6 @@ extern int mouse_click_y;
 extern bool swordfish_running;
 
 void create_window();
+void close_window();
 
 #endif

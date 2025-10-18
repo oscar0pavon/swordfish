@@ -1,5 +1,5 @@
 
-CLINKS := -lX11 -lpthread -lm
+CLINKS := -lX11 -lpthread -lm -lvulkan
 
 
 CFLAGS := -g
@@ -20,3 +20,4 @@ input.o: input.c
 
 clean:
 	rm -f ../swordfish
+	rm -f *.o
