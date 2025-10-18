@@ -32,4 +32,6 @@ input.o: input.c
 clean:
 	rm -f ../swordfish
 	rm -f *.o
+	rm -f ./engine/*.o
+	rm -f ./renderer/*.o
 
