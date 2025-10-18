@@ -1,2 +1,4 @@
 *.o
 swordfish
+compile_commands.json
+.cache

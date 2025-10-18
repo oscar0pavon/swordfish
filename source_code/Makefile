@@ -24,11 +24,12 @@ input.o: input.c
 	cc $(CFLAGS) -c $<
 
 ./engine/%.o: ./engine/%.c
-	cc $(CFLAGS_ENGINE) -c $< -o $@
+	cc $(CFLAGS_ENGINE) -c $<
 
 ./renderer/%.o: ./renderer/%.c
-	cc $(CFLAGS_ENGINE) -c $< -o $@
+	cc $(CFLAGS_ENGINE) -c $<
 
 clean:
 	rm -f ../swordfish
 	rm -f *.o
+
