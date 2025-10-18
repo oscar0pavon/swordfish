@@ -6,7 +6,7 @@
 
 #include <engine/model.h>
 
-PBufferCreateInfo buffer_color;
+static PBufferCreateInfo buffer_color;
 
 void pe_vk_uniform_buffer_update(uint32_t image_index);
 

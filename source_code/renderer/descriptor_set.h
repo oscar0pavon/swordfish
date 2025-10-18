@@ -5,13 +5,13 @@
 #include <engine/model.h>
 
 
-VkPipelineLayout pe_vk_pipeline_layout;
-VkPipelineLayout pe_vk_pipeline_layout_with_descriptors;
-VkPipelineLayout pe_vk_pipeline_layout_skinned;
+static VkPipelineLayout pe_vk_pipeline_layout;
+static VkPipelineLayout pe_vk_pipeline_layout_with_descriptors;
+static VkPipelineLayout pe_vk_pipeline_layout_skinned;
 
-VkDescriptorSetLayout pe_vk_descriptor_set_layout;
-VkDescriptorSetLayout pe_vk_descriptor_set_layout_with_texture;
-VkDescriptorSetLayout pe_vk_descriptor_set_layout_skinned;
+static VkDescriptorSetLayout pe_vk_descriptor_set_layout;
+static VkDescriptorSetLayout pe_vk_descriptor_set_layout_with_texture;
+static VkDescriptorSetLayout pe_vk_descriptor_set_layout_skinned;
 
 void pe_vk_descriptor_pool_create(PModel *model);
 void pe_vk_create_descriptor_sets(PModel *model);

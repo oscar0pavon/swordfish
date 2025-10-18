@@ -2,9 +2,10 @@
 #include <engine/array.h>
 #include "vulkan.h"
 
-VkCommandPool pe_vk_commands_pool;
+static VkCommandPool pe_vk_commands_pool;
 
-Array pe_vk_command_buffers;
+static Array pe_vk_command_buffers;
+
 void pe_vk_record_commands_buffer(int i);
 void pe_vk_command_init();
 void pe_vk_commands_pool_init();

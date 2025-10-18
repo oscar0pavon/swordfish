@@ -36,34 +36,34 @@ typedef struct PUniformBufferObject {
   vec4 light_position;
 } PUniformBufferObject;
 
-Camera main_camera;
 
 int pe_vk_init();
 void pe_vk_end();
 
-VkInstance vk_instance;
-VkPhysicalDevice vk_physical_device;
-VkDevice vk_device;
-VkQueue vk_queue;
+static VkInstance vk_instance;
+static VkPhysicalDevice vk_physical_device;
+static VkDevice vk_device;
+static VkQueue vk_queue;
 
-VkSurfaceKHR vk_surface;
-
-
-VkRenderPass pe_vk_render_pass;
-
-VkSampleCountFlagBits pe_vk_msaa_samples;
-
-uint32_t q_graphic_family;
-uint32_t q_present_family;
+static VkSurfaceKHR vk_surface;
 
 
-bool pe_vk_validation_layer_enable;
+static VkRenderPass pe_vk_render_pass;
 
-bool pe_vk_initialized;
+static VkSampleCountFlagBits pe_vk_msaa_samples;
 
-VkImage pe_vk_color_image;
-VkDeviceMemory pe_vk_color_memory;
-VkImageView pe_vk_color_image_view;
+static uint32_t q_graphic_family;
+static uint32_t q_present_family;
 
+
+static bool pe_vk_validation_layer_enable;
+
+static bool pe_vk_initialized;
+
+static VkImage pe_vk_color_image;
+static VkDeviceMemory pe_vk_color_memory;
+static VkImageView pe_vk_color_image_view;
+
+static Camera main_camera;
 
 #endif

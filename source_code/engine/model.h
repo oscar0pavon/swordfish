@@ -59,13 +59,13 @@ typedef struct DrawData{
     u32 index;
 }DrawData;
 
-PModel* test_model;
-PModel* test_model2;
+static PModel* test_model;
+static PModel* test_model2;
+static int pe_data_loader_models_loaded_count;
 
 PModel* pe_vk_model_load(char* path);
 
 int pe_loader_model(const char* path);
 
-int pe_data_loader_models_loaded_count;
 
 #endif // !MODEL_H
