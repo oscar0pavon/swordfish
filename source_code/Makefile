@@ -1,11 +1,17 @@
 
 CLINKS := -lX11 -lpthread -lm -lvulkan
 
-
 CFLAGS := -g
 
+CFLAGS_ENGINE := $(CFLAGS) -I/root/swordfish/source_code
 
-OBJS := input.o window.o
+vulkan_src := $(wildcard ./renderer/*.c)
+vulkan_objs := $(vulkan_src:%.c=%.o)
+
+engine_src := $(wildcard ./engine/*.c)
+engine_objs := $(engine_src:%.c=%.o)
+
+OBJS := input.o window.o $(vulkan_objs) $(engine_objs)
 
 
 swordfish: main.c $(OBJS)
@@ -17,6 +23,11 @@ window.o: window.c
 input.o: input.c
 	cc $(CFLAGS) -c $<
 
+./engine/%.o: ./engine/%.c
+	cc $(CFLAGS_ENGINE) -c $< -o $@
+
+./renderer/%.o: ./renderer/%.c
+	cc $(CFLAGS_ENGINE) -c $< -o $@
 
 clean:
 	rm -f ../swordfish

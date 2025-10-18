@@ -8,8 +8,6 @@
 
 
 
-#define WINDOW_WIDTH 1240
-#define WINDOW_HEIGHT 720
 
 Display* display;
 XEvent window_event;
