@@ -1,7 +1,22 @@
 
+CLINKS := -lX11 -lpthread -lm
 
-swordfish: main.c
-	cc main.c -o ../swordfish
+
+CFLAGS := -g
+
+
+OBJS := input.o window.o
+
+
+swordfish: main.c $(OBJS)
+	cc $(CFLAGS) main.c $(OBJS) -o ../swordfish $(CLINKS)
+
+window.o: window.c
+	cc $(CFLAGS) -c $<
+
+input.o: input.c
+	cc $(CFLAGS) -c $<
+
 
 clean:
 	rm -f ../swordfish
