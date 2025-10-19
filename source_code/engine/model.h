@@ -7,7 +7,7 @@
 
 #include "array.h"
 
-#include "../renderer/cglm//vec3.h"
+#include "../renderer/cglm/vec3.h"
 
 
 #include <vulkan/vulkan_core.h>
@@ -63,9 +63,9 @@ static PModel* test_model;
 static PModel* test_model2;
 static int pe_data_loader_models_loaded_count;
 
-PModel* pe_vk_model_load(char* path);
+PModel* pe_vk_model_load(PModel* model, char* path);
 
-int pe_loader_model(const char* path);
 
+int pe_load_model(PModel* model, const char *path);
 
 #endif // !MODEL_H

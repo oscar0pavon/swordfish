@@ -154,7 +154,7 @@ void pe_vk_descriptor_update(PModel *model) {
     des_write[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     des_write[1].descriptorCount = 1;
     des_write[1].pImageInfo = &image_info;
-    vkUpdateDescriptorSets(vk_device, 2, des_write, 0, NULL);
+    vkUpdateDescriptorSets(vk_device, 1, des_write, 0, NULL);//TODO 1 mean no images
   }
 }
 
@@ -165,7 +165,8 @@ void pe_vk_create_descriptor_sets(PModel *model) {
   ZERO(layouts);
 
   for (int i = 0; i < 4; i++) {
-    layouts[i] = pe_vk_descriptor_set_layout_with_texture;
+    //layouts[i] = pe_vk_descriptor_set_layout_with_texture;
+    layouts[i] = pe_vk_descriptor_set_layout;
   }
 
   array_init(&model->descriptor_sets, sizeof(VkDescriptorSet), 4);

@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 
+#include "engine/model.h"
 #include "input.h"
 #include "renderer/vulkan.h"
 #include "window.h"
@@ -12,6 +13,13 @@
 #include <engine/memory.h>
 
 #include "renderer/draw.h"
+
+#include "swordfish.h"
+
+#include "renderer/uniform_buffer.h"
+#include "renderer/descriptor_set.h"
+
+PModel main_cube;
 
 int main(){
 
@@ -22,6 +30,14 @@ int main(){
 
   
   pe_vk_init();
+
+
+
+  pe_load_model(&main_cube, "models/wireframe_cube.glb");
+
+  pe_vk_create_uniform_buffers(&main_cube);
+  pe_vk_descriptor_pool_create(&main_cube);
+  pe_vk_create_descriptor_sets(&main_cube);
 
   pthread_t thread_id;
 

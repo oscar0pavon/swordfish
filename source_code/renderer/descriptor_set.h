@@ -1,3 +1,6 @@
+#ifndef DESCRIPTOR_SET_H
+#define DESCRIPTOR_SET_H
+
 #include <engine/array.h>
 #include <engine/macros.h>
 #include <vulkan/vulkan.h>
@@ -19,3 +22,5 @@ void pe_vk_create_descriptor_sets(PModel *model);
 void pe_vk_create_descriptor_set_layout();
 void pe_vk_create_descriptor_set_layout_with_texture();
 void pe_vk_create_descriptor_set_layout_skinned();
+
+#endif
