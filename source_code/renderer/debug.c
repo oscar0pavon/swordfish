@@ -3,7 +3,7 @@
 #include <engine/log.h>
 
 VkDebugUtilsMessengerEXT debug_messenger;
-VkDebugUtilsMessengerCreateInfoEXT g_messenger_info;
+VkDebugUtilsMessengerCreateInfoEXT debug_message_info;
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL
 pe_vk_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
@@ -61,23 +61,27 @@ void pe_vk_populate_messenger_debug_info(
 
   info_messeger->sType =
       VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+
   // info_messeger->messageSeverity =
   // VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
   //												VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
   //|
   //VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+
   info_messeger->messageSeverity =
       VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+
   info_messeger->messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
                                VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
                                VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+
   info_messeger->pfnUserCallback = &pe_vk_debug_callback;
   info_messeger->pUserData = NULL;
 }
 
 void pe_vk_setup_debug_messenger() {
 
-  pe_vk_create_debug_messeger(vk_instance, &g_messenger_info, NULL,
+  pe_vk_create_debug_messeger(vk_instance, &debug_message_info, NULL,
                               &debug_messenger);
 }
 
