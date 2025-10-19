@@ -57,7 +57,7 @@ int main(){
 
   pthread_t thread_id;
 
-  //pthread_create(&thread_id,NULL,handle_input, NULL);//TODO to much CPU usage
+  pthread_create(&thread_id,NULL,handle_input, NULL);//TODO to much CPU usage
 
 
   while (swordfish_running) {

@@ -164,16 +164,17 @@ void pe_vk_draw_frame() {
 
   VkSwapchainKHR swap_chains[] = {pe_vk_swap_chain};
 
-  VkSubmitInfo submit_info;
-  ZERO(submit_info);
-  submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-  submit_info.waitSemaphoreCount = 1;
-  submit_info.pWaitSemaphores = wait_semaphores;
-  submit_info.pWaitDstStageMask = wait_stages;
-  submit_info.commandBufferCount = 1;
-  submit_info.pCommandBuffers = cmd_buffer;
-  submit_info.signalSemaphoreCount = 1;
-  submit_info.pSignalSemaphores = singal_semaphore;
+  VkSubmitInfo submit_info =
+      {
+          .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+          .waitSemaphoreCount = 1,
+          .pWaitSemaphores = wait_semaphores,
+          .pWaitDstStageMask = wait_stages,
+          .commandBufferCount = 1,
+          .pCommandBuffers = cmd_buffer,
+          .signalSemaphoreCount = 1,
+          .pSignalSemaphores = singal_semaphore
+      };
 
   vkQueueSubmit(vk_queue, 1, &submit_info, pe_vk_fence_in_flight);
 

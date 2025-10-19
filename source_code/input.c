@@ -9,7 +9,8 @@ void* handle_input(void* none){
 
     start_input_time();
 
-    if (XPending(display)) {
+    //if (XPending(display)) {
+    if (1) {
 
       XNextEvent(display, &window_event);
 

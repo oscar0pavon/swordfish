@@ -13,6 +13,8 @@ PUniformBufferObject ubo;
 
 PBufferCreateInfo buffer_color;
 
+static PUniformBufferObject cube_ubo;
+
 void pe_vk_ubo_init() {
   ZERO(ubo);
   glm_mat4_identity(ubo.projection);
@@ -61,6 +63,9 @@ void pe_vk_create_uniform_buffers(PModel *model) {
     array_add(&model->uniform_buffers_memory, &info.buffer_memory);
   }
 
+  glm_mat4_copy(model->model_mat,cube_ubo.model);
+  glm_mat4_copy(main_camera.projection, cube_ubo.projection);
+  glm_mat4_copy(main_camera.view, cube_ubo.view);
   // buffer_color = pe_vk_uniform_buffer_create_buffer(sizeof(PEColorShader));
 }
 
@@ -72,26 +77,22 @@ void pe_vk_memory_copy(size_t size, VkDeviceMemory *memory, void *in_data) {
   vkUnmapMemory(vk_device, *(memory));
 }
 
-
+//INFO this where you update the position of the model or camera
 void pe_vk_uniform_buffer_update_two(PModel* model, uint32_t image_index) {
 
-  PUniformBufferObject pawn_ubo;
 
-  ZERO(pawn_ubo);
 
 
 
   //glm_mat4_identity(pawn_ubo.model);
 
   glm_rotate(model->model_mat, -0.0001f, VEC3(0, 0, 1));
-  glm_mat4_copy(model->model_mat,pawn_ubo.model);
+  glm_mat4_copy(model->model_mat,cube_ubo.model);
   //glm_translate(pawn_ubo.model, VEC3(0, 5, 0));
-  glm_mat4_copy(main_camera.projection, pawn_ubo.projection);
-  glm_mat4_copy(main_camera.view, pawn_ubo.view);
 
-  pawn_ubo.projection[1][1] *= -1;
+  //pawn_ubo.projection[1][1] *= -1;
 
-  PUniformBufferObject buffers[] = {pawn_ubo};
+  PUniformBufferObject buffers[] = {cube_ubo};
 
   VkDeviceMemory *memory =
       array_get(&model->uniform_buffers_memory, image_index);
