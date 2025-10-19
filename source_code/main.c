@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 
+#include "engine/camera.h"
 #include "engine/model.h"
 #include "input.h"
 #include "renderer/vulkan.h"
@@ -19,7 +20,11 @@
 #include "renderer/uniform_buffer.h"
 #include "renderer/descriptor_set.h"
 
+#include <engine/utils.h>
+
 PModel main_cube;
+
+Camera main_camera;
 
 int main(){
 
@@ -28,12 +33,17 @@ int main(){
 
   create_window();
 
+  camera_init(&main_camera);
   
+  init_vec3(-10, 0, 3, main_camera.position);
+
+  camera_update(&main_camera);
+
   pe_vk_init();
 
 
 
-  pe_load_model(&main_cube, "models/wireframe_cube.glb");
+  pe_vk_model_load(&main_cube, "models/wireframe_cube.glb");
 
   pe_vk_create_uniform_buffers(&main_cube);
   pe_vk_descriptor_pool_create(&main_cube);

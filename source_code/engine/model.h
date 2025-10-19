@@ -59,8 +59,6 @@ typedef struct DrawData{
     u32 index;
 }DrawData;
 
-static PModel* test_model;
-static PModel* test_model2;
 static int pe_data_loader_models_loaded_count;
 
 PModel* pe_vk_model_load(PModel* model, char* path);

@@ -44,7 +44,6 @@ VkImage pe_vk_color_image;
 VkDeviceMemory pe_vk_color_memory;
 VkImageView pe_vk_color_image_view;
 
-Camera main_camera;
 
 VkPhysicalDevice vk_physical_device;
 

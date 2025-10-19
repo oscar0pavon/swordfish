@@ -3,6 +3,7 @@
 #include "descriptor_set.h"
 #include "pipeline.h"
 #include "swap_chain.h"
+#include "swordfish.h"
 #include "sync.h"
 #include "uniform_buffer.h"
 #include "vk_vertex.h"
@@ -36,7 +37,7 @@ void pe_vk_draw_model(int i, PModel *model) {
 
 void pe_vk_draw_simple_model(int i) {
 
-  pe_vk_draw_model(i, test_model);
+  //pe_vk_draw_model(i, test_model);
   // LOG("drawing model");
   // pe_vk_draw_model(i,test_model2);
 }
@@ -65,6 +66,7 @@ void pe_vk_draw_commands(VkCommandBuffer *cmd_buffer, uint32_t index) {
   VkDescriptorSet *set = NULL;
 
   //TODO draw objets here
+
 
   // VkPipeline* triangle_pipeline = array_get(&pe_graphics_pipelines, 1);
   //
@@ -96,7 +98,6 @@ void pe_vk_draw_commands(VkCommandBuffer *cmd_buffer, uint32_t index) {
 
 
 
- // VkPipeline *uniform = array_get(&pe_graphics_pipelines, 1);
 
 
 
@@ -120,19 +121,21 @@ void pe_vk_draw_commands(VkCommandBuffer *cmd_buffer, uint32_t index) {
   // ############### with descriptor set ########################
 
   //
-  // pe_vk_uniform_buffer_update_two(index);
-  // set = array_get(&test_model2->descriptor_sets, index);
-  //
-  // vkCmdBindDescriptorSets(*(cmd_buffer), VK_PIPELINE_BIND_POINT_GRAPHICS,
-  //                         pe_vk_pipeline_layout_with_descriptors, 0, 1, set, 0,
-  //                         NULL);
-  // vkCmdBindPipeline(*(cmd_buffer), VK_PIPELINE_BIND_POINT_GRAPHICS, *(uniform));
-  //
-  // vkCmdBindVertexBuffers(*(cmd_buffer), 0, 1, &test_model2->vertex_buffer,
-  //                        offsets);
-  // vkCmdBindIndexBuffer(*(cmd_buffer), test_model2->index_buffer, 0,
-  //                      VK_INDEX_TYPE_UINT16);
-  // vkCmdDrawIndexed(*(cmd_buffer), test_model2->index_array.count, 1, 0, 0, 0);
+  
+  VkPipeline *uniform = array_get(&pe_graphics_pipelines, 0);
+  pe_vk_uniform_buffer_update_two(&main_cube, index);
+  set = array_get(&main_cube.descriptor_sets, index);
+
+  vkCmdBindDescriptorSets(*(cmd_buffer), VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          pe_vk_pipeline_layout_with_descriptors, 0, 1, set, 0,
+                          NULL);
+  vkCmdBindPipeline(*(cmd_buffer), VK_PIPELINE_BIND_POINT_GRAPHICS, *(uniform));
+
+  vkCmdBindVertexBuffers(*(cmd_buffer), 0, 1, &main_cube.vertex_buffer,
+                         offsets);
+  vkCmdBindIndexBuffer(*(cmd_buffer), main_cube.index_buffer, 0,
+                       VK_INDEX_TYPE_UINT16);
+  vkCmdDrawIndexed(*(cmd_buffer), main_cube.index_array.count, 1, 0, 0, 0);
 
   //############################################################################3
   // vkCmdDraw(*(cmd_buffer), test_model2->vertex_array.count, 1, 0, 0);

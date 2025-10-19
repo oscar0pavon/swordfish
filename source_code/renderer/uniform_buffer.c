@@ -3,6 +3,7 @@
 #include "cglm/types.h"
 #include "cglm/vec4.h"
 
+#include "engine/model.h"
 #include "vk_buffer.h"
 
 #include <vulkan/vulkan_core.h>
@@ -72,7 +73,7 @@ void pe_vk_memory_copy(size_t size, VkDeviceMemory *memory, void *in_data) {
 }
 
 
-void pe_vk_uniform_buffer_update_two(uint32_t image_index) {
+void pe_vk_uniform_buffer_update_two(PModel* model, uint32_t image_index) {
 
   PUniformBufferObject pawn_ubo;
 
@@ -90,11 +91,11 @@ void pe_vk_uniform_buffer_update_two(uint32_t image_index) {
   PUniformBufferObject buffers[] = {pawn_ubo};
 
   VkDeviceMemory *memory =
-      array_get(&test_model2->uniform_buffers_memory, image_index);
+      array_get(&model->uniform_buffers_memory, image_index);
 
   pe_vk_memory_copy(sizeof(buffers), memory, buffers);
 }
-void pe_vk_uniform_buffer_update_one(uint32_t image_index) {
+void pe_vk_uniform_buffer_update_one(PModel* model, uint32_t image_index) {
 
   PUniformBufferObject pawn_ubo;
 
@@ -114,7 +115,7 @@ void pe_vk_uniform_buffer_update_one(uint32_t image_index) {
   PUniformBufferObject buffers[] = {pawn_ubo};
 
   VkDeviceMemory *memory =
-      array_get(&test_model->uniform_buffers_memory, image_index);
+      array_get(&model->uniform_buffers_memory, image_index);
 
   pe_vk_memory_copy(sizeof(buffers), memory, buffers);
 }

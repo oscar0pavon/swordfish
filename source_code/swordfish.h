@@ -5,5 +5,6 @@
 
 extern PModel main_cube;
 
+extern Camera main_camera;
 
 #endif

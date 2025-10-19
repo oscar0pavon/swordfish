@@ -117,7 +117,8 @@ void pe_vk_create_descriptor_set_layout() {
                                       &pe_vk_descriptor_set_layout),
           "Can't create Descriptor Set Layout");
 }
-
+//INFO 
+//here is where you send uniform buffer with MVP matrix and send the texture
 void pe_vk_descriptor_update(PModel *model) {
 
   for (int i = 0; i < 4; i++) {
