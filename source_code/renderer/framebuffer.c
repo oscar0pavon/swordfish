@@ -7,6 +7,8 @@
 
 #include "vk_images.h"
 
+Array pe_vk_framebuffers;
+
 void pe_vk_framebuffer_create() {
 
   array_init(&pe_vk_framebuffers, sizeof(VkFramebuffer),

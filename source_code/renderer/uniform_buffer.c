@@ -10,6 +10,8 @@
 
 PUniformBufferObject ubo;
 
+PBufferCreateInfo buffer_color;
+
 void pe_vk_ubo_init() {
   ZERO(ubo);
   glm_mat4_identity(ubo.projection);

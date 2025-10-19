@@ -6,12 +6,12 @@
 
 void pe_vk_swch_create();
 
-static VkSwapchainKHR pe_vk_swap_chain;
+extern VkSwapchainKHR pe_vk_swap_chain;
 
-static VkFormat pe_vk_swch_format;
-static VkExtent2D pe_vk_swch_extent;
+extern VkFormat pe_vk_swch_format;
+extern VkExtent2D pe_vk_swch_extent;
 
 
-static VkImage pe_vk_swch_images[4];
+extern VkImage pe_vk_swch_images[4];
 
 #endif

@@ -9,6 +9,11 @@
 #include "vulkan.h"
 #include <vulkan/vulkan_core.h>
 
+VkPipeline pe_vk_pipeline;
+
+Array pe_vk_pipeline_infos;
+Array pe_graphics_pipelines;
+
 VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT,
                                   VK_DYNAMIC_STATE_SCISSOR};
 

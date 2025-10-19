@@ -8,6 +8,8 @@
 
 #define PE_IMAGES_VIEWS_COUNT 4
 
+Array pe_vk_images_views;
+
 VkImageView pe_vk_create_image_view(VkImage image, VkFormat format,
                                     VkImageAspectFlags aspect_flags,
                                     uint32_t mip_level) {

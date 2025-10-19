@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <engine/array.h>
 
-static Array pe_vk_images_views;
+extern Array pe_vk_images_views;
 
 
 void pe_vk_create_images_views();

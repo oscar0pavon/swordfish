@@ -9,6 +9,8 @@
 #include <engine/log.h>
 #include "swap_chain.h"
 
+#include "framebuffer.h"
+
 void pe_vk_create_render_pass() {
 
   VkAttachmentDescription color_attachment;

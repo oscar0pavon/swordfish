@@ -3,10 +3,10 @@
 
 #define PE_VK_PIPELINES_MAX 50
 
-static VkPipeline pe_vk_pipeline;
+extern VkPipeline pe_vk_pipeline;
 
-static Array pe_vk_pipeline_infos;
-static Array pe_graphics_pipelines;
+extern Array pe_vk_pipeline_infos;
+extern Array pe_graphics_pipelines;
 
 
 void pe_vk_pipelines_init();

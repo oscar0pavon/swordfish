@@ -1,9 +1,9 @@
 #ifndef PEVULKAN_H
 #define PEVULKAN_H
 
-#include <vulkan/vulkan_core.h>
-
+#define VK_USE_PLATFORM_XLIB_KHR // Must be defined before including vulkan.h
 #include <vulkan/vulkan.h>
+
 #include <engine/array.h>
 #include <engine/macros.h>
 
@@ -40,30 +40,33 @@ typedef struct PUniformBufferObject {
 int pe_vk_init();
 void pe_vk_end();
 
-static VkInstance vk_instance;
-static VkPhysicalDevice vk_physical_device;
-static VkDevice vk_device;
-static VkQueue vk_queue;
-
-static VkSurfaceKHR vk_surface;
+  
+extern VkPhysicalDevice vk_physical_device;
 
 
-static VkRenderPass pe_vk_render_pass;
+extern VkInstance vk_instance;
+extern VkDevice vk_device;
+extern VkQueue vk_queue;
 
-static VkSampleCountFlagBits pe_vk_msaa_samples;
-
-static uint32_t q_graphic_family;
-static uint32_t q_present_family;
+extern VkSurfaceKHR vk_surface;
 
 
-static bool pe_vk_validation_layer_enable;
+extern VkRenderPass pe_vk_render_pass;
 
-static bool pe_vk_initialized;
+extern VkSampleCountFlagBits pe_vk_msaa_samples;
 
-static VkImage pe_vk_color_image;
-static VkDeviceMemory pe_vk_color_memory;
-static VkImageView pe_vk_color_image_view;
+extern uint32_t q_graphic_family;
+extern uint32_t q_present_family;
 
-static Camera main_camera;
+
+extern bool pe_vk_validation_layer_enable;
+
+extern bool pe_vk_initialized;
+
+extern VkImage pe_vk_color_image;
+extern VkDeviceMemory pe_vk_color_memory;
+extern VkImageView pe_vk_color_image_view;
+
+extern Camera main_camera;
 
 #endif

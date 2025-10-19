@@ -15,7 +15,7 @@ OBJS := input.o window.o $(vulkan_objs) $(engine_objs)
 
 
 swordfish: main.c $(OBJS)
-	cc $(CFLAGS) main.c $(OBJS) -o ../swordfish $(CLINKS)
+	cc $(CFLAGS_ENGINE) main.c $(OBJS) -o ../swordfish $(CLINKS)
 
 window.o: window.c
 	cc $(CFLAGS) -c $<

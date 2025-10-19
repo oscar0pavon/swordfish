@@ -17,17 +17,17 @@ typedef struct PImageCreateInfo {
   VkSampleCountFlagBits number_of_samples;
 } PImageCreateInfo;
 
-static VkImage pe_vk_texture_image;
-static VkImageView pe_vk_texture_image_view;
-static VkSampler pe_vk_texture_sampler;
 
-static VkImage pe_vk_depth_image;
-static VkDeviceMemory pe_vk_depth_image_memory;
-static VkImageView pe_vk_depth_image_view;
+extern VkImage pe_vk_texture_image;
+extern VkImageView pe_vk_texture_image_view;
+extern VkSampler pe_vk_texture_sampler;
+extern VkImage pe_vk_depth_image;
+extern VkDeviceMemory pe_vk_depth_image_memory;
+extern VkImageView pe_vk_depth_image_view;
 
-static VkDeviceMemory pe_vk_texture_image_memory;
+extern VkDeviceMemory pe_vk_texture_image_memory;
 
-static uint32_t pe_vk_mip_levels;
+extern uint32_t pe_vk_mip_levels;
 
 void pe_vk_create_texture_image();
 

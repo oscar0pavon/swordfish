@@ -4,9 +4,9 @@
 #include <vulkan/vulkan.h>
 
 
-static VkSemaphore pe_vk_semaphore_images_available;
-static VkSemaphore pe_vk_semaphore_render_finished;
-static VkFence pe_vk_fence_in_flight;
+extern VkSemaphore pe_vk_semaphore_images_available;
+extern VkSemaphore pe_vk_semaphore_render_finished;
+extern VkFence pe_vk_fence_in_flight;
 
 void pe_vk_semaphores_create();
 

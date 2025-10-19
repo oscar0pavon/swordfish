@@ -5,6 +5,14 @@
 
 #include <vulkan/vulkan_core.h>
 
+VkPipelineLayout pe_vk_pipeline_layout;
+VkPipelineLayout pe_vk_pipeline_layout_with_descriptors;
+VkPipelineLayout pe_vk_pipeline_layout_skinned;
+
+VkDescriptorSetLayout pe_vk_descriptor_set_layout;
+VkDescriptorSetLayout pe_vk_descriptor_set_layout_with_texture;
+VkDescriptorSetLayout pe_vk_descriptor_set_layout_skinned;
+
 void pe_vk_descriptor_pool_create(PModel *model) {
   VkDescriptorPoolSize pool_size[3];
   ZERO(pool_size);

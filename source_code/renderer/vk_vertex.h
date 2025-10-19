@@ -21,7 +21,7 @@ VkBuffer pe_vk_vertex_create_index_buffer(Array* indices);
 
 void pe_vk_models_create();
 
-static VkBuffer vertex_buffer;
-static VkBuffer index_buffer;
+extern VkBuffer vertex_buffer;
+extern VkBuffer index_buffer;
 
 

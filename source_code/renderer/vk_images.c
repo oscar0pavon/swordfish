@@ -17,6 +17,16 @@
 #include <wchar.h>
 #include <wctype.h>
 
+VkImage pe_vk_texture_image;
+VkImageView pe_vk_texture_image_view;
+VkSampler pe_vk_texture_sampler;
+VkImage pe_vk_depth_image;
+VkDeviceMemory pe_vk_depth_image_memory;
+VkImageView pe_vk_depth_image_view;
+
+VkDeviceMemory pe_vk_texture_image_memory;
+
+uint32_t pe_vk_mip_levels;
 
 void pe_vk_transition_image_layout(VkImage image, VkFormat format,
                                    VkImageLayout old_layout,

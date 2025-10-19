@@ -34,18 +34,17 @@ void free_stack_to_market(StackMemory* stack);
 
 void* allocate_stack_memory_alignmed(int bytes_size, int alignment);
 
-static int memory_used;
-static int memory_marker;
-static int previous_marker;
+extern int memory_used;
+extern int memory_marker;
+extern int previous_marker;
+extern int actual_free_memory;
 
-static int actual_free_memory;
-
-static void* engine_memory;
+extern void* engine_memory;
 
 
-static StackMemory vertex_memory;
-static StackMemory engine_stack_memory;
+extern StackMemory vertex_memory;
+extern StackMemory engine_stack_memory;
 
-static PoolMemory arrays_memory;
+extern PoolMemory arrays_memory;
 
 #endif

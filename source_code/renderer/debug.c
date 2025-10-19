@@ -3,6 +3,7 @@
 #include <engine/log.h>
 
 VkDebugUtilsMessengerEXT debug_messenger;
+VkDebugUtilsMessengerCreateInfoEXT g_messenger_info;
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL
 pe_vk_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
@@ -10,8 +11,8 @@ pe_vk_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
                      const VkDebugUtilsMessengerCallbackDataEXT *callback_data,
                      void *user_data) {
 
-  //LOG("Vulkan: %s\n", callback_data->pMessage);
-  char *message = callback_data->pMessage;
+  // LOG("Vulkan: %s\n", callback_data->pMessage);
+  const char *message = callback_data->pMessage;
   int char_count = 0;
   int char_position = 0;
   for (char_position = 0; message[char_position]; char_position++) {
@@ -63,7 +64,8 @@ void pe_vk_populate_messenger_debug_info(
   // info_messeger->messageSeverity =
   // VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
   //												VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
-  //| 												VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+  //|
+  //VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
   info_messeger->messageSeverity =
       VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
   info_messeger->messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
@@ -80,5 +82,5 @@ void pe_vk_setup_debug_messenger() {
 }
 
 void pe_vk_debug_end() {
-  //pe_vk_destroy_debug_utils(vk_instance, debug_messenger, NULL);
+  // pe_vk_destroy_debug_utils(vk_instance, debug_messenger, NULL);
 }

@@ -1,4 +1,9 @@
 #include "vulkan.h"
+
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
 #include "commands.h"
 #include "debug.h"
 #include "descriptor_set.h"
@@ -6,24 +11,49 @@
 #include "images_view.h"
 #include "pipeline.h"
 #include "render_pass.h"
+#include "shader_module.h"
+#include "swap_chain.h"
 #include "sync.h"
+#include "uniform_buffer.h"
 #include "vk_images.h"
 #include "vk_vertex.h"
 #include <engine/log.h>
 #include <engine/macros.h>
-#include "descriptor_set.h"
-#include "shader_module.h"
-#include "swap_chain.h"
-#include "uniform_buffer.h"
-#include <stdint.h>
-#include <string.h>
-#include <vulkan/vulkan.h>
-#include <vulkan/vulkan_core.h>
+
+#include "../window.h"
+
+VkInstance vk_instance;
+VkDevice vk_device;
+VkQueue vk_queue;
+
+VkSurfaceKHR vk_surface;
+
+
+VkRenderPass pe_vk_render_pass;
+
+VkSampleCountFlagBits pe_vk_msaa_samples;
+
+uint32_t q_graphic_family;
+uint32_t q_present_family;
+
+
+bool pe_vk_validation_layer_enable;
+
+bool pe_vk_initialized;
+
+VkImage pe_vk_color_image;
+VkDeviceMemory pe_vk_color_memory;
+VkImageView pe_vk_color_image_view;
+
+Camera main_camera;
+
+VkPhysicalDevice vk_physical_device;
 
 const char *validation_layers[] = {"VK_LAYER_KHRONOS_validation"};
 
-const char *instance_extension[] = {"VK_KHR_surface", "VK_KHR_xcb_surface",
-                                    VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
+const char *instance_extensions_names[] = {VK_KHR_SURFACE_EXTENSION_NAME,
+                                           VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
+                                           VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
 
 const char *devices_extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
@@ -103,21 +133,22 @@ void pe_vk_create_instance() {
     //	LOG("%s\n",layers_properties[i].layerName);
   }
 
-  VkApplicationInfo app_info;
-  app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-  app_info.apiVersion = VK_API_VERSION_1_0;
-  app_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-  app_info.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-  app_info.pApplicationName = "PavonVKRender";
-  app_info.pNext = NULL;
-  app_info.pEngineName = "PavonEngine";
+  VkApplicationInfo app_info = {
+      .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+      .pApplicationName = "swordfish",
+      .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
+      .pEngineName = "swordfish_engine",
+      .engineVersion = VK_MAKE_VERSION(1, 0, 0),
+      .apiVersion = VK_API_VERSION_1_0,
+  };
 
-  VkInstanceCreateInfo instance_info;
-  ZERO(instance_info);
-  instance_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-  instance_info.pApplicationInfo = &app_info;
-  instance_info.enabledExtensionCount = 3;
-  instance_info.ppEnabledExtensionNames = instance_extension;
+  VkInstanceCreateInfo instance_info = {
+      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+      .pApplicationInfo = &app_info,
+      .enabledExtensionCount = sizeof(instance_extensions_names) /
+                               sizeof(instance_extensions_names[0]),
+      .ppEnabledExtensionNames = instance_extensions_names,
+  };
 
   if (pe_vk_validation_layer_enable == true) {
 
@@ -134,8 +165,6 @@ void pe_vk_create_instance() {
 
   VKVALID(vkCreateInstance(&instance_info, NULL, &vk_instance),
           "Can't create vk instance");
-  //  VkResult r = vkCreateInstance(&instance_info, NULL, &vk_instance);
-  // LOG("ERROR enum = %i", r);
 
   if (pe_vk_validation_layer_enable == true) {
     pe_vk_setup_debug_messenger();
@@ -147,36 +176,38 @@ void pe_vk_get_physical_device() {
   // Physical devices
   //****************
   uint32_t devices_count = 0;
+
   vkEnumeratePhysicalDevices(vk_instance, &devices_count, NULL);
+
   if (devices_count == 0)
     LOG("Not devices compatibles\n");
-  VkPhysicalDevice phy_devices[devices_count];
-  vkEnumeratePhysicalDevices(vk_instance, &devices_count, phy_devices);
-  vk_physical_device = phy_devices[0];
+  else
+    printf("Devices count %i\n",devices_count);
+   
+
+  VkPhysicalDevice devices[devices_count];
+  vkEnumeratePhysicalDevices(vk_instance, &devices_count, devices);
+
+  vk_physical_device = devices[1];
+  if(vk_physical_device == NULL){
+    printf("Can't asssig device\n");
+  }
+  printf("Device: %p\n",vk_physical_device);
 }
 
 void pe_vk_create_surface() {
-#ifdef ANDROID
-  VkAndroidSurfaceCreateInfoKHR surface_info;
-  ZERO(surface_info);
-  surface_info.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
-  surface_info.pNext = NULL;
-  surface_info.flags = 0;
-  surface_info.window = game->app->window;
-  if (game->app->window == NULL) {
-    LOG("Window null");
+
+  VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {
+      .sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
+      .dpy = display,
+      .window = swordfish_window,
+  };
+
+  if (vkCreateXlibSurfaceKHR(vk_instance, &surfaceCreateInfo, NULL,
+                             &vk_surface) != VK_SUCCESS) {
+    fprintf(stderr, "Failed to create Vulkan Xlib surface!\n");
+    exit(1);
   }
-  VKVALID(
-      vkCreateAndroidSurfaceKHR(vk_instance, &surface_info, NULL, &vk_surface),
-      "Surface Error");
-#endif
-#if DESKTOP
-  
-  //TODO: implement with Xlib
-  // VKVALID(glfwCreateWindowSurface(vk_instance, current_window->window, NULL,
-  //                                 &vk_surface),
-  //         "Can't create window surface");
-#endif
 }
 
 void pe_vk_create_color_resources() {
@@ -255,7 +286,7 @@ int pe_vk_init() {
 
   pe_vk_create_texture_image();
 
-  pe_vk_models_create();
+  //pe_vk_models_create();
 
   LOG("Vulkan intialize [OK]\n");
   return 0;

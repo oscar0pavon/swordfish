@@ -12,6 +12,8 @@
 #include "descriptor_set.h"
 #include "uniform_buffer.h"
 
+VkBuffer vertex_buffer;
+VkBuffer index_buffer;
 
 VkVertexInputBindingDescription pe_vk_vertex_get_binding_description() {
   VkVertexInputBindingDescription binding;

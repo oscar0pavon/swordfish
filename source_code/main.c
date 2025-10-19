@@ -6,14 +6,20 @@
 
 
 #include "input.h"
+#include "renderer/vulkan.h"
 #include "window.h"
 
-
+#include <engine/memory.h>
 
 int main(){
- 
+
+  pe_init_memory();
+  
 
   create_window();
+
+  
+  pe_vk_init();
 
   pthread_t thread_id;
 
@@ -28,7 +34,10 @@ int main(){
 
   }
 
+
   close_window();  
+
+  clear_engine_memory();
 
 
 

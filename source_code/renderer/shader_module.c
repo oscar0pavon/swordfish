@@ -3,6 +3,8 @@
 #include "shader_module.h"
 #include <engine/log.h>
 
+VkPipelineShaderStageCreateInfo pe_vk_shaders_stages_infos[2];
+
 VkShaderModule pe_vk_shader_module_create(File *file) {
   VkShaderModuleCreateInfo info;
   ZERO(info);
