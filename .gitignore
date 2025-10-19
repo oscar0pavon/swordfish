@@ -3,3 +3,4 @@ swordfish
 compile_commands.json
 .cache
 *.spv #built shaders
+shaders/
