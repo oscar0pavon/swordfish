@@ -49,25 +49,27 @@ int main(){
 
   pe_vk_model_load(&main_cube, "models/wireframe_cube.glb");
 
+  glm_mat4_identity(main_cube.model_mat);
+
   pe_vk_create_uniform_buffers(&main_cube);
   pe_vk_descriptor_pool_create(&main_cube);
   pe_vk_create_descriptor_sets(&main_cube);
 
   pthread_t thread_id;
 
-  pthread_create(&thread_id,NULL,handle_input, NULL);
+  //pthread_create(&thread_id,NULL,handle_input, NULL);//TODO to much CPU usage
 
 
   while (swordfish_running) {
-    start_frame_timer(); 
+
+    start_render_time();
    //draw cube 
    // printf("Compiling..\n");
     //sleep(1);
 
     pe_vk_draw_frame();
 
-    delay_for_frame();
-
+    delay_render_time();
   }
 
 

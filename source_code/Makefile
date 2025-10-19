@@ -18,10 +18,10 @@ swordfish: main.c $(OBJS) shaders
 	cc $(CFLAGS_ENGINE) main.c $(OBJS) -o ../swordfish $(CLINKS)
 
 window.o: window.c
-	cc $(CFLAGS) -c $<
+	cc $(CFLAGS_ENGINE) -c $<
 
 input.o: input.c
-	cc $(CFLAGS) -c $<
+	cc $(CFLAGS_ENGINE) -c $<
 
 ./engine/%.o: ./engine/%.c
 	cc $(CFLAGS_ENGINE) -o $@ -c $<

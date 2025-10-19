@@ -1,10 +1,14 @@
 #include "input.h"
 
 #include "window.h"
+#include <engine/time.h>
 
 void* handle_input(void* none){
 
   while (swordfish_running) {
+
+    start_input_time();
+
     if (XPending(display)) {
 
       XNextEvent(display, &window_event);
@@ -44,5 +48,8 @@ void* handle_input(void* none){
       }
     }
   }
+
+  delay_input_time();
+
 }
 

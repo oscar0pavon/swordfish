@@ -2,8 +2,11 @@
 #define TIME_H
 
 
-void start_frame_timer();
 
-void delay_for_frame();
+void start_render_time();
+void delay_render_time();
+
+void start_input_time();
+void delay_input_time();
 
 #endif
