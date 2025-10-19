@@ -7,6 +7,7 @@
 #include <engine/log.h>
 #include <engine/macros.h>
 #include "vulkan.h"
+#include <stdbool.h>
 #include <vulkan/vulkan_core.h>
 
 VkPipeline pe_vk_pipeline;
@@ -254,58 +255,31 @@ void pe_vk_pipelines_init() {
 
       .subpass = 0};
 
-  VkPipelineShaderStageCreateInfo red_shader[2];
-  ZERO(red_shader);
-  pe_vk_shader_load(red_shader,
-                    "red_vert.spv",
-                    "red_vert.spv");
-  base_pipeline_info.pStages = red_shader;
-  array_add(&pe_vk_pipeline_infos, &base_pipeline_info);
-
-  // // red triangle
-  // VkPipelineShaderStageCreateInfo blue_shader[2];
-  // pe_vk_shader_load(blue_shader,
-  //                   file_vert_spv,
-  //                   file_frag_spv);
-  // base_pipeline_info.pStages = blue_shader;
-  // array_add(&pe_vk_pipeline_infos, &base_pipeline_info);
-  //
-  // // vertex buffer model
-  VkPipelineShaderStageCreateInfo in_position[2];
-   pe_vk_shader_load(in_position,
-                    "vert.spv",
-                    "frag.spv");
-
-  base_pipeline_info.pStages = in_position;
-  PPipelineInfo in_position_pipeline_info;
-  ZERO(in_position_pipeline_info);
-  in_position_pipeline_info.attributes.has_attributes = true;
-  in_position_pipeline_info.attributes.position = true;
-  in_position_pipeline_info.vertex_input_state =
-      pe_vk_pipeline_get_default_vertex_input(
-          &in_position_pipeline_info.attributes);
-  base_pipeline_info.pVertexInputState =
-      &in_position_pipeline_info.vertex_input_state;
-  array_add(&pe_vk_pipeline_infos, &base_pipeline_info);
 
   VkPipelineShaderStageCreateInfo uniform[2];
   pe_vk_shader_load(uniform,
-                    "file_diffuse_vert_spv",
-                    "file_diffuse_frag_spv");
-  base_pipeline_info.pStages = uniform;
-  PPipelineInfo uniform_pipeline_info;
-  ZERO(uniform_pipeline_info);
-  uniform_pipeline_info.attributes.has_attributes = true;
-  uniform_pipeline_info.attributes.position = true;
-  uniform_pipeline_info.attributes.color = true;
-  uniform_pipeline_info.attributes.normal = true;
-  uniform_pipeline_info.attributes.uv = true;
+                    "shaders/model_view_projection_vert.spv",
+                    "shaders/red_frag.spv");
+
+  base_pipeline_info.pStages = uniform; //here is where we assing the shader
+
+  PPipelineInfo uniform_pipeline_info = {
+    .attributes.has_attributes = true,
+    .attributes.position = true,
+    //.attributes.uv = true, :TODO add uv support
+    
+  };
+
   uniform_pipeline_info.vertex_input_state =
       pe_vk_pipeline_get_default_vertex_input(
           &uniform_pipeline_info.attributes);
+  
+
   base_pipeline_info.pVertexInputState =
       &uniform_pipeline_info.vertex_input_state;
+
   base_pipeline_info.layout = pe_vk_pipeline_layout_with_descriptors;
+
   array_add(&pe_vk_pipeline_infos, &base_pipeline_info);
 
 

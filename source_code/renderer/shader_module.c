@@ -1,6 +1,6 @@
+#include "shader_module.h"
 #include "vulkan.h"
 #include <engine/file_loader.h>
-#include "shader_module.h"
 #include <engine/log.h>
 
 VkPipelineShaderStageCreateInfo pe_vk_shaders_stages_infos[2];
@@ -18,14 +18,15 @@ VkShaderModule pe_vk_shader_module_create(File *file) {
   return module;
 }
 
-void pe_vk_shader_load(VkPipelineShaderStageCreateInfo* infos, const char *vert_path, const char* frag_path) {
+void pe_vk_shader_load(VkPipelineShaderStageCreateInfo *infos,
+                       const char *vert_path, const char *frag_path) {
   File new_file;
   ZERO(new_file);
   pe_file_openb(vert_path, &new_file);
 
   File new_file2;
   ZERO(new_file2);
-  pe_file_openb(frag_path,  &new_file2);
+  pe_file_openb(frag_path, &new_file2);
 
   VkShaderModule module1 = pe_vk_shader_module_create(&new_file);
   VkShaderModule module2 = pe_vk_shader_module_create(&new_file2);

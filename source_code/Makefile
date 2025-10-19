@@ -14,7 +14,7 @@ engine_objs := $(engine_src:%.c=%.o)
 OBJS := input.o window.o $(vulkan_objs) $(engine_objs)
 
 
-swordfish: main.c $(OBJS)
+swordfish: main.c $(OBJS) shaders
 	cc $(CFLAGS_ENGINE) main.c $(OBJS) -o ../swordfish $(CLINKS)
 
 window.o: window.c
@@ -29,9 +29,16 @@ input.o: input.c
 ./renderer/%.o: ./renderer/%.c
 	cc $(CFLAGS_ENGINE) -o $@ -c $<
 
+shaders: shaders/red.frag shaders/model_view_projection.vert
+	glslc shaders/red.frag -o ../shaders/red_frag.spv
+	glslc shaders/model_view_projection.vert -o ../shaders/model_view_projection_vert.spv
+
 clean:
 	rm -f ../swordfish
 	rm -f *.o
 	rm -f ./engine/*.o
 	rm -f ./renderer/*.o
+	rm -f ../shaders/*.spv
+
+.PHONY: shaders
 

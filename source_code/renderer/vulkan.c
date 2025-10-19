@@ -104,9 +104,6 @@ void pe_vk_create_instance() {
 
   } else {
     instance_info.enabledLayerCount = 0;
-    ZERO(debug_message_info);
-    pe_vk_populate_messenger_debug_info(&debug_message_info);
-    instance_info.pNext = &debug_message_info;
   }
 
   VKVALID(vkCreateInstance(&instance_info, NULL, &vk_instance),
