@@ -35,7 +35,7 @@ int main(){
 
   camera_init(&main_camera);
   
-  init_vec3(-10, 0, 3, main_camera.position);
+  init_vec3(-10, 0, 0, main_camera.position);
 
   camera_update(&main_camera);
 

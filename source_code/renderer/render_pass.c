@@ -107,27 +107,33 @@ void pe_vk_create_render_pass() {
 void pe_vk_start_render_pass(int i){
 
   VkFramebuffer *framebuffer = array_get(&pe_vk_framebuffers, i);
-  VkOffset2D offset = {0, 0};
-  VkClearValue clear_color = {0.5f, 0.0f, 1.0f, 1.0f};
+
   VkCommandBuffer *cmd_buffer = array_get(&pe_vk_command_buffers, i);
 
 
+  //we use two clear values, 
+  //one for the background a the other for clean depth, this make visible back objects
+
+  VkClearColorValue backgroud_color = {
+      .float32 = {rgb(10.4f), rgb(5.5f),rgb(100.f), 1.f}
+  };
+
+  VkClearDepthStencilValue depth_value = {1, 0};
+
   VkClearValue clear_values[2];
-  VkClearColorValue color_value = {0.3, 0, 8.f, 0};
-  VkClearDepthStencilValue depth_value = {1,0};
   ZERO(clear_values);
-  clear_values[0].color = color_value;
+  clear_values[0].color = backgroud_color ;
   clear_values[1].depthStencil = depth_value;
 
-  VkRenderPassBeginInfo info;
-  ZERO(info);
-  info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-  info.renderPass = pe_vk_render_pass;
-  info.framebuffer = *(framebuffer);
-  info.renderArea.offset = offset;
-  info.renderArea.extent = pe_vk_swch_extent;
-  info.clearValueCount = 2;
-  info.pClearValues = clear_values;
+  VkOffset2D offset = {0, 0};
+  VkRenderPassBeginInfo info = {
+      .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+      .renderPass = pe_vk_render_pass,
+      .framebuffer = *(framebuffer),
+      .renderArea.extent = pe_vk_swch_extent,
+      .renderArea.offset = offset, 
+      .clearValueCount = 2,
+      .pClearValues = clear_values};
 
   vkCmdBeginRenderPass(*(cmd_buffer), &info, VK_SUBPASS_CONTENTS_INLINE);
 
