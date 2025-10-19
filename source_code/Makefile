@@ -11,17 +11,18 @@ vulkan_objs := $(vulkan_src:%.c=%.o)
 engine_src := $(wildcard ./engine/*.c)
 engine_objs := $(engine_src:%.c=%.o)
 
-OBJS := input.o window.o $(vulkan_objs) $(engine_objs)
 
+SRCS := $(wildcard *.c)
+SWORDFISHOBJS := $(SRCS:c=o)
 
-swordfish: main.c $(OBJS) shaders
-	cc $(CFLAGS_ENGINE) main.c $(OBJS) -o ../swordfish $(CLINKS)
+OBJS := $(SWORDFISHOBJS) $(vulkan_objs) $(engine_objs)
 
-window.o: window.c
+swordfish: $(OBJS) shaders
+	cc $(CFLAGS_ENGINE) $(OBJS) -o ../swordfish $(CLINKS)
+
+%.o: %.c
 	cc $(CFLAGS_ENGINE) -c $<
 
-input.o: input.c
-	cc $(CFLAGS_ENGINE) -c $<
 
 ./engine/%.o: ./engine/%.c
 	cc $(CFLAGS_ENGINE) -o $@ -c $<

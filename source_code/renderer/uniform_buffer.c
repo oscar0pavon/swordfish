@@ -4,9 +4,12 @@
 #include "cglm/vec4.h"
 
 #include "engine/model.h"
+#include "renderer/cglm/mat4.h"
 #include "vk_buffer.h"
 
 #include <vulkan/vulkan_core.h>
+
+#include "../swordfish.h"
 
 
 PUniformBufferObject ubo;
@@ -85,10 +88,20 @@ void pe_vk_uniform_buffer_update_two(PModel* model, uint32_t image_index) {
 
 
   //glm_mat4_identity(pawn_ubo.model);
+  if (finished_build == false) {
 
-  glm_rotate(model->model_mat, -0.0001f, VEC3(0, 0, 1));
-  glm_mat4_copy(model->model_mat,cube_ubo.model);
-  //glm_translate(pawn_ubo.model, VEC3(0, 5, 0));
+    glm_rotate(model->model_mat, -0.0001f, VEC3(0, 0, 1));
+    glm_mat4_copy(model->model_mat, cube_ubo.model);
+  }else{
+    mat4 identity;
+    glm_mat4_identity(identity);
+    float scale_value = 0.6f;
+    vec3 scale = {scale_value,scale_value,scale_value};
+    glm_scale(identity, scale);
+    glm_mul(model->model_mat,identity,cube_ubo.model);
+    //glm_mat4_copy(model->model_mat, cube_ubo.model);
+  }
+  // glm_translate(pawn_ubo.model, VEC3(0, 5, 0));
 
   //pawn_ubo.projection[1][1] *= -1;
 

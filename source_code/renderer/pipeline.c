@@ -258,8 +258,8 @@ void pe_vk_pipelines_init() {
 
   VkPipelineShaderStageCreateInfo uniform[2];
   pe_vk_shader_load(uniform,
-                    "shaders/model_view_projection_vert.spv",
-                    "shaders/red_frag.spv");
+                    "/usr/libexec/swordfish/shaders/model_view_projection_vert.spv",
+                    "/usr/libexec/swordfish/shaders/red_frag.spv");
 
   base_pipeline_info.pStages = uniform; //here is where we assing the shader
 

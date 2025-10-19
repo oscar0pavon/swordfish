@@ -24,9 +24,13 @@
 
 #include <engine/time.h>
 
+#include "build.h"
+
 PModel main_cube;
 
 Camera main_camera;
+
+bool finished_build = false;
 
 int main(){
 
@@ -59,6 +63,9 @@ int main(){
 
   pthread_create(&thread_id,NULL,handle_input, NULL);//TODO to much CPU usage
 
+
+  pthread_t make_thread_id;
+  pthread_create(&make_thread_id,NULL,call_make, NULL);
 
   while (swordfish_running) {
 
