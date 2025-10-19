@@ -11,6 +11,8 @@
 
 #include <engine/memory.h>
 
+#include "renderer/draw.h"
+
 int main(){
 
   pe_init_memory();
@@ -29,8 +31,10 @@ int main(){
   while (swordfish_running) {
   
    //draw cube 
-    printf("Compiling..\n");
-    sleep(1);
+   // printf("Compiling..\n");
+    //sleep(1);
+
+    pe_vk_draw_frame();
 
   }
 

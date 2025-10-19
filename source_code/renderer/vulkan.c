@@ -19,6 +19,7 @@
 #include "vk_vertex.h"
 #include <engine/log.h>
 #include <engine/macros.h>
+#include <vulkan/vulkan_core.h>
 
 #include "../window.h"
 
@@ -28,14 +29,12 @@ VkQueue vk_queue;
 
 VkSurfaceKHR vk_surface;
 
-
 VkRenderPass pe_vk_render_pass;
 
 VkSampleCountFlagBits pe_vk_msaa_samples;
 
 uint32_t q_graphic_family;
 uint32_t q_present_family;
-
 
 bool pe_vk_validation_layer_enable;
 
@@ -97,7 +96,7 @@ void pe_vk_create_instance() {
 
     instance_info.enabledLayerCount = 1;
     instance_info.ppEnabledLayerNames = validation_layers;
-    
+
     ZERO(debug_message_info);
     pe_vk_populate_messenger_debug_info(&debug_message_info);
     instance_info.pNext = &debug_message_info;
@@ -143,21 +142,25 @@ void pe_vk_queue_families_support() {
                                            &queue_family_count, q_families);
   for (int i = 0; i < queue_family_count; i++) {
     VkQueueFamilyProperties property = q_families[i];
-    LOG("Family queue flag %x", property.queueFlags);
+    // LOG("Family queue flag %x", property.queueFlags);
     if (property.queueFlags == VK_QUEUE_GRAPHICS_BIT) {
       q_graphic_family = i;
 
       LOG("graphics queue found");
-    } else
-      LOG("[X] No graphics queue found\n");
+    } else {
+
+      // LOG("[X] No graphics queue found\n");
+    }
 
     VkBool32 present_support = false;
     vkGetPhysicalDeviceSurfaceSupportKHR(vk_physical_device, i, vk_surface,
                                          &present_support);
     if (present_support == true)
       q_present_family = i;
-    else
-      LOG("[X] NO present queue found");
+    else {
+
+      // LOG("[X] NO present queue found");
+    }
   }
 
   ZERO(queues_creates_infos);
@@ -183,17 +186,20 @@ void pe_vk_get_physical_device() {
   if (devices_count == 0)
     LOG("Not devices compatibles\n");
   else
-    printf("Devices count %i\n",devices_count);
-   
+    printf("Devices count %i\n", devices_count);
 
   VkPhysicalDevice devices[devices_count];
   vkEnumeratePhysicalDevices(vk_instance, &devices_count, devices);
 
-  vk_physical_device = devices[1];
-  if(vk_physical_device == NULL){
+  vk_physical_device = devices[0];
+  if (vk_physical_device == NULL) {
     printf("Can't asssig device\n");
   }
-  printf("Device: %p\n",vk_physical_device);
+
+  VkPhysicalDeviceProperties properties;
+  vkGetPhysicalDeviceProperties(vk_physical_device,&properties);
+
+  printf("Device: %s\n", properties.deviceName);
 }
 
 void pe_vk_create_surface() {
@@ -285,9 +291,9 @@ int pe_vk_init() {
 
   pe_vk_semaphores_create();
 
-  pe_vk_create_texture_image();
+  // pe_vk_create_texture_image();
 
-  //pe_vk_models_create();
+  // pe_vk_models_create();
 
   LOG("Vulkan intialize [OK]\n");
   return 0;
