@@ -22,11 +22,15 @@
 
 #include <engine/utils.h>
 
+#include <engine/time.h>
+
 PModel main_cube;
 
 Camera main_camera;
 
 int main(){
+
+  pe_vk_validation_layer_enable = false;
 
   pe_init_memory();
   
@@ -55,12 +59,14 @@ int main(){
 
 
   while (swordfish_running) {
-  
+    start_frame_timer(); 
    //draw cube 
    // printf("Compiling..\n");
     //sleep(1);
 
     pe_vk_draw_frame();
+
+    delay_for_frame();
 
   }
 

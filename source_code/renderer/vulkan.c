@@ -61,8 +61,6 @@ const float queue_priority = 1.f;
 
 void pe_vk_create_instance() {
 
-  pe_vk_validation_layer_enable = true;
-
   uint32_t instance_layer_properties_count = 0;
   vkEnumerateInstanceLayerProperties(&instance_layer_properties_count, NULL);
   LOG("VK instance layer count: %i\n", instance_layer_properties_count);
@@ -240,8 +238,6 @@ void pe_vk_create_color_resources() {
 
 int pe_vk_init() {
   pe_vk_msaa_samples = VK_SAMPLE_COUNT_4_BIT;
-
-  pe_vk_validation_layer_enable = true;
 
   pe_vk_create_instance();
 
