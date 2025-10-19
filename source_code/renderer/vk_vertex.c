@@ -133,22 +133,3 @@ VkBuffer pe_vk_vertex_create_index_buffer(Array *indices) {
   return info.buffer;
 }
 
-void pe_vk_models_create() {
-
-  //actual_model_array = &array_models_loaded;
-  //pe_loader_model(file_peon_glb);//TODO
-
-  //test_model = selected_model; //TODO
-  // PModel* selected_model;
-  //
-  // test_model->vertex_buffer =
-  //     pe_vk_vertex_create_buffer(&selected_model->vertex_array);
-  // test_model->index_buffer =
-  //     pe_vk_vertex_create_index_buffer(&selected_model->index_array);
-
-  // pe_vk_create_uniform_buffers(test_model);
-  // pe_vk_descriptor_pool_create(test_model);
-  // pe_vk_create_descriptor_sets(test_model);
-
-
-}

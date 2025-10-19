@@ -263,16 +263,16 @@ void pe_vk_create_depth_resources() {
 }
 
 void pe_vk_create_texture_image() {
-  PTexture texture;
+  PImage texture;
   ZERO(texture);
-  pe_load_texture("image.png", &texture);
+  pe_load_image("/usr/libexec/swordfish/images/font.png", &texture);
 
   pe_vk_mip_levels =
-      floor(log2(GLM_MAX(texture.image.width, texture.image.heigth))) + 1;
+      floor(log2(GLM_MAX(texture.width, texture.heigth))) + 1;
 
   LOG("Mip map level = %i\n", pe_vk_mip_levels);
 
-  VkDeviceSize image_size = texture.image.width * texture.image.heigth * 4;
+  VkDeviceSize image_size = texture.width * texture.heigth * 4;
 
   PBufferCreateInfo buffer_info;
   ZERO(buffer_info);
@@ -281,19 +281,19 @@ void pe_vk_create_texture_image() {
                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
   buffer_info.size = image_size;
   pe_vk_buffer_create(&buffer_info);
-  if (texture.image.pixels_data == NULL) {
+  if (texture.pixels_data == NULL) {
     return;
   }
   void *data;
   VKVALID(vkMapMemory(vk_device, buffer_info.buffer_memory, 0, image_size, 0,
                       &data),
           "Can't map memory");
-  memcpy(data, texture.image.pixels_data, image_size);
+  memcpy(data, texture.pixels_data, image_size);
   vkUnmapMemory(vk_device, buffer_info.buffer_memory);
 
   PImageCreateInfo image_create_info = {
-      .width = texture.image.width,
-      .height = texture.image.heigth,
+      .width = texture.width,
+      .height = texture.heigth,
       .texture_image = &pe_vk_texture_image,
       .image_memory = &pe_vk_texture_image_memory,
       .format = VK_FORMAT_R8G8B8A8_SRGB,
@@ -311,19 +311,21 @@ void pe_vk_create_texture_image() {
       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, pe_vk_mip_levels);
 
   pe_vk_image_copy_buffer(buffer_info.buffer, pe_vk_texture_image,
-                          texture.image.width, texture.image.heigth);
+                          texture.width, texture.heigth);
 
   // pe_vk_transition_image_layout(pe_vk_texture_image, VK_FORMAT_R8G8B8A8_SRGB,
   //                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
   //                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
   //                               pe_vk_mip_levels);
 
-  pe_vk_image_generate_mipmaps(pe_vk_texture_image, texture.image.width,
-                               texture.image.heigth, pe_vk_mip_levels);
+  pe_vk_image_generate_mipmaps(pe_vk_texture_image, texture.width,
+                               texture.heigth, pe_vk_mip_levels);
 
   pe_vk_texture_image_view =
       pe_vk_create_image_view(pe_vk_texture_image, VK_FORMAT_R8G8B8A8_SRGB,
                               VK_IMAGE_ASPECT_COLOR_BIT, pe_vk_mip_levels);
 
   pe_vk_create_texture_sampler();
+
+  free_image(&texture);
 }

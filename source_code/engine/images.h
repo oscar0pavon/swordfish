@@ -1,9 +1,9 @@
 #ifndef IMAGES_H
 #define IMAGES_H
 
-#include <GLES2/gl2.h>
 
 #include "numbers.h"
+#include <stdbool.h>
 
 typedef struct PImage{
   unsigned short int width;
@@ -19,7 +19,6 @@ typedef struct PTexture{
 }PTexture;
 
 int pe_load_image(const char* path, PImage* image);
-int pe_load_image_with_format(const char* path, GLint format, PImage* out_image);
 void free_image(PImage*);
 
 int pe_load_texture(const char* path, PTexture*);

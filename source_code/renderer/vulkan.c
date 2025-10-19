@@ -289,9 +289,8 @@ int pe_vk_init() {
 
   pe_vk_semaphores_create();
 
-  // pe_vk_create_texture_image();
+  pe_vk_create_texture_image();
 
-   //pe_vk_models_create();
 
   LOG("Vulkan intialize [OK]\n");
   return 0;
