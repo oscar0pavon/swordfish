@@ -1,6 +1,7 @@
 #include "debug.h"
 #include "vulkan.h"
 #include <engine/log.h>
+#include <vulkan/vulkan_core.h>
 
 VkDebugUtilsMessengerEXT debug_messenger;
 VkDebugUtilsMessengerCreateInfoEXT debug_message_info;
@@ -30,14 +31,17 @@ pe_vk_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
   return VK_FALSE;
 }
 
-// void pe_vk_destroy_debug_utils(VkInstance instance,
-//                                VkDebugUtilsMessengerEXT debug_msg,
-//                                const VkAllocationCallbacks *alloc) {
-//   PFN_vkDestroyDebugUtilsMessengerEXT func =
-//       vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-//   if (func)
-//     func(instance, debug_msg, alloc);
-// }
+void pe_vk_destroy_debug_utils(VkInstance instance,
+                               VkDebugUtilsMessengerEXT debug_msg,
+                               const VkAllocationCallbacks *alloc) {
+
+  PFN_vkDestroyDebugUtilsMessengerEXT func =
+      (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
+          instance, "vkDestroyDebugUtilsMessengerEXT");
+  
+  if (func)
+    func(instance, debug_msg, alloc);
+}
 
 VkResult
 pe_vk_create_debug_messeger(VkInstance instance,
@@ -62,14 +66,10 @@ void pe_vk_populate_messenger_debug_info(
   info_messeger->sType =
       VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 
-  // info_messeger->messageSeverity =
-  // VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-  //												VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
-  //|
-  //VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
 
   info_messeger->messageSeverity =
-      VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+      VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT |
+      VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
 
   info_messeger->messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
                                VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
@@ -86,5 +86,5 @@ void pe_vk_setup_debug_messenger() {
 }
 
 void pe_vk_debug_end() {
-  // pe_vk_destroy_debug_utils(vk_instance, debug_messenger, NULL);
+  pe_vk_destroy_debug_utils(vk_instance, debug_messenger, NULL);
 }

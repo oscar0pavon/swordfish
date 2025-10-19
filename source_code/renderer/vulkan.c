@@ -63,7 +63,7 @@ const float queue_priority = 1.f;
 
 void pe_vk_create_instance() {
 
-  //pe_vk_validation_layer_enable = false;
+  pe_vk_validation_layer_enable = true;
 
   uint32_t instance_layer_properties_count = 0;
   vkEnumerateInstanceLayerProperties(&instance_layer_properties_count, NULL);
@@ -104,6 +104,9 @@ void pe_vk_create_instance() {
 
   } else {
     instance_info.enabledLayerCount = 0;
+    ZERO(debug_message_info);
+    pe_vk_populate_messenger_debug_info(&debug_message_info);
+    instance_info.pNext = &debug_message_info;
   }
 
   VKVALID(vkCreateInstance(&instance_info, NULL, &vk_instance),
