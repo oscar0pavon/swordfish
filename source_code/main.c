@@ -43,9 +43,8 @@ int main(){
 
   camera_init(&main_camera);
   
-  init_vec3(-10, 0, 0, main_camera.position);
 
-  camera_update(&main_camera);
+  camera_set_position(&main_camera, VEC3(-10,0,0));
 
   pe_vk_init();
 

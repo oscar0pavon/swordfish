@@ -1,6 +1,8 @@
 //
 
 #include "camera.h"
+#include "renderer/cglm/types.h"
+#include "renderer/vulkan.h"
 #include "utils.h"
 #include "window.h"
 bool first_camera_rotate = true;
@@ -35,6 +37,13 @@ void camera_init(Camera* camera){
 
     glm_perspective(45.f, camera_width_screen / camera_height_screen, 0.001f,
                     5000.f, camera->projection);
+}
+
+void camera_set_position(Camera* camera, vec3 position){
+
+  init_vec3(position[0], position[1], position[2], camera->position);
+  camera_update(camera);
+
 }
 
 void camera_update(Camera* camera){

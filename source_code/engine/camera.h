@@ -16,6 +16,7 @@ void camera_update(Camera* camera);
 
 void camera_update_aspect_ratio(Camera* camera);
 
+void camera_set_position(Camera* camera, vec3 position);
 
 extern float camera_height_screen;
 extern float camera_width_screen;
