@@ -3,7 +3,7 @@
 
 #include "../renderer/cglm/cglm.h"
 
-typedef struct Vertex {
+typedef struct PVertex {
   vec3 position;
   vec3 color;
   vec3 normal;

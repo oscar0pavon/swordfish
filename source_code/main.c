@@ -17,8 +17,6 @@
 
 #include "swordfish.h"
 
-#include "renderer/uniform_buffer.h"
-#include "renderer/descriptor_set.h"
 
 #include <engine/utils.h>
 
@@ -27,6 +25,8 @@
 #include "build.h"
 
 PModel main_cube;
+
+PModel cuad;
 
 Camera main_camera;
 
@@ -53,11 +53,6 @@ int main(){
 
   pe_vk_model_load(&main_cube, "models/wireframe_cube.glb");
 
-  glm_mat4_identity(main_cube.model_mat);
-
-  pe_vk_create_uniform_buffers(&main_cube);
-  pe_vk_descriptor_pool_create(&main_cube);
-  pe_vk_create_descriptor_sets(&main_cube);
 
   pthread_t thread_id;
 

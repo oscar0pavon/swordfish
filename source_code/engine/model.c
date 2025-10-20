@@ -1,5 +1,6 @@
 #include "model.h"
 #include "engine/array.h"
+#include <vulkan/vulkan_core.h>
 
 #define CGLTF_IMPLEMENTATION
 #include "../renderer/cglm/vec3.h"
@@ -12,6 +13,8 @@
 #include "vertex.h"
 
 #include "../renderer/vk_vertex.h"
+#include "../renderer/descriptor_set.h"
+#include "../renderer/uniform_buffer.h"
 
 cgltf_data *current_data;
 
@@ -252,10 +255,16 @@ PModel *pe_vk_model_load(PModel* model, char *path) {
 
   pe_load_model(model, path);
 
-  model->vertex_buffer =
-      pe_vk_vertex_create_buffer(&model->vertex_array);
-  model->index_buffer =
-      pe_vk_vertex_create_index_buffer(&model->index_array);
+  model->vertex_buffer = pe_vk_create_buffer(&model->vertex_array,
+                                             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+  model->index_buffer = pe_vk_create_buffer(&model->index_array,
+                                            VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+
+  glm_mat4_identity(model->model_mat);
+
+  pe_vk_create_uniform_buffers(model);
+  pe_vk_descriptor_pool_create(model);
+  pe_vk_create_descriptor_sets(model);
 
   return model;
 }

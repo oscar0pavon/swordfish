@@ -94,40 +94,23 @@ void pe_vk_vertex_get_attribute(PVertexAtrributes *attributes) {
   }
 }
 
-VkBuffer pe_vk_vertex_create_buffer(Array *vertices) {
-  PBufferCreateInfo info;
-  ZERO(info);
-  info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-  info.properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
-  info.size = vertices->actual_bytes_size;
+VkBuffer pe_vk_create_buffer(Array *array, VkBufferUsageFlagBits type) {
 
-  pe_vk_buffer_create(&info);
+  PBufferCreateInfo info = {
 
-  void *data;
-  vkMapMemory(vk_device, info.buffer_memory, 0, info.size, 0, &data);
-  memcpy(data, vertices->data, vertices->actual_bytes_size);
-  vkUnmapMemory(vk_device, info.buffer_memory);
+      .usage = type,
+      .properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+      .size = array->bytes_size
 
-  return info.buffer;
-}
-
-VkBuffer pe_vk_vertex_create_index_buffer(Array *indices) {
-  VkBuffer buffer;
-
-  PBufferCreateInfo info;
-  ZERO(info);
-  info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-  info.properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-  info.size = indices->actual_bytes_size;
+  };
 
   pe_vk_buffer_create(&info);
 
   void *data;
   vkMapMemory(vk_device, info.buffer_memory, 0, info.size, 0, &data);
-  memcpy(data, indices->data, indices->actual_bytes_size);
+  memcpy(data, array->data, array->bytes_size);
   vkUnmapMemory(vk_device, info.buffer_memory);
 
   return info.buffer;

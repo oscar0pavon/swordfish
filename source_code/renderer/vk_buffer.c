@@ -8,15 +8,16 @@
 #include <vulkan/vulkan_core.h>
 
 void pe_vk_buffer_create(PBufferCreateInfo *buffer_info) {
-  VkBufferCreateInfo info;
-  ZERO(info);
-  info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-  info.size = buffer_info->size;
-  info.usage = buffer_info->usage;
-  info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  VkBufferCreateInfo info = {
+
+      .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+      .size = buffer_info->size,
+      .usage = buffer_info->usage,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE
+
+  };
 
   VkBuffer buffer;
-  ZERO(buffer);
   VKVALID(vkCreateBuffer(vk_device, &info, NULL, &buffer),
           "Can't create buffer");
 

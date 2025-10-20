@@ -9,7 +9,7 @@ typedef struct Array{
     bool isPointerToPointer;
     bool block;
     int element_capacity;
-    u32 actual_bytes_size;
+    u32 bytes_size;
     u32 count;
     u32 element_bytes_size;
     u32 bytes_capacity;

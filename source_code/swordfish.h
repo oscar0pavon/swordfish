@@ -10,4 +10,6 @@ extern Camera main_camera;
 
 extern bool finished_build;
 
+extern PModel quad;
+
 #endif
