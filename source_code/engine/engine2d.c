@@ -4,7 +4,18 @@
 #include <vulkan/vulkan_core.h>
 
 #include "../renderer/vk_buffer.h"
+#include "../window.h"
 
+
+mat4 orthogonal_projection;
+
+void pe_2d_init(){
+  
+
+  glm_ortho(0, WINDOW_WIDTH, WINDOW_HEIGHT, 0, 0, 1, orthogonal_projection);
+
+  
+}
 
 void pe_2d_create_quad(PModel* model, float x, float y, float width, float height){
 
@@ -22,4 +33,9 @@ void pe_2d_create_quad(PModel* model, float x, float y, float width, float heigh
 
   pe_vk_create_buffer(&model->vertex_array, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
+  //init model matrix
+  glm_mat4_identity(model->model_mat);
+  //setup Uniform Buffer Object
+  glm_mat4_copy(model->model_mat,model->uniform_buffer_object.model);
+  glm_mat4_copy(orthogonal_projection, model->uniform_buffer_object.projection);
 }

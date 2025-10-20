@@ -260,11 +260,17 @@ PModel *pe_vk_model_load(PModel* model, char *path) {
   model->index_buffer = pe_vk_create_buffer(&model->index_array,
                                             VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
-  glm_mat4_identity(model->model_mat);
 
   pe_vk_create_uniform_buffers(model);
   pe_vk_descriptor_pool_create(model);
   pe_vk_create_descriptor_sets(model);
+ 
+  //init model matrix
+  glm_mat4_identity(model->model_mat);
+  //setup Uniform Buffer Object
+  glm_mat4_copy(model->model_mat,model->uniform_buffer_object.model);
+  glm_mat4_copy(main_camera.projection, model->uniform_buffer_object.projection);
+  glm_mat4_copy(main_camera.view, model->uniform_buffer_object.view);
 
   return model;
 }

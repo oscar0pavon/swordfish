@@ -6,6 +6,7 @@
 
 
 #include "engine/camera.h"
+#include "engine/engine2d.h"
 #include "engine/model.h"
 #include "input.h"
 #include "renderer/vulkan.h"
@@ -53,6 +54,11 @@ int main(){
   pe_vk_model_load(&main_cube, "models/wireframe_cube.glb");
 
 
+  pe_2d_init();
+  pe_2d_create_quad(&quad,50,50,50,50);
+
+
+
   pthread_t thread_id;
 
   pthread_create(&thread_id,NULL,handle_input, NULL);//TODO to much CPU usage
@@ -60,6 +66,7 @@ int main(){
 
   pthread_t make_thread_id;
   pthread_create(&make_thread_id,NULL,call_make, NULL);
+
 
 
   //INFO main loop
