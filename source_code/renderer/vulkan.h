@@ -1,6 +1,7 @@
 #ifndef PEVULKAN_H
 #define PEVULKAN_H
 
+#include <vulkan/vulkan_core.h>
 #define VK_USE_PLATFORM_XLIB_KHR // Must be defined before including vulkan.h
 #include <vulkan/vulkan.h>
 
@@ -68,5 +69,8 @@ extern VkDeviceMemory pe_vk_color_memory;
 extern VkImageView pe_vk_color_image_view;
 
 extern Camera main_camera;
+
+extern VkViewport viewport;
+extern VkRect2D scissor;
 
 #endif

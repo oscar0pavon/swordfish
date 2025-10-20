@@ -33,6 +33,9 @@ VkRenderPass pe_vk_render_pass;
 
 VkSampleCountFlagBits pe_vk_msaa_samples;
 
+VkViewport viewport;
+VkRect2D scissor;
+
 uint32_t q_graphic_family;
 uint32_t q_present_family;
 
@@ -236,6 +239,23 @@ void pe_vk_create_color_resources() {
       pe_vk_color_image, color_format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 }
 
+void pe_vk_set_viewport_and_sccisor(){
+  //TODO update when recreate swap chain for handling resizing window
+
+  VkOffset2D offset = {0, 0};
+
+  scissor.extent = pe_vk_swch_extent;
+  scissor.offset = offset;
+
+  viewport.x = 0.0f;
+  viewport.y = 0.0f;
+  viewport.width = (float)pe_vk_swch_extent.width;
+  viewport.height = (float)pe_vk_swch_extent.height;
+  viewport.minDepth = 0.0f;
+  viewport.maxDepth = 1.0f;
+
+}
+
 int pe_vk_init() {
   pe_vk_msaa_samples = VK_SAMPLE_COUNT_4_BIT;
 
@@ -252,6 +272,8 @@ int pe_vk_init() {
   vkGetDeviceQueue(vk_device, q_graphic_family, 0, &vk_queue);
 
   pe_vk_swch_create();
+
+  pe_vk_set_viewport_and_sccisor();
 
   pe_vk_create_images_views();
 
