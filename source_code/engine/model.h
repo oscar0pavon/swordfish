@@ -8,6 +8,7 @@
 #include "array.h"
 
 #include "../renderer/cglm/vec3.h"
+#include "renderer/vulkan.h"
 
 
 #include <vulkan/vulkan_core.h>
@@ -50,6 +51,7 @@ typedef struct PModel{
     vec3 position;
     PMesh mesh;
 	  bool gpu_ready;
+    PUniformBufferObject uniform_buffer_object;
 }PModel;
 
 typedef struct DrawData{

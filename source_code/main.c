@@ -61,16 +61,16 @@ int main(){
   pthread_t make_thread_id;
   pthread_create(&make_thread_id,NULL,call_make, NULL);
 
+
+  //INFO main loop
   while (swordfish_running) {
 
     start_render_time();
-   //draw cube 
-   // printf("Compiling..\n");
-    //sleep(1);
 
     pe_vk_draw_frame();
 
     delay_render_time();
+    
   }
 
 

@@ -66,9 +66,9 @@ void pe_vk_create_uniform_buffers(PModel *model) {
     array_add(&model->uniform_buffers_memory, &info.buffer_memory);
   }
 
-  glm_mat4_copy(model->model_mat,cube_ubo.model);
-  glm_mat4_copy(main_camera.projection, cube_ubo.projection);
-  glm_mat4_copy(main_camera.view, cube_ubo.view);
+  glm_mat4_copy(model->model_mat,model->uniform_buffer_object.model);
+  glm_mat4_copy(main_camera.projection, model->uniform_buffer_object.projection);
+  glm_mat4_copy(main_camera.view, model->uniform_buffer_object.view);
   // buffer_color = pe_vk_uniform_buffer_create_buffer(sizeof(PEColorShader));
 }
 
@@ -81,38 +81,32 @@ void pe_vk_memory_copy(size_t size, VkDeviceMemory *memory, void *in_data) {
 }
 
 //INFO this where you update the position of the model or camera
-void pe_vk_uniform_buffer_update_two(PModel* model, uint32_t image_index) {
+void pe_vk_uniform_buffer_update_two(PModel *model, uint32_t image_index) {
 
-
-
-
-
-  //glm_mat4_identity(pawn_ubo.model);
   if (finished_build == false) {
 
     glm_rotate(model->model_mat, -0.0001f, VEC3(0, 0, 1));
-    glm_mat4_copy(model->model_mat, cube_ubo.model);
-  }else{
+    glm_mat4_copy(model->model_mat, model->uniform_buffer_object.model);
+  } else {
     mat4 identity;
     glm_mat4_identity(identity);
     float scale_value = 0.6f;
-    vec3 scale = {scale_value,scale_value,scale_value};
+    vec3 scale = {scale_value, scale_value, scale_value};
     glm_scale(identity, scale);
-    glm_mul(model->model_mat,identity,cube_ubo.model);
-    //glm_mat4_copy(model->model_mat, cube_ubo.model);
+    glm_mul(model->model_mat, identity, model->uniform_buffer_object.model);
   }
-  // glm_translate(pawn_ubo.model, VEC3(0, 5, 0));
 
-  //pawn_ubo.projection[1][1] *= -1;
+  // pawn_ubo.projection[1][1] *= -1; //TODO maybe we need to do this
 
-  PUniformBufferObject buffers[] = {cube_ubo};
+  PUniformBufferObject buffers[] = {model->uniform_buffer_object};
 
   VkDeviceMemory *memory =
       array_get(&model->uniform_buffers_memory, image_index);
 
   pe_vk_memory_copy(sizeof(buffers), memory, buffers);
 }
-void pe_vk_uniform_buffer_update_one(PModel* model, uint32_t image_index) {
+
+void pe_vk_uniform_buffer_update_one(PModel *model, uint32_t image_index) {
 
   PUniformBufferObject pawn_ubo;
 

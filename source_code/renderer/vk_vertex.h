@@ -16,7 +16,6 @@ VkVertexInputBindingDescription pe_vk_vertex_get_binding_description();
 void pe_vk_vertex_get_attribute(PVertexAtrributes* attributes);
 
 
-VkBuffer pe_vk_create_buffer(Array *array, VkBufferUsageFlagBits type);
 
 extern VkBuffer vertex_buffer;
 extern VkBuffer index_buffer;

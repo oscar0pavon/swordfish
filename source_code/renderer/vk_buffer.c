@@ -43,3 +43,24 @@ void pe_vk_copy_buffer(VkBuffer source, VkBuffer destination,
 
   pe_vk_end_single_time_cmd(command);
 }
+
+VkBuffer pe_vk_create_buffer(Array *array, VkBufferUsageFlagBits type) {
+
+  PBufferCreateInfo info = {
+
+      .usage = type,
+      .properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+      .size = array->bytes_size
+
+  };
+
+  pe_vk_buffer_create(&info);
+
+  void *data;
+  vkMapMemory(vk_device, info.buffer_memory, 0, info.size, 0, &data);
+  memcpy(data, array->data, array->bytes_size);
+  vkUnmapMemory(vk_device, info.buffer_memory);
+
+  return info.buffer;
+}
