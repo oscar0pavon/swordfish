@@ -14,6 +14,9 @@ VkPipeline pe_vk_pipeline;
 
 Array pe_vk_pipeline_infos;
 Array pe_graphics_pipelines;
+    
+VkVertexInputBindingDescription input_binding_description;
+VkPipelineColorBlendAttachmentState color_attachment;
 
 VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT,
                                   VK_DYNAMIC_STATE_SCISSOR};
@@ -38,21 +41,6 @@ void pe_vk_pipeline_create_layout(bool use_descriptor, VkPipelineLayout *layout,
           "Can't create Pipeline Layout");
 }
 
-typedef struct PPipelineInfo {
-  VkPipelineVertexInputStateCreateInfo vertex_input_state;
-  VkPipelineViewportStateCreateInfo viewport_state;
-  VkPipelineDynamicStateCreateInfo dynamic_state;
-  VkPipelineRasterizationStateCreateInfo rasterization_state;
-  VkPipelineInputAssemblyStateCreateInfo input_assembly_state;
-  VkPipelineMultisampleStateCreateInfo multisample_state;
-  VkPipelineColorBlendAttachmentState color_attachment;
-  VkPipelineColorBlendStateCreateInfo color_blend_state;
-  VkVertexInputBindingDescription input_binding_description;
-  VkPipelineDepthStencilStateCreateInfo depth_stencil;
-  PVertexAtrributes attributes;
-} PPipelineInfo;
-
-PPipelineInfo pe_vk_main_pipeline_info;
 
 VkPipelineDepthStencilStateCreateInfo
 pe_vk_pipeline_get_default_depth_stencil() {
@@ -96,13 +84,12 @@ pe_vk_pipeline_get_default_vertex_input(PVertexAtrributes *attributes) {
     array_init(&attributes->attributes_descriptions,
                sizeof(VkVertexInputAttributeDescription), 6);
 
-    pe_vk_main_pipeline_info.input_binding_description =
+    input_binding_description =
         pe_vk_vertex_get_binding_description();
 
     pe_vk_vertex_get_attribute(attributes);
     info.vertexBindingDescriptionCount = 1;
-    info.pVertexBindingDescriptions =
-        &pe_vk_main_pipeline_info.input_binding_description;
+    info.pVertexBindingDescriptions = &input_binding_description;
     info.vertexAttributeDescriptionCount =
         attributes->attributes_descriptions.count;
     info.pVertexAttributeDescriptions =
@@ -186,20 +173,18 @@ VkPipelineMultisampleStateCreateInfo pe_vk_pipeline_get_default_multisample() {
 
 VkPipelineColorBlendStateCreateInfo pe_vk_pipeline_get_default_color_blend() {
 
-  pe_vk_main_pipeline_info.color_attachment.colorWriteMask =
+  color_attachment.colorWriteMask =
       VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
       VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-  pe_vk_main_pipeline_info.color_attachment.blendEnable = VK_FALSE;
+  color_attachment.blendEnable = VK_FALSE;
 
-  VkPipelineColorBlendStateCreateInfo colorBlending;
-  ZERO(colorBlending);
-  colorBlending.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  colorBlending.logicOpEnable = VK_FALSE;
-  colorBlending.attachmentCount = 1;
-  colorBlending.pAttachments = &pe_vk_main_pipeline_info.color_attachment;
+  VkPipelineColorBlendStateCreateInfo color_blending = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+      .logicOpEnable = VK_FALSE,
+      .attachmentCount = 1,
+      .pAttachments = &color_attachment};
 
-  return colorBlending;
+  return color_blending;
 }
 
 void pe_vk_pipeline_create_pipelines() {
@@ -214,48 +199,46 @@ void pe_vk_pipeline_create_pipelines() {
 
 void pe_vk_pipelines_init() {
   
-  ZERO(pe_vk_main_pipeline_info);
 
   array_init(&pe_vk_pipeline_infos, sizeof(VkGraphicsPipelineCreateInfo),
              PE_VK_PIPELINES_MAX);
   array_init(&pe_graphics_pipelines, sizeof(VkPipeline), PE_VK_PIPELINES_MAX);
 
+  VkPipelineVertexInputStateCreateInfo vertex_input_state;
+  VkPipelineViewportStateCreateInfo viewport_state;
+  VkPipelineDynamicStateCreateInfo dynamic_state;
+  VkPipelineRasterizationStateCreateInfo rasterization_state;
+  VkPipelineInputAssemblyStateCreateInfo input_assembly_state;
+  VkPipelineMultisampleStateCreateInfo multisample_state;
+  VkPipelineColorBlendStateCreateInfo color_blend_state;
+  VkVertexInputBindingDescription input_binding_description;
+  VkPipelineDepthStencilStateCreateInfo depth_stencil;
 
-  pe_vk_main_pipeline_info.attributes.has_attributes = false;
-  pe_vk_main_pipeline_info.vertex_input_state =
-      pe_vk_pipeline_get_default_vertex_input(
-          &pe_vk_main_pipeline_info.attributes);
-  pe_vk_main_pipeline_info.rasterization_state =
-      pe_vk_pipeline_get_default_rasterization();
-  pe_vk_main_pipeline_info.dynamic_state =
-      pe_vk_pipeline_get_default_dynamic_state();
-  pe_vk_main_pipeline_info.viewport_state =
-      pe_vk_pipeline_get_default_viewport();
-  pe_vk_main_pipeline_info.input_assembly_state =
-      pe_vk_pipeline_get_default_input_assembly();
-  pe_vk_main_pipeline_info.multisample_state =
-      pe_vk_pipeline_get_default_multisample();
-  pe_vk_main_pipeline_info.color_blend_state =
-      pe_vk_pipeline_get_default_color_blend();
-  pe_vk_main_pipeline_info.depth_stencil =
-      pe_vk_pipeline_get_default_depth_stencil();
 
-  VkGraphicsPipelineCreateInfo base_pipeline_info = {
+  depth_stencil = pe_vk_pipeline_get_default_depth_stencil();
+  color_blend_state = pe_vk_pipeline_get_default_color_blend();
+  multisample_state = pe_vk_pipeline_get_default_multisample();
+  input_assembly_state = pe_vk_pipeline_get_default_input_assembly();
+  viewport_state = pe_vk_pipeline_get_default_viewport();
+  dynamic_state = pe_vk_pipeline_get_default_dynamic_state();
+  rasterization_state = pe_vk_pipeline_get_default_rasterization();
+
+  VkGraphicsPipelineCreateInfo pipeline_create_info = {
 
       .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-      .stageCount = 2,
+      .stageCount = 2,//fragment and vertex stages
       //.pStages = red_shader, // created in pe_vk_shader_load() //TODO afer assining all
       .layout =
           pe_vk_pipeline_layout, // created in pe_vk_pipeline_create_layout()
       .renderPass = pe_vk_render_pass, // created in pe_vk_create_render_pass()
       //.pVertexInputState = &pe_vk_main_pipeline_info.vertex_input_state,//TODO after assining all
-      .pInputAssemblyState = &pe_vk_main_pipeline_info.input_assembly_state,
-      .pViewportState = &pe_vk_main_pipeline_info.viewport_state,
-      .pRasterizationState = &pe_vk_main_pipeline_info.rasterization_state,
-      .pMultisampleState = &pe_vk_main_pipeline_info.multisample_state,
-      .pColorBlendState = &pe_vk_main_pipeline_info.color_blend_state,
-      .pDynamicState = &pe_vk_main_pipeline_info.dynamic_state,
-      .pDepthStencilState = &pe_vk_main_pipeline_info.depth_stencil,
+      .pInputAssemblyState = &input_assembly_state,
+      .pViewportState = &viewport_state,
+      .pRasterizationState = &rasterization_state,
+      .pMultisampleState = &multisample_state,
+      .pColorBlendState = &color_blend_state,
+      .pDynamicState = &dynamic_state,
+      .pDepthStencilState = &depth_stencil,
 
       .subpass = 0};
 
@@ -265,26 +248,24 @@ void pe_vk_pipelines_init() {
                     "/usr/libexec/swordfish/shaders/model_view_projection_vert.spv",
                     "/usr/libexec/swordfish/shaders/red_frag.spv");
 
-  base_pipeline_info.pStages = uniform; //here is where we assing the shader
+  pipeline_create_info.pStages = uniform; //here is where we assing the shader
 
-  PPipelineInfo uniform_pipeline_info = {
-    .attributes.has_attributes = true,
-    .attributes.position = true,
-    //.attributes.uv = true, :TODO add uv support
-    
+
+  //example can be have vertex position and UV or more
+  PVertexAtrributes vertex_attributes = {
+    .has_attributes = true,
+    .position = true
   };
 
-  uniform_pipeline_info.vertex_input_state =
-      pe_vk_pipeline_get_default_vertex_input(
-          &uniform_pipeline_info.attributes);
-  
+  vertex_input_state =
+      pe_vk_pipeline_get_default_vertex_input(&vertex_attributes);
 
-  base_pipeline_info.pVertexInputState =
-      &uniform_pipeline_info.vertex_input_state;
+  pipeline_create_info.pVertexInputState =
+      &vertex_input_state;
 
-  base_pipeline_info.layout = pe_vk_pipeline_layout_with_descriptors;
+  pipeline_create_info.layout = pe_vk_pipeline_layout_with_descriptors;
 
-  array_add(&pe_vk_pipeline_infos, &base_pipeline_info);
+  array_add(&pe_vk_pipeline_infos, &pipeline_create_info);
 
 
   // ####################################################

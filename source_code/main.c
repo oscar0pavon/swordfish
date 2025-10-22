@@ -35,7 +35,7 @@ bool finished_build = false;
 
 int main(){
 
-  pe_vk_validation_layer_enable = false;
+  pe_vk_validation_layer_enable = true;
 
   pe_init_memory();
   
