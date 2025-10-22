@@ -14,7 +14,7 @@ Build software with 3D status progress like Swordfish movie
 # To test
     make
     sudo make install
-Then in project directory for building  
+Then in the project directory for building  
 
     swordfish "command"
     
