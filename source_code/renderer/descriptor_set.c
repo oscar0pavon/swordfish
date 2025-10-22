@@ -117,45 +117,65 @@ void pe_vk_create_descriptor_set_layout() {
                                       &pe_vk_descriptor_set_layout),
           "Can't create Descriptor Set Layout");
 }
-//INFO 
-//here is where you send uniform buffer with MVP matrix and send the texture
+void pe_vk_descriptor_with_image_update(PModel *model) {
+
+  for (int i = 0; i < 4; i++) {
+
+    VkBuffer *buffer = array_get(&model->uniform_buffers, i);
+    VkDescriptorBufferInfo info = {.buffer = *buffer,
+                                   .offset = 0,
+                                   .range = sizeof(PUniformBufferObject)};
+
+    VkDescriptorImageInfo image_info = {
+        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        .imageView = pe_vk_texture_image_view,
+        .sampler = pe_vk_texture_sampler};
+
+    VkDescriptorSet *descriptor_set = array_get(&model->descriptor_sets, i);
+
+    VkWriteDescriptorSet des_write[2] = {
+        {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+         .dstSet = *descriptor_set,
+         .dstBinding = 0,
+         .dstArrayElement = 0,
+         .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+         .descriptorCount = 1,
+         .pBufferInfo = &info},
+        {
+          .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+         .dstSet = *descriptor_set,
+         .dstBinding = 1,// INFO this is the binding to the shader input
+         .dstArrayElement = 0,
+         .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+         .descriptorCount = 1,
+         .pImageInfo = &image_info},
+    };
+
+    vkUpdateDescriptorSets(vk_device, 2, des_write, 0, NULL);//2  descriptor write
+  }
+}
+
+// INFO
+// here is where you send uniform buffer with MVP matrix
 void pe_vk_descriptor_update(PModel *model) {
 
   for (int i = 0; i < 4; i++) {
 
-    VkDescriptorBufferInfo info;
-    ZERO(info);
     VkBuffer *buffer = array_get(&model->uniform_buffers, i);
-    info.buffer = *(buffer);
-    info.offset = 0;
-    info.range = sizeof(PUniformBufferObject);
+    VkDescriptorBufferInfo info = {
+        .buffer = *buffer, .offset = 0, .range = sizeof(PUniformBufferObject)};
 
-    VkDescriptorImageInfo image_info;
-    ZERO(image_info);
-    image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    image_info.imageView = pe_vk_texture_image_view;
-    image_info.sampler = pe_vk_texture_sampler;
+    VkDescriptorSet *descriptor_set = array_get(&model->descriptor_sets, i);
 
-    VkDescriptorSet *set = array_get(&model->descriptor_sets, i);
-
-    VkWriteDescriptorSet des_write[2];
-    ZERO(des_write);
-    des_write[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    des_write[0].dstSet = *(set);
-    des_write[0].dstBinding = 0;
-    des_write[0].dstArrayElement = 0;
-    des_write[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    des_write[0].descriptorCount = 1;
-    des_write[0].pBufferInfo = &info;
-
-    des_write[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    des_write[1].dstSet = *(set);
-    des_write[1].dstBinding = 1;
-    des_write[1].dstArrayElement = 0;
-    des_write[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    des_write[1].descriptorCount = 1;
-    des_write[1].pImageInfo = &image_info;
-    vkUpdateDescriptorSets(vk_device, 1, des_write, 0, NULL);//TODO 1 mean no images
+    VkWriteDescriptorSet des_write = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = *descriptor_set,
+        .dstBinding = 0,
+        .dstArrayElement = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorCount = 1,
+        .pBufferInfo = &info};
+    vkUpdateDescriptorSets(vk_device, 1, &des_write, 0, NULL);
   }
 }
 
