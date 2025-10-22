@@ -53,7 +53,7 @@ int main(){
 
 
   pthread_t make_thread_id;
-  pthread_create(&make_thread_id,NULL,call_make, NULL);
+  //pthread_create(&make_thread_id,NULL,call_make, NULL);
 
 
 

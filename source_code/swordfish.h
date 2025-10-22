@@ -6,6 +6,7 @@
 
 extern PModel main_cube;
 extern PModel quad_model;
+extern PModel secondary_cube;
 
 extern Camera main_camera;
 

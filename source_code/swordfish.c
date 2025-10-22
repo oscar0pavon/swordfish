@@ -11,6 +11,7 @@
 #include "renderer/uniform_buffer.h"
 
 PModel main_cube;
+PModel secondary_cube;
 
 PModel quad_model;
 
@@ -44,6 +45,7 @@ void swordfish_update_main_cube(PModel *model, uint32_t image_index) {
 void swordfish_init(){
 
   pe_vk_model_load(&main_cube, "/usr/libexec/swordfish/models/wireframe_cube.glb");
+  pe_vk_model_load(&secondary_cube, "/usr/libexec/swordfish/models/secondary_cube.glb");
 
 
   pe_vk_create_shader(
@@ -56,6 +58,7 @@ void swordfish_init(){
                       "/usr/libexec/swordfish/shaders/dimention_2d_vert.spv",
                       "/usr/libexec/swordfish/shaders/red_frag.spv");
 
+  secondary_cube.pipeline = main_cube.pipeline;
 
 
   pe_2d_init();
