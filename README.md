@@ -3,6 +3,8 @@ Build software with 3D status progress like Swordfish movie
 
 ![idea](images/swordfish_movie.gif)  
 
+![current_status](images/current_status.png)  
+
 # Dependencies
 
 - vulkan drivers
@@ -14,10 +16,11 @@ Build software with 3D status progress like Swordfish movie
 # To test
     make
     sudo make install
+
 Then in the project directory for building  
 
     swordfish "command"
-    
+
 Ex:  
     
     swordfish make -j8  
