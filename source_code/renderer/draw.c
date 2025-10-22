@@ -38,54 +38,15 @@ void pe_vk_draw_model(PDrawModelCommand *draw_model) {
 
 void pe_vk_draw_commands(VkCommandBuffer *cmd_buffer, uint32_t index) {
 
-  vkCmdSetViewport(*(cmd_buffer), 0, 1, &viewport);
+  vkCmdSetViewport(*cmd_buffer, 0, 1, &viewport);
 
-  vkCmdSetScissor(*(cmd_buffer), 0, 1, &scissor);
+  vkCmdSetScissor(*cmd_buffer, 0, 1, &scissor);
 
   VkDeviceSize offsets[] = {0};
 
-  VkDescriptorSet *descriptor_set = NULL;
-
   // TODO draw objets here
 
-  //main cube
-  swordfish_update_main_cube(&main_cube, index);
-  pe_vk_descriptor_update(&main_cube);
-
-  PDrawModelCommand draw_cube = {
-    .model = &main_cube,
-    .command_buffer = *cmd_buffer,
-    .image_index = index,
-    .layout = pe_vk_pipeline_layout_with_descriptors
-  };
-  pe_vk_draw_model(&draw_cube);
-
-  //secondary_cube
-  swordfish_update_main_cube(&secondary_cube, index);
-  pe_vk_descriptor_update(&secondary_cube);
-
-  PDrawModelCommand draw_seconday_cube = {
-    .model = &secondary_cube,
-    .command_buffer = *cmd_buffer,
-    .image_index = index,
-    .layout = pe_vk_pipeline_layout_with_descriptors
-  };
-
-  pe_vk_draw_model(&draw_seconday_cube);
-
-  //quad
-  swordfish_update_main_cube(&quad_model, index);
-
-  pe_vk_descriptor_update(&quad_model);
-
-  PDrawModelCommand draw_quad = {
-    .model = &quad_model,
-    .command_buffer = *cmd_buffer,
-    .image_index = index,
-    .layout = pe_vk_pipeline_layout_with_descriptors
-  };
-  pe_vk_draw_model(&draw_quad);
-
+  swordfish_draw_scene(cmd_buffer,index);
 }
 
 void pe_vk_draw_frame() {

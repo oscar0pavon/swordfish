@@ -10,6 +10,9 @@
 
 #include "renderer/uniform_buffer.h"
 
+#include "renderer/descriptor_set.h"
+#include "renderer/draw.h"
+
 PModel main_cube;
 PModel secondary_cube;
 
@@ -19,6 +22,47 @@ Camera main_camera;
 
 bool finished_build = false;
 
+void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
+
+  //main cube
+  swordfish_update_main_cube(&main_cube, index);
+  pe_vk_descriptor_update(&main_cube);
+
+  PDrawModelCommand draw_cube = {
+    .model = &main_cube,
+    .command_buffer = *cmd_buffer,
+    .image_index = index,
+    .layout = pe_vk_pipeline_layout_with_descriptors
+  };
+  pe_vk_draw_model(&draw_cube);
+
+  //secondary_cube
+  swordfish_update_main_cube(&secondary_cube, index);
+  pe_vk_descriptor_update(&secondary_cube);
+
+  PDrawModelCommand draw_seconday_cube = {
+    .model = &secondary_cube,
+    .command_buffer = *cmd_buffer,
+    .image_index = index,
+    .layout = pe_vk_pipeline_layout_with_descriptors
+  };
+
+  pe_vk_draw_model(&draw_seconday_cube);
+
+  //quad
+  swordfish_update_main_cube(&quad_model, index);
+
+  pe_vk_descriptor_update(&quad_model);
+
+  PDrawModelCommand draw_quad = {
+    .model = &quad_model,
+    .command_buffer = *cmd_buffer,
+    .image_index = index,
+    .layout = pe_vk_pipeline_layout_with_descriptors
+  };
+  pe_vk_draw_model(&draw_quad);
+
+}
 
 //INFO this where you update the position of the model or camera
 void swordfish_update_main_cube(PModel *model, uint32_t image_index) {

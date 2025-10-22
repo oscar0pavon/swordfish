@@ -17,4 +17,6 @@ void swordfish_init();
 
 void swordfish_update_main_cube(PModel *model, uint32_t image_index);
 
+void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index);
+
 #endif
