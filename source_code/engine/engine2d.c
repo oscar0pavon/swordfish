@@ -5,6 +5,8 @@
 
 #include "../renderer/vk_buffer.h"
 #include "../window.h"
+#include "renderer/uniform_buffer.h"
+#include "renderer/descriptor_set.h"
 
 
 mat4 orthogonal_projection;
@@ -31,11 +33,16 @@ void pe_2d_create_quad(PModel* model, float x, float y, float width, float heigh
   array_add(&model->vertex_array, &bottom_left);
 
 
-  pe_vk_create_buffer(&model->vertex_array, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+  model->vertex_buffer = pe_vk_create_buffer(&model->vertex_array, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
   //init model matrix
   glm_mat4_identity(model->model_mat);
   //setup Uniform Buffer Object
   glm_mat4_copy(model->model_mat,model->uniform_buffer_object.model);
   glm_mat4_copy(orthogonal_projection, model->uniform_buffer_object.projection);
+
+  pe_vk_create_uniform_buffers(model);
+  pe_vk_descriptor_pool_create(model);
+  pe_vk_create_descriptor_sets(model);
+
 }

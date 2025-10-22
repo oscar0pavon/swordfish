@@ -11,9 +11,9 @@ extern Camera main_camera;
 
 extern bool finished_build;
 
-extern VkPipeline main_cube_pipeline;
-extern VkPipeline text_pipeline;
 
 void swordfish_init();
+
+void swordfish_update_main_cube(PModel *model, uint32_t image_index);
 
 #endif

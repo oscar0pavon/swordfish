@@ -7,6 +7,7 @@
 #include "renderer/cglm/mat4.h"
 #include "vk_buffer.h"
 
+#include <stdint.h>
 #include <vulkan/vulkan_core.h>
 
 #include "../swordfish.h"
@@ -77,23 +78,7 @@ void pe_vk_memory_copy(size_t size, VkDeviceMemory *memory, void *in_data) {
   vkUnmapMemory(vk_device, *(memory));
 }
 
-//INFO this where you update the position of the model or camera
-void pe_vk_uniform_buffer_update_two(PModel *model, uint32_t image_index) {
-
-  if (finished_build == false) {
-
-    glm_rotate(model->model_mat, -0.0001f, VEC3(0, 0, 1));
-    glm_mat4_copy(model->model_mat, model->uniform_buffer_object.model);
-  } else {
-    mat4 identity;
-    glm_mat4_identity(identity);
-    float scale_value = 0.6f;
-    vec3 scale = {scale_value, scale_value, scale_value};
-    glm_scale(identity, scale);
-    glm_mul(model->model_mat, identity, model->uniform_buffer_object.model);
-  }
-
-  // pawn_ubo.projection[1][1] *= -1; //TODO maybe we need to do this
+void pe_vk_send_uniform_buffer(PModel* model, uint32_t image_index){
 
   PUniformBufferObject buffers[] = {model->uniform_buffer_object};
 
@@ -103,27 +88,4 @@ void pe_vk_uniform_buffer_update_two(PModel *model, uint32_t image_index) {
   pe_vk_memory_copy(sizeof(buffers), memory, buffers);
 }
 
-void pe_vk_uniform_buffer_update_one(PModel *model, uint32_t image_index) {
 
-  PUniformBufferObject pawn_ubo;
-
-  ZERO(pawn_ubo);
-
-  glm_mat4_identity(pawn_ubo.model);
-
-  // glm_rotate(pawn_ubo.model, 90.f, VEC3(1, 0, 0));
-
-  glm_mat4_copy(main_camera.projection, pawn_ubo.projection);
-  glm_mat4_copy(main_camera.view, pawn_ubo.view);
-
-  glm_vec4_copy(VEC4(0, 2, 0, 1), pawn_ubo.light_position);
-
-  pawn_ubo.projection[1][1] *= -1;
-
-  PUniformBufferObject buffers[] = {pawn_ubo};
-
-  VkDeviceMemory *memory =
-      array_get(&model->uniform_buffers_memory, image_index);
-
-  pe_vk_memory_copy(sizeof(buffers), memory, buffers);
-}

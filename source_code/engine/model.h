@@ -51,6 +51,8 @@ typedef struct PModel{
     vec3 position;
     PMesh mesh;
 	  bool gpu_ready;
+
+    VkPipeline pipeline;
     PUniformBufferObject uniform_buffer_object;
 }PModel;
 

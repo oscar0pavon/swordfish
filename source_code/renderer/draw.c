@@ -9,8 +9,30 @@
 #include "vk_vertex.h"
 #include "vulkan.h"
 #include <engine/macros.h>
+#include <stdint.h>
+#include <sys/types.h>
 #include <vulkan/vulkan_core.h>
 
+void pe_vk_draw_model(PDrawModelCommand *draw_model) {
+
+  VkDeviceSize offsets[] = {0};
+
+  VkDescriptorSet *descriptor_set = NULL;
+
+  descriptor_set =
+      array_get(&draw_model->model->descriptor_sets, draw_model->image_index);
+
+  VkCommandBuffer command = draw_model->command_buffer;
+  vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          draw_model->layout, 0, 1, descriptor_set, 0, NULL);
+  vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    draw_model->model->pipeline);
+
+  vkCmdBindVertexBuffers(command, 0, 1, &main_cube.vertex_buffer, offsets);
+  vkCmdBindIndexBuffer(command, draw_model->model->index_buffer, 0,
+                       VK_INDEX_TYPE_UINT16);
+  vkCmdDrawIndexed(command, draw_model->model->index_array.count, 1, 0, 0, 0);
+}
 
 void pe_vk_draw_commands(VkCommandBuffer *cmd_buffer, uint32_t index) {
 
@@ -24,19 +46,16 @@ void pe_vk_draw_commands(VkCommandBuffer *cmd_buffer, uint32_t index) {
 
   // TODO draw objets here
 
-  pe_vk_uniform_buffer_update_two(&main_cube, index);
-  descriptor_set = array_get(&main_cube.descriptor_sets, index);
+  swordfish_update_main_cube(&main_cube, index);
 
-  vkCmdBindDescriptorSets(*(cmd_buffer), VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          pe_vk_pipeline_layout_with_descriptors, 0, 1,
-                          descriptor_set, 0, NULL);
-  vkCmdBindPipeline(*(cmd_buffer), VK_PIPELINE_BIND_POINT_GRAPHICS, main_cube_pipeline);
+  PDrawModelCommand draw_model = {
+    .model = &main_cube,
+    .command_buffer = *cmd_buffer,
+    .image_index = index,
+    .layout = pe_vk_pipeline_layout_with_descriptors
+  };
+  pe_vk_draw_model(&draw_model);
 
-  vkCmdBindVertexBuffers(*(cmd_buffer), 0, 1, &main_cube.vertex_buffer,
-                         offsets);
-  vkCmdBindIndexBuffer(*(cmd_buffer), main_cube.index_buffer, 0,
-                       VK_INDEX_TYPE_UINT16);
-  vkCmdDrawIndexed(*(cmd_buffer), main_cube.index_array.count, 1, 0, 0, 0);
 }
 
 void pe_vk_draw_frame() {
