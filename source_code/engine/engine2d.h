@@ -6,4 +6,6 @@
 void pe_2d_init();
 void pe_2d_create_quad(PModel* model, float x, float y, float width, float height);
 
+extern mat4 orthogonal_projection;
+
 #endif

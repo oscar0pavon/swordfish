@@ -18,6 +18,8 @@
 #include "renderer/draw.h"
 #include "renderer/vk_images.h"
 
+
+
 PModel main_cube;
 PModel secondary_cube;
 
@@ -59,6 +61,30 @@ void sworfish_set_secondary_cube_position(PModel* model, uint32_t image_index){
   pe_vk_send_uniform_buffer(model, image_index);
 }
 
+void pe_engine_2d_draw(PModel* model, u32 image_index, vec2 position, vec2 size){
+
+  mat4 scale;
+  glm_mat4_identity(scale);
+
+  mat4 position_mat;
+  glm_mat4_identity(position_mat);
+
+
+  glm_scale(scale, (vec3){size[0], size[1], 0});
+
+  glm_translate(position_mat, (vec3){position[0], position[1], 0});
+
+  glm_mul(position_mat, scale, model->uniform_buffer_object.model);
+
+
+  glm_mat4_identity(model->uniform_buffer_object.model);
+  glm_mat4_copy(orthogonal_projection, model->uniform_buffer_object.projection);
+  //glm_mat4_copy(main_camera.projection, model->uniform_buffer_object.projection);
+  //glm_mat4_copy(main_camera.view, model->uniform_buffer_object.view);
+
+  pe_vk_send_uniform_buffer(model, image_index);
+}
+
 void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
 
   //main cube
@@ -87,7 +113,7 @@ void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
   pe_vk_draw_model(&draw_seconday_cube);
 
   //quad
-  swordfish_update_main_cube(&quad_model, index);
+  pe_engine_2d_draw(&quad_model, index, VEC2(1,1), VEC2(20,20));
 
   pe_vk_descriptor_update(&quad_model);
 
@@ -143,10 +169,6 @@ void swordfish_init(){
       "/usr/libexec/swordfish/shaders/red_frag.spv",
       pe_vk_pipeline_layout_with_descriptors);
 
-  pe_vk_create_shader(&quad_model.pipeline,
-                      "/usr/libexec/swordfish/shaders/dimention_2d_vert.spv",
-                      "/usr/libexec/swordfish/shaders/red_frag.spv",
-                      pe_vk_pipeline_layout_with_descriptors);
 
   
   pe_vk_create_shader(
@@ -158,6 +180,14 @@ void swordfish_init(){
   init_secodary_cube(&secondary_cube);
 
   pe_2d_init();
-  pe_2d_create_quad(&quad_model,1,1,1,1);
+  //pe_2d_create_quad(&quad_model,20,20,20,20);
 
+  pe_vk_model_load(&quad_model, "/usr/libexec/swordfish/models/quad.glb");
+  pe_vk_create_descriptor_sets(&quad_model,pe_vk_descriptor_set_layout);
+  pe_vk_descriptor_update(&quad_model);
+  
+  pe_vk_create_shader(&quad_model.pipeline,
+                      "/usr/libexec/swordfish/shaders/model_view_projection_vert.spv",
+                      "/usr/libexec/swordfish/shaders/red_frag.spv",
+                      pe_vk_pipeline_layout_with_descriptors);
 }
