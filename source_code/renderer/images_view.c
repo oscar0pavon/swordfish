@@ -26,7 +26,7 @@ VkImageView pe_vk_create_image_view(VkImage image, VkFormat format,
   
   VkImageView image_view;
 
-  vkCreateImageView(vk_device, &viewInfo, NULL, &image_view);
+  VKVALID(vkCreateImageView(vk_device, &viewInfo, NULL, &image_view),"Can't create image view");
   
   return image_view;
 }

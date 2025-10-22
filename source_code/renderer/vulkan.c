@@ -7,6 +7,7 @@
 #include "commands.h"
 #include "debug.h"
 #include "descriptor_set.h"
+#include "engine/images.h"
 #include "framebuffer.h"
 #include "images_view.h"
 #include "pipeline.h"
@@ -220,11 +221,12 @@ void pe_vk_create_surface() {
 void pe_vk_create_color_resources() {
   VkFormat color_format = pe_vk_swch_format;
 
+  PTexture color;
+  color.mip_level = 1;
   PImageCreateInfo image_create_info = {
       .width = pe_vk_swch_extent.width,
       .height = pe_vk_swch_extent.height,
-      .texture_image = &pe_vk_color_image,
-      .image_memory = &pe_vk_color_memory,
+      .texture = &color,
       .format = color_format,
       .tiling = VK_IMAGE_TILING_OPTIMAL,
       .usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
@@ -236,7 +238,7 @@ void pe_vk_create_color_resources() {
   pe_vk_create_image(&image_create_info);
 
   pe_vk_color_image_view = pe_vk_create_image_view(
-      pe_vk_color_image, color_format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+      color.image, color_format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 }
 
 void pe_vk_set_viewport_and_sccisor(){
@@ -309,8 +311,6 @@ int pe_vk_init() {
   pe_vk_command_init();
 
   pe_vk_semaphores_create();
-
-  pe_vk_create_texture_image();
 
 
   LOG("Vulkan intialize [OK]\n");

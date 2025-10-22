@@ -3,11 +3,11 @@
 
 
 
-//#include "images.h"
-
+#include <engine/images.h>
 #include "array.h"
 
 #include "../renderer/cglm/vec3.h"
+
 #include "renderer/vulkan.h"
 
 
@@ -35,7 +35,7 @@ typedef struct PModel{
 
     mat4 model_mat;
 
-    // PTexture texture;
+    PTexture texture;
     // PTexture textures[4];
 
     // PMaterial material;

@@ -255,11 +255,12 @@ PModel *pe_vk_model_load(PModel* model, char *path) {
 
   pe_load_model(model, path);
 
-  model->vertex_buffer = pe_vk_create_buffer(&model->vertex_array,
+  model->vertex_buffer = pe_vk_create_buffer(model->vertex_array.bytes_size,
+                                             model->vertex_array.data,
                                              VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-  model->index_buffer = pe_vk_create_buffer(&model->index_array,
+  model->index_buffer = pe_vk_create_buffer(model->index_array.bytes_size,
+                                            model->index_array.data,
                                             VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-
 
   pe_vk_create_uniform_buffers(model);
   pe_vk_descriptor_pool_create(model);

@@ -131,8 +131,8 @@ void pe_vk_descriptor_with_image_update(PModel *model) {
 
     VkDescriptorImageInfo image_info = {
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        .imageView = pe_vk_texture_image_view,
-        .sampler = pe_vk_texture_sampler};
+        .imageView = model->texture.image_view,
+        .sampler = model->texture.sampler};
 
     VkDescriptorSet *descriptor_set = array_get(&model->descriptor_sets, i);
 

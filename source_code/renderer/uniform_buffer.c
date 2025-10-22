@@ -26,19 +26,6 @@ void pe_vk_ubo_init() {
   glm_mat4_identity(ubo.model);
 }
 
-PBufferCreateInfo pe_vk_create_shader_storage_buffer(size_t size) {
-
-  PBufferCreateInfo info;
-  ZERO(info);
-  info.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-  info.properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-
-  info.size = size;
-
-  pe_vk_buffer_create(&info);
-  return info;
-}
 PBufferCreateInfo pe_vk_uniform_buffer_create_buffer(size_t size) {
 
   PBufferCreateInfo info;
@@ -49,7 +36,7 @@ PBufferCreateInfo pe_vk_uniform_buffer_create_buffer(size_t size) {
 
   info.size = size;
 
-  pe_vk_buffer_create(&info);
+  pe_vk_create_buffer_memory(&info);
   return info;
 }
 

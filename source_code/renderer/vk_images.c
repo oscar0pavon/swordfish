@@ -17,16 +17,9 @@
 #include <wchar.h>
 #include <wctype.h>
 
-VkImage pe_vk_texture_image;
-VkImageView pe_vk_texture_image_view;
-VkSampler pe_vk_texture_sampler;
-VkImage pe_vk_depth_image;
-VkDeviceMemory pe_vk_depth_image_memory;
+
 VkImageView pe_vk_depth_image_view;
 
-VkDeviceMemory pe_vk_texture_image_memory;
-
-uint32_t pe_vk_mip_levels;
 
 void pe_vk_transition_image_layout(VkImage image, VkFormat format,
                                    VkImageLayout old_layout,
@@ -99,48 +92,39 @@ void pe_vk_image_copy_buffer(VkBuffer buffer, VkImage image, uint32_t width,
 }
 
 void pe_vk_create_image(PImageCreateInfo *info) {
+  VkImageCreateInfo image_info = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                                  .imageType = VK_IMAGE_TYPE_2D,
+                                  .extent.width = info->width,
+                                  .extent.height = info->height,
+                                  .extent.depth = 1,
+                                  .mipLevels = info->texture->mip_level,
+                                  .arrayLayers = 1,
+                                  .format = info->format,
+                                  .tiling = info->tiling,
+                                  .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                                  .usage = info->usage,
+                                  .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+                                  .samples = info->number_of_samples};
 
-  VkImageCreateInfo imageInfo;
-  ZERO(imageInfo);
-
-  imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-  imageInfo.imageType = VK_IMAGE_TYPE_2D;
-  imageInfo.extent.width = info->width;
-  imageInfo.extent.height = info->height;
-  imageInfo.extent.depth = 1;
-  imageInfo.mipLevels = info->mip_level;
-  imageInfo.arrayLayers = 1;
-  imageInfo.format = info->format;
-  imageInfo.tiling = info->tiling;
-  imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  imageInfo.usage = info->usage;
-  imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-  imageInfo.samples = info->number_of_samples;
-  imageInfo.flags = 0; // Optional
-
-  if (vkCreateImage(vk_device, &imageInfo, NULL, info->texture_image) !=
-      VK_SUCCESS) {
-    LOG("failed to create image!\n");
-  }
+  VKVALID(vkCreateImage(vk_device, &image_info, NULL, &info->texture->image),
+          "failed to create image !");
 
   VkMemoryRequirements image_memory_requirements;
-  vkGetImageMemoryRequirements(vk_device, *(info->texture_image),
+  vkGetImageMemoryRequirements(vk_device, info->texture->image,
                                &image_memory_requirements);
 
-  VkMemoryAllocateInfo info_alloc;
-  ZERO(info_alloc);
-  info_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-  info_alloc.allocationSize = image_memory_requirements.size;
-  info_alloc.memoryTypeIndex = pe_vk_memory_find_type(
-      image_memory_requirements.memoryTypeBits, info->properties);
+  VkMemoryAllocateInfo info_alloc = {
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      .allocationSize = image_memory_requirements.size,
+      .memoryTypeIndex = pe_vk_memory_find_type(
+          image_memory_requirements.memoryTypeBits, info->properties)};
 
-  vkAllocateMemory(vk_device, &info_alloc, NULL, info->image_memory);
+  vkAllocateMemory(vk_device, &info_alloc, NULL, &info->texture->memory);
 
-  vkBindImageMemory(vk_device, *(info->texture_image), *(info->image_memory),
-                    0);
+  vkBindImageMemory(vk_device, info->texture->image, info->texture->memory, 0);
 }
 
-void pe_vk_create_texture_sampler() {
+void pe_vk_create_texture_sampler(PTexture* new_texture) {
   VkSamplerCreateInfo samplerInfo = {};
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
   samplerInfo.magFilter = VK_FILTER_LINEAR;
@@ -153,11 +137,11 @@ void pe_vk_create_texture_sampler() {
   samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
   samplerInfo.mipLodBias = 0.0f;
   samplerInfo.minLod = 0.0f;
-  samplerInfo.maxLod = pe_vk_mip_levels;
+  samplerInfo.maxLod = new_texture->mip_level;
   samplerInfo.anisotropyEnable = VK_FALSE;
   samplerInfo.maxAnisotropy = 1.0f;
 
-  vkCreateSampler(vk_device, &samplerInfo, NULL, &pe_vk_texture_sampler);
+  vkCreateSampler(vk_device, &samplerInfo, NULL, &new_texture->sampler);
 }
 
 void pe_vk_image_generate_mipmaps(VkImage image, uint32_t width,
@@ -244,11 +228,13 @@ void pe_vk_image_generate_mipmaps(VkImage image, uint32_t width,
 void pe_vk_create_depth_resources() {
   VkFormat format = VK_FORMAT_D32_SFLOAT;
 
+  PTexture depth;
+  depth.mip_level = 1;
+
   PImageCreateInfo image_create_info = {
       .width = pe_vk_swch_extent.width,
       .height = pe_vk_swch_extent.height,
-      .texture_image = &pe_vk_depth_image,
-      .image_memory = &pe_vk_depth_image_memory,
+      .texture = &depth,
       .format = format,
       .tiling = VK_IMAGE_TILING_OPTIMAL,
       .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
@@ -259,73 +245,56 @@ void pe_vk_create_depth_resources() {
   pe_vk_create_image(&image_create_info);
 
   pe_vk_depth_image_view = pe_vk_create_image_view(
-      pe_vk_depth_image, format, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+      depth.image, format, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+
 }
 
-void pe_vk_create_texture_image() {
+void pe_vk_create_texture(PTexture* new_texture, const char* path) {
   PImage texture;
   ZERO(texture);
-  pe_load_image("/usr/libexec/swordfish/images/bits.png", &texture);
+  pe_load_image(path, &texture);
 
-  pe_vk_mip_levels =
+  new_texture->mip_level =
       floor(log2(GLM_MAX(texture.width, texture.heigth))) + 1;
-
-  LOG("Mip map level = %i\n", pe_vk_mip_levels);
 
   VkDeviceSize image_size = texture.width * texture.heigth * 4;
 
-  PBufferCreateInfo buffer_info;
-  ZERO(buffer_info);
-  buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-  buffer_info.properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-  buffer_info.size = image_size;
-  pe_vk_buffer_create(&buffer_info);
-  if (texture.pixels_data == NULL) {
-    return;
-  }
-  void *data;
-  VKVALID(vkMapMemory(vk_device, buffer_info.buffer_memory, 0, image_size, 0,
-                      &data),
-          "Can't map memory");
-  memcpy(data, texture.pixels_data, image_size);
-  vkUnmapMemory(vk_device, buffer_info.buffer_memory);
+  VkBuffer image_buffer = pe_vk_create_buffer(image_size, texture.pixels_data,
+                                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
   PImageCreateInfo image_create_info = {
       .width = texture.width,
       .height = texture.heigth,
-      .texture_image = &pe_vk_texture_image,
-      .image_memory = &pe_vk_texture_image_memory,
+      .texture = new_texture,
       .format = VK_FORMAT_R8G8B8A8_SRGB,
       .tiling = VK_IMAGE_TILING_OPTIMAL,
       .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
       .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-      .mip_level = pe_vk_mip_levels,
       .number_of_samples = VK_SAMPLE_COUNT_1_BIT};
 
   pe_vk_create_image(&image_create_info);
 
   pe_vk_transition_image_layout(
-      pe_vk_texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED,
-      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, pe_vk_mip_levels);
+      new_texture->image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED,
+      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, new_texture->mip_level);
 
-  pe_vk_image_copy_buffer(buffer_info.buffer, pe_vk_texture_image,
-                          texture.width, texture.heigth);
+  pe_vk_image_copy_buffer(image_buffer, new_texture->image, texture.width,
+                          texture.heigth);
 
   // pe_vk_transition_image_layout(pe_vk_texture_image, VK_FORMAT_R8G8B8A8_SRGB,
   //                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
   //                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
   //                               pe_vk_mip_levels);
 
-  pe_vk_image_generate_mipmaps(pe_vk_texture_image, texture.width,
-                               texture.heigth, pe_vk_mip_levels);
+  pe_vk_image_generate_mipmaps(new_texture->image, texture.width,
+                               texture.heigth, new_texture->mip_level);
 
-  pe_vk_texture_image_view =
-      pe_vk_create_image_view(pe_vk_texture_image, VK_FORMAT_R8G8B8A8_SRGB,
-                              VK_IMAGE_ASPECT_COLOR_BIT, pe_vk_mip_levels);
+  new_texture->image_view = pe_vk_create_image_view(
+      new_texture->image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT,
+      new_texture->mip_level);
 
-  pe_vk_create_texture_sampler();
+  pe_vk_create_texture_sampler(new_texture);
 
   free_image(&texture);
 }

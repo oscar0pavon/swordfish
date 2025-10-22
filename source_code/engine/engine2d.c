@@ -48,11 +48,13 @@ void pe_2d_create_quad(PModel* model, float x, float y, float width, float heigh
   number = 3;
   array_add(&model->index_array,&number);
 
-  model->vertex_buffer = pe_vk_create_buffer(&model->vertex_array,
-                                             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-  model->index_buffer = pe_vk_create_buffer(&model->index_array,
-                                            VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
+  model->vertex_buffer = pe_vk_create_buffer(model->vertex_array.bytes_size,
+                                             model->vertex_array.data,
+                                             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+  model->index_buffer = pe_vk_create_buffer(model->index_array.bytes_size,
+                                            model->index_array.data,
+                                            VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
   //init model matrix
   glm_mat4_identity(model->model_mat);
   //setup Uniform Buffer Object

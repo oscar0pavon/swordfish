@@ -13,10 +13,14 @@ typedef struct PImage{
 }PImage;
 
 typedef struct PTexture{
-    PImage image;
     unsigned int id;
 		int format;
 		bool gpu_loaded;
+    VkImage image;
+    VkDeviceMemory memory;
+    u32 mip_level;
+    VkSampler sampler;
+    VkImageView image_view;
 
 }PTexture;
 

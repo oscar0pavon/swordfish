@@ -7,7 +7,7 @@
 #include <engine/macros.h>
 #include <vulkan/vulkan_core.h>
 
-void pe_vk_buffer_create(PBufferCreateInfo *buffer_info) {
+void pe_vk_create_buffer_memory(PBufferCreateInfo *buffer_info) {
   VkBufferCreateInfo info = {
 
       .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -44,22 +44,22 @@ void pe_vk_copy_buffer(VkBuffer source, VkBuffer destination,
   pe_vk_end_single_time_cmd(command);
 }
 
-VkBuffer pe_vk_create_buffer(Array *array, VkBufferUsageFlagBits type) {
+VkBuffer pe_vk_create_buffer(u64 size, void* data , VkBufferUsageFlagBits type) {
 
   PBufferCreateInfo info = {
 
       .usage = type,
       .properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-      .size = array->bytes_size
+      .size = size
 
   };
 
-  pe_vk_buffer_create(&info);
+  pe_vk_create_buffer_memory(&info);
 
-  void *data;
-  vkMapMemory(vk_device, info.buffer_memory, 0, info.size, 0, &data);
-  memcpy(data, array->data, array->bytes_size);
+  void *vulkan_memory;
+  vkMapMemory(vk_device, info.buffer_memory, 0, size, 0, &vulkan_memory);
+  memcpy(vulkan_memory, data, size);
   vkUnmapMemory(vk_device, info.buffer_memory);
 
   return info.buffer;

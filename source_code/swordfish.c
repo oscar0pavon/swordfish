@@ -16,6 +16,7 @@
 
 #include "renderer/descriptor_set.h"
 #include "renderer/draw.h"
+#include "renderer/vk_images.h"
 
 PModel main_cube;
 PModel secondary_cube;
@@ -124,6 +125,9 @@ void swordfish_update_main_cube(PModel *model, uint32_t image_index) {
 }
 
 void swordfish_init(){
+ 
+  pe_vk_create_texture(&secondary_cube.texture, "/usr/libexec/swordfish/images/bits.png");
+
 
   pe_vk_model_load(&main_cube, "/usr/libexec/swordfish/models/wireframe_cube.glb");
   pe_vk_create_descriptor_sets(&main_cube,pe_vk_descriptor_set_layout);
