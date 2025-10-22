@@ -213,10 +213,14 @@ void pe_vk_pipeline_create_pipelines() {
 }
 
 void pe_vk_pipelines_init() {
+  
   ZERO(pe_vk_main_pipeline_info);
+
   array_init(&pe_vk_pipeline_infos, sizeof(VkGraphicsPipelineCreateInfo),
              PE_VK_PIPELINES_MAX);
   array_init(&pe_graphics_pipelines, sizeof(VkPipeline), PE_VK_PIPELINES_MAX);
+
+
   pe_vk_main_pipeline_info.attributes.has_attributes = false;
   pe_vk_main_pipeline_info.vertex_input_state =
       pe_vk_pipeline_get_default_vertex_input(
@@ -240,11 +244,11 @@ void pe_vk_pipelines_init() {
 
       .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
       .stageCount = 2,
-      //.pStages = red_shader, // created in pe_vk_shader_load()
+      //.pStages = red_shader, // created in pe_vk_shader_load() //TODO afer assining all
       .layout =
           pe_vk_pipeline_layout, // created in pe_vk_pipeline_create_layout()
       .renderPass = pe_vk_render_pass, // created in pe_vk_create_render_pass()
-      .pVertexInputState = &pe_vk_main_pipeline_info.vertex_input_state,
+      //.pVertexInputState = &pe_vk_main_pipeline_info.vertex_input_state,//TODO after assining all
       .pInputAssemblyState = &pe_vk_main_pipeline_info.input_assembly_state,
       .pViewportState = &pe_vk_main_pipeline_info.viewport_state,
       .pRasterizationState = &pe_vk_main_pipeline_info.rasterization_state,

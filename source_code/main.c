@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <unistd.h>
 
+#include "swordfish.h"
 
 #include "engine/camera.h"
 #include "engine/engine2d.h"
@@ -16,7 +17,6 @@
 
 #include "renderer/draw.h"
 
-#include "swordfish.h"
 
 
 #include <engine/utils.h>
@@ -51,11 +51,11 @@ int main(){
 
 
 
-  pe_vk_model_load(&main_cube, "models/wireframe_cube.glb");
+  pe_vk_model_load(&main_cube, "/usr/libexec/swordfish/models/wireframe_cube.glb");
 
 
   pe_2d_init();
-  pe_2d_create_quad(&quad,50,50,50,50);
+  //pe_2d_create_quad(&quad,50,50,50,50);
 
 
 

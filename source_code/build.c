@@ -44,7 +44,7 @@ void *call_make(void *none) {
     dup2(pipefd[WRITE_END], STDOUT_FILENO);
     dup2(pipefd[WRITE_END], STDERR_FILENO);
     close(pipefd[WRITE_END]);
-    execlp("make", "make", NULL);
+    execlp("make", "make", "-j32", NULL);
     perror("execlp");
     exit(EXIT_FAILURE);
   } else { // parent

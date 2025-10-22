@@ -66,9 +66,6 @@ void pe_vk_create_uniform_buffers(PModel *model) {
     array_add(&model->uniform_buffers_memory, &info.buffer_memory);
   }
 
-  glm_mat4_copy(model->model_mat,model->uniform_buffer_object.model);
-  glm_mat4_copy(main_camera.projection, model->uniform_buffer_object.projection);
-  glm_mat4_copy(main_camera.view, model->uniform_buffer_object.view);
   // buffer_color = pe_vk_uniform_buffer_create_buffer(sizeof(PEColorShader));
 }
 

@@ -33,6 +33,7 @@ swordfish: $(OBJS) shaders
 shaders: shaders/red.frag shaders/model_view_projection.vert
 	glslc shaders/red.frag -o ../shaders/red_frag.spv
 	glslc shaders/model_view_projection.vert -o ../shaders/model_view_projection_vert.spv
+	glslc shaders/dimention_2d.vert -o ../shaders/dimention_2d_vert.spv
 
 clean:
 	rm -f ../swordfish
