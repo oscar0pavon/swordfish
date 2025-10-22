@@ -75,7 +75,7 @@ glm_aabb_merge(vec3 box1[2], vec3 box2[2], vec3 dest[2]) {
 /*!
  * @brief crops a bounding box with another one.
  *
- * this could be useful for gettng a bbox which fits with view frustum and
+ * this could be useful for getting a bbox which fits with view frustum and
  * object bounding boxes. In this case you crop view frustum box with objects
  * box
  *
@@ -98,13 +98,13 @@ glm_aabb_crop(vec3 box[2], vec3 cropBox[2], vec3 dest[2]) {
 /*!
  * @brief crops a bounding box with another one.
  *
- * this could be useful for gettng a bbox which fits with view frustum and
+ * this could be useful for getting a bbox which fits with view frustum and
  * object bounding boxes. In this case you crop view frustum box with objects
  * box
  *
  * @param[in]  box      bounding box
  * @param[in]  cropBox  crop box
- * @param[in]  clampBox miniumum box
+ * @param[in]  clampBox minimum box
  * @param[out] dest     cropped bounding box
  */
 CGLM_INLINE
@@ -228,6 +228,8 @@ glm_aabb_aabb(vec3 box[2], vec3 other[2]) {
  * https://github.com/erich666/GraphicsGems/blob/master/gems/BoxSphere.c
  * Solid Box - Solid Sphere test.
  *
+ * Sphere Representation in cglm: [center.x, center.y, center.z, radii]
+ *
  * @param[in]   box    solid bounding box
  * @param[in]   s      solid sphere
  */
@@ -237,13 +239,13 @@ glm_aabb_sphere(vec3 box[2], vec4 s) {
   float dmin;
   int   a, b, c;
 
-  a = s[0] >= box[0][0];
-  b = s[1] >= box[0][1];
-  c = s[2] >= box[0][2];
+  a = (s[0] < box[0][0]) + (s[0] > box[1][0]);
+  b = (s[1] < box[0][1]) + (s[1] > box[1][1]);
+  c = (s[2] < box[0][2]) + (s[2] > box[1][2]);
 
-  dmin  = glm_pow2(s[0] - box[a][0])
-        + glm_pow2(s[1] - box[b][1])
-        + glm_pow2(s[2] - box[c][2]);
+  dmin  = glm_pow2((s[0] - box[!(a - 1)][0]) * (a != 0))
+        + glm_pow2((s[1] - box[!(b - 1)][1]) * (b != 0))
+        + glm_pow2((s[2] - box[!(c - 1)][2]) * (c != 0));
 
   return dmin <= glm_pow2(s[3]);
 }
