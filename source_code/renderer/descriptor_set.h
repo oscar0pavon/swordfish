@@ -23,4 +23,6 @@ void pe_vk_create_descriptor_set_layout();
 void pe_vk_create_descriptor_set_layout_with_texture();
 void pe_vk_create_descriptor_set_layout_skinned();
 
+void pe_vk_descriptor_update(PModel *model);
+
 #endif

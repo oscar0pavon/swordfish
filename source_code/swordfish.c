@@ -59,6 +59,6 @@ void swordfish_init(){
 
 
   pe_2d_init();
-  pe_2d_create_quad(&quad_model,50,50,50,50);
+  pe_2d_create_quad(&quad_model,1,1,1,1);
 
 }

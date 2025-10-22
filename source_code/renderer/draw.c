@@ -13,6 +13,8 @@
 #include <sys/types.h>
 #include <vulkan/vulkan_core.h>
 
+#include "renderer/descriptor_set.h"
+
 void pe_vk_draw_model(PDrawModelCommand *draw_model) {
 
   VkDeviceSize offsets[] = {0};
@@ -28,7 +30,7 @@ void pe_vk_draw_model(PDrawModelCommand *draw_model) {
   vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_GRAPHICS,
                     draw_model->model->pipeline);
 
-  vkCmdBindVertexBuffers(command, 0, 1, &main_cube.vertex_buffer, offsets);
+  vkCmdBindVertexBuffers(command, 0, 1, &draw_model->model->vertex_buffer, offsets);
   vkCmdBindIndexBuffer(command, draw_model->model->index_buffer, 0,
                        VK_INDEX_TYPE_UINT16);
   vkCmdDrawIndexed(command, draw_model->model->index_array.count, 1, 0, 0, 0);
@@ -47,14 +49,27 @@ void pe_vk_draw_commands(VkCommandBuffer *cmd_buffer, uint32_t index) {
   // TODO draw objets here
 
   swordfish_update_main_cube(&main_cube, index);
+  pe_vk_descriptor_update(&main_cube);
 
-  PDrawModelCommand draw_model = {
+  PDrawModelCommand draw_cube = {
     .model = &main_cube,
     .command_buffer = *cmd_buffer,
     .image_index = index,
     .layout = pe_vk_pipeline_layout_with_descriptors
   };
-  pe_vk_draw_model(&draw_model);
+  pe_vk_draw_model(&draw_cube);
+
+  swordfish_update_main_cube(&quad_model, index);
+
+  pe_vk_descriptor_update(&quad_model);
+
+  PDrawModelCommand draw_quad = {
+    .model = &quad_model,
+    .command_buffer = *cmd_buffer,
+    .image_index = index,
+    .layout = pe_vk_pipeline_layout_with_descriptors
+  };
+  pe_vk_draw_model(&draw_quad);
 
 }
 
