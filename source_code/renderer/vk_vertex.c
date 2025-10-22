@@ -63,7 +63,7 @@ void pe_vk_vertex_get_attribute(PVertexAtrributes *attributes) {
     ZERO(attribute);
 
     attribute.binding = 0;
-    attribute.location = 3;
+    attribute.location = 3;//TODO maybe could be 3
 
     attribute.format = VK_FORMAT_R32G32_SFLOAT;
     attribute.offset = offsetof(PVertex, uv);

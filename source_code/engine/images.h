@@ -4,6 +4,7 @@
 
 #include "numbers.h"
 #include <stdbool.h>
+#include "renderer/vulkan.h"
 
 typedef struct PImage{
   unsigned short int width;
@@ -16,6 +17,7 @@ typedef struct PTexture{
     unsigned int id;
 		int format;
 		bool gpu_loaded;
+
 }PTexture;
 
 int pe_load_image(const char* path, PImage* image);

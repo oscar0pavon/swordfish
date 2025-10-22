@@ -124,7 +124,7 @@ void pe_load_attribute(Array* vertex_array, cgltf_attribute *attribute) {
     vec2 uvs[attribute->data->count];
     ZERO(uvs);
 
-    //pe_loader_read_accessor(attribute->data, uvs);TODO UVs
+    pe_loader_read_accessor(vertex_array, attribute->data, (float*)uvs);
 
     for (int i = 0; i < attribute->data->count; i++) {
       PVertex *vertex = array_get(vertex_array, i);
@@ -263,7 +263,6 @@ PModel *pe_vk_model_load(PModel* model, char *path) {
 
   pe_vk_create_uniform_buffers(model);
   pe_vk_descriptor_pool_create(model);
-  pe_vk_create_descriptor_sets(model);
  
   //init model matrix
   glm_mat4_identity(model->model_mat);

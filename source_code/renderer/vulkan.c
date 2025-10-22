@@ -280,17 +280,16 @@ int pe_vk_init() {
   pe_vk_create_render_pass();
 
   pe_vk_create_descriptor_set_layout();
-  //pe_vk_create_descriptor_set_layout_with_texture();
+  
+  pe_vk_create_descriptor_set_layout_with_texture();
   //pe_vk_create_descriptor_set_layout_skinned();
 
-  // pe_vk_pipeline_create_layout(false, &pe_vk_pipeline_layout,
-  //                              &pe_vk_descriptor_set_layout_with_texture);
-  //
-  // pe_vk_pipeline_create_layout(true, &pe_vk_pipeline_layout_with_descriptors,
-  //                              &pe_vk_descriptor_set_layout_with_texture);
   
   pe_vk_pipeline_create_layout(true, &pe_vk_pipeline_layout_with_descriptors,
                                &pe_vk_descriptor_set_layout);
+
+  pe_vk_pipeline_create_layout(true, &pe_vk_pipeline_layout3,
+                               &pe_vk_descriptor_set_layout_with_texture);
 
   // pe_vk_pipeline_create_layout(true, &pe_vk_pipeline_layout_skinned,
   //                              &pe_vk_descriptor_set_layout_skinned);

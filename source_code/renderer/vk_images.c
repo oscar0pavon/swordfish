@@ -265,7 +265,7 @@ void pe_vk_create_depth_resources() {
 void pe_vk_create_texture_image() {
   PImage texture;
   ZERO(texture);
-  pe_load_image("/usr/libexec/swordfish/images/font.png", &texture);
+  pe_load_image("/usr/libexec/swordfish/images/bits.png", &texture);
 
   pe_vk_mip_levels =
       floor(log2(GLM_MAX(texture.width, texture.heigth))) + 1;

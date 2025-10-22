@@ -9,9 +9,9 @@ extern Array pe_vk_pipeline_infos;
 extern Array pe_graphics_pipelines;
 
 
-void pe_vk_create_shader(VkPipeline *out_pipeline, const char *vertex,
-                         const char *fragment);
 
 void pe_vk_pipelines_init();
 void pe_vk_pipeline_create_layout(bool use_descriptor, VkPipelineLayout *layout,
                                   VkDescriptorSetLayout *set_layout);
+void pe_vk_create_shader(VkPipeline* out_pipeline, const char* vertex, const char* fragment,
+    VkPipelineLayout layout);

@@ -7,6 +7,9 @@
 
 VkPipelineLayout pe_vk_pipeline_layout;
 VkPipelineLayout pe_vk_pipeline_layout_with_descriptors;
+
+VkPipelineLayout pe_vk_pipeline_layout3;
+
 VkPipelineLayout pe_vk_pipeline_layout_skinned;
 
 VkDescriptorSetLayout pe_vk_descriptor_set_layout;
@@ -179,7 +182,7 @@ void pe_vk_descriptor_update(PModel *model) {
   }
 }
 
-void pe_vk_create_descriptor_sets(PModel *model) {
+void pe_vk_create_descriptor_sets(PModel *model, VkDescriptorSetLayout layout) {
 
   VkDescriptorSetLayout layouts[4];
 
@@ -187,7 +190,7 @@ void pe_vk_create_descriptor_sets(PModel *model) {
 
   for (int i = 0; i < 4; i++) {
     //layouts[i] = pe_vk_descriptor_set_layout_with_texture;
-    layouts[i] = pe_vk_descriptor_set_layout;
+    layouts[i] = layout;
   }
 
   array_init(&model->descriptor_sets, sizeof(VkDescriptorSet), 4);
@@ -204,5 +207,4 @@ void pe_vk_create_descriptor_sets(PModel *model) {
 
   vkAllocateDescriptorSets(vk_device, &alloc_info, model->descriptor_sets.data);
 
-  pe_vk_descriptor_update(model);
 }

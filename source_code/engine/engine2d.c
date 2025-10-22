@@ -64,6 +64,6 @@ void pe_2d_create_quad(PModel* model, float x, float y, float width, float heigh
 
   pe_vk_create_uniform_buffers(model);
   pe_vk_descriptor_pool_create(model);
-  pe_vk_create_descriptor_sets(model);
+  pe_vk_create_descriptor_sets(model, pe_vk_descriptor_set_layout);
 
 }

@@ -218,8 +218,6 @@ VkGraphicsPipelineCreateInfo* pe_vk_pipeline_create_info(){
       .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
       .stageCount = 2,//fragment and vertex stages
       //.pStages = red_shader, // created in pe_vk_shader_load() //TODO afer assining all
-      .layout =
-          pe_vk_pipeline_layout, // created in pe_vk_pipeline_create_layout()
       .renderPass = pe_vk_render_pass, // created in pe_vk_create_render_pass()
       //.pVertexInputState = &pe_vk_main_pipeline_info.vertex_input_state,//TODO after assining all
       .pInputAssemblyState = &input_assembly_state,
@@ -237,7 +235,8 @@ VkGraphicsPipelineCreateInfo* pe_vk_pipeline_create_info(){
 }
 
 
-void pe_vk_create_shader(VkPipeline* out_pipeline, const char* vertex, const char* fragment){
+void pe_vk_create_shader(VkPipeline* out_pipeline, const char* vertex, const char* fragment,
+    VkPipelineLayout layout){
 
   VkGraphicsPipelineCreateInfo* create_info = pe_vk_pipeline_create_info();
 
@@ -248,7 +247,8 @@ void pe_vk_create_shader(VkPipeline* out_pipeline, const char* vertex, const cha
 
   // example can be have vertex position and UV or more
   PVertexAtrributes vertex_attributes = {.has_attributes = true,
-                                         .position = true};
+                                         .position = true,
+                                         .uv = true};
 
   ZERO(vertex_input_state);
   vertex_input_state =
@@ -256,7 +256,7 @@ void pe_vk_create_shader(VkPipeline* out_pipeline, const char* vertex, const cha
 
   create_info->pVertexInputState = &vertex_input_state;
 
-  create_info->layout = pe_vk_pipeline_layout_with_descriptors;
+  create_info->layout = layout;
 
   int count = 1;
   VKVALID(vkCreateGraphicsPipelines(vk_device, VK_NULL_HANDLE, count,

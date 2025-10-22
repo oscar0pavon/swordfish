@@ -74,13 +74,13 @@ void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
 
   //secondary_cube
   sworfish_set_secondary_cube_position(&secondary_cube, index);
-  pe_vk_descriptor_update(&secondary_cube);
+  pe_vk_descriptor_with_image_update(&secondary_cube);
 
   PDrawModelCommand draw_seconday_cube = {
     .model = &secondary_cube,
     .command_buffer = *cmd_buffer,
     .image_index = index,
-    .layout = pe_vk_pipeline_layout_with_descriptors
+    .layout = pe_vk_pipeline_layout3
   };
 
   pe_vk_draw_model(&draw_seconday_cube);
@@ -126,20 +126,30 @@ void swordfish_update_main_cube(PModel *model, uint32_t image_index) {
 void swordfish_init(){
 
   pe_vk_model_load(&main_cube, "/usr/libexec/swordfish/models/wireframe_cube.glb");
+  pe_vk_create_descriptor_sets(&main_cube,pe_vk_descriptor_set_layout);
+  pe_vk_descriptor_update(&main_cube);
+  
   pe_vk_model_load(&secondary_cube, "/usr/libexec/swordfish/models/secondary_cube.glb");
-
+  pe_vk_create_descriptor_sets(&secondary_cube,pe_vk_descriptor_set_layout_with_texture);
+  pe_vk_descriptor_with_image_update(&secondary_cube);
 
   pe_vk_create_shader(
       &main_cube.pipeline,
       "/usr/libexec/swordfish/shaders/model_view_projection_vert.spv",
-      "/usr/libexec/swordfish/shaders/red_frag.spv");
-
+      "/usr/libexec/swordfish/shaders/red_frag.spv",
+      pe_vk_pipeline_layout_with_descriptors);
 
   pe_vk_create_shader(&quad_model.pipeline,
                       "/usr/libexec/swordfish/shaders/dimention_2d_vert.spv",
-                      "/usr/libexec/swordfish/shaders/red_frag.spv");
+                      "/usr/libexec/swordfish/shaders/red_frag.spv",
+                      pe_vk_pipeline_layout_with_descriptors);
 
-  secondary_cube.pipeline = main_cube.pipeline;
+  
+  pe_vk_create_shader(
+      &secondary_cube.pipeline,
+      "/usr/libexec/swordfish/shaders/model_view_projection_vert.spv",
+      "/usr/libexec/swordfish/shaders/texture_frag.spv",
+      pe_vk_pipeline_layout3);
 
   init_secodary_cube(&secondary_cube);
 
