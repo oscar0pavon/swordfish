@@ -3,7 +3,8 @@ CLINKS := -lX11 -lpthread -lm -lvulkan
 
 CFLAGS := -g
 
-CFLAGS_ENGINE := $(CFLAGS) -I/root/swordfish/source_code
+CFLAGS_ENGINE := $(CFLAGS) -I/root/swordfish/source_code 
+CFLAGS_ENGINE += -DCGLM_FORCE_DEPTH_ZERO_TO_ONE -DCGLM_FORCE_LEFT_HANDED
 
 vulkan_src := $(wildcard ./renderer/*.c)
 vulkan_objs := $(vulkan_src:%.c=%.o)

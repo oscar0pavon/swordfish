@@ -6,6 +6,7 @@
 
 #include "../renderer/vk_buffer.h"
 #include "../window.h"
+#include "renderer/cglm/clipspace/ortho_rh_no.h"
 #include "renderer/uniform_buffer.h"
 #include "renderer/descriptor_set.h"
 
@@ -17,35 +18,44 @@ mat4 orthogonal_projection;
 void pe_2d_init(){
   
 
-  glm_ortho(0, WINDOW_WIDTH, WINDOW_HEIGHT, 0, 0, 1, orthogonal_projection);
+  glm_ortho(0, WINDOW_WIDTH, 0, WINDOW_HEIGHT, 0.1f, 1000.f, orthogonal_projection);
 
   
 }
 
-void pe_2d_create_quad(PModel* model, float x, float y, float width, float height){
+void pe_2d_draw(PModel* model, u32 image_index, vec2 position, vec2 size){
 
-  PVertex top_left = {.position = {x, y}};
-  PVertex top_right = {.position = {x + width, y}};
-  PVertex bottom_right = {.position = {x + width, y + height}};
-  PVertex bottom_left = {.position = {x, y + height}};
+  mat4 model_matrix;
+  glm_mat4_identity(model_matrix);
+
+  glm_translate(model_matrix, (vec3){position[0], position[1], 0.0f});
+  glm_scale(model_matrix, (vec3){size[0], size[1], 1.0f});
+
+  glm_mat4_copy(model_matrix, model->uniform_buffer_object.model);
+
+  pe_vk_send_uniform_buffer(model, image_index);
+}
+
+void pe_2d_create_quad_geometry(PModel* model){
+
   
   PVertex vert1;
-  init_vec3(-1.0F, 1.0, 0.0, vert1.position);
+  init_vec3(0.f, 0.0, 0.5f, vert1.position);
   vert1.uv[0] = 0;
   vert1.uv[1] = 1;
 
   PVertex vert2;
-  init_vec3(-1.0F, -1.0F, 0.0, vert2.position);
+  init_vec3(1.f, 0.f, 0.5f, vert2.position);
   vert2.uv[0] = 0;
   vert2.uv[1] = 0;
 
   PVertex vert3;
-  init_vec3(1.0, 1.0, 0.0, vert3.position);
+  init_vec3(1, 1, 0.5f, vert3.position);
   vert3.uv[0] = 1;
   vert3.uv[1] = 1;
 
   PVertex vert4;
-  init_vec3(1.0, -1.0F, 0.0, vert4.position);
+  init_vec3(0, 1, 0.5f, vert4.position);
   vert4.uv[0] = 1;
   vert4.uv[1] = 0;
 
@@ -63,11 +73,11 @@ void pe_2d_create_quad(PModel* model, float x, float y, float width, float heigh
   array_add(&model->index_array,&number);
   number = 2;
   array_add(&model->index_array,&number);
-  number = 0;
-  array_add(&model->index_array,&number);
   number = 2;
   array_add(&model->index_array,&number);
   number = 3;
+  array_add(&model->index_array,&number);
+  number = 0;
   array_add(&model->index_array,&number);
 
 
@@ -78,13 +88,9 @@ void pe_2d_create_quad(PModel* model, float x, float y, float width, float heigh
                                             model->index_array.data,
                                             VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
   //init model matrix
-  //glm_mat4_identity(model->model_mat);
+  glm_mat4_identity(model->model_mat);
   //setup Uniform Buffer Object
-  //glm_mat4_copy(model->model_mat,model->uniform_buffer_object.model);
   glm_mat4_copy(orthogonal_projection, model->uniform_buffer_object.projection);
-
-  //glm_mat4_copy(main_camera.view, model->uniform_buffer_object.view);
-  //glm_mat4_copy(main_camera.projection, model->uniform_buffer_object.projection);
 
   pe_vk_create_uniform_buffers(model);
   pe_vk_descriptor_pool_create(model);

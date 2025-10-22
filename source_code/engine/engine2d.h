@@ -3,8 +3,13 @@
 
 #include <engine/model.h>
 
+#include "renderer/cglm/cglm.h"
+
+
 void pe_2d_init();
-void pe_2d_create_quad(PModel* model, float x, float y, float width, float height);
+void pe_2d_create_quad_geometry(PModel* model);
+
+void pe_2d_draw(PModel* model, u32 image_index, vec2 position, vec2 size);
 
 extern mat4 orthogonal_projection;
 
