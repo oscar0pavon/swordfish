@@ -14,8 +14,8 @@ Build software with 3D status progress like Swordfish movie
 # To test
     make
     sudo make install
-Then in project directory for building
-    swordfish "command"
-Ex:
-    swordfish make -j8
-    swordfish ninja
+Then in project directory for building  
+    swordfish "command"  
+Ex:  
+    swordfish make -j8  
+    swordfish ninja  
