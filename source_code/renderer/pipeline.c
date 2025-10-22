@@ -15,8 +15,20 @@ VkPipeline pe_vk_pipeline;
 Array pe_vk_pipeline_infos;
 Array pe_graphics_pipelines;
     
+//we use this for every create pipeline info
 VkVertexInputBindingDescription input_binding_description;
 VkPipelineColorBlendAttachmentState color_attachment;
+VkPipelineVertexInputStateCreateInfo vertex_input_state;
+VkPipelineViewportStateCreateInfo viewport_state;
+VkPipelineDynamicStateCreateInfo dynamic_state;
+VkPipelineRasterizationStateCreateInfo rasterization_state;
+VkPipelineInputAssemblyStateCreateInfo input_assembly_state;
+VkPipelineMultisampleStateCreateInfo multisample_state;
+VkPipelineColorBlendStateCreateInfo color_blend_state;
+VkVertexInputBindingDescription input_binding_description;
+VkPipelineDepthStencilStateCreateInfo depth_stencil;
+
+VkPipelineShaderStageCreateInfo shader_create_info[2];
 
 VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT,
                                   VK_DYNAMIC_STATE_SCISSOR};
@@ -197,31 +209,12 @@ void pe_vk_pipeline_create_pipelines() {
   LOG("Created %i pipelines\n", pe_vk_pipeline_infos.count);
 }
 
-void pe_vk_pipelines_init() {
-  
-
-  array_init(&pe_vk_pipeline_infos, sizeof(VkGraphicsPipelineCreateInfo),
-             PE_VK_PIPELINES_MAX);
-  array_init(&pe_graphics_pipelines, sizeof(VkPipeline), PE_VK_PIPELINES_MAX);
-
-  VkPipelineVertexInputStateCreateInfo vertex_input_state;
-  VkPipelineViewportStateCreateInfo viewport_state;
-  VkPipelineDynamicStateCreateInfo dynamic_state;
-  VkPipelineRasterizationStateCreateInfo rasterization_state;
-  VkPipelineInputAssemblyStateCreateInfo input_assembly_state;
-  VkPipelineMultisampleStateCreateInfo multisample_state;
-  VkPipelineColorBlendStateCreateInfo color_blend_state;
-  VkVertexInputBindingDescription input_binding_description;
-  VkPipelineDepthStencilStateCreateInfo depth_stencil;
+//create a default pipeline create info for 
+//fill with shader and vertex input state
+//and return the create info pointer to fill it
+VkGraphicsPipelineCreateInfo* pe_vk_pipeline_create_info(){
 
 
-  depth_stencil = pe_vk_pipeline_get_default_depth_stencil();
-  color_blend_state = pe_vk_pipeline_get_default_color_blend();
-  multisample_state = pe_vk_pipeline_get_default_multisample();
-  input_assembly_state = pe_vk_pipeline_get_default_input_assembly();
-  viewport_state = pe_vk_pipeline_get_default_viewport();
-  dynamic_state = pe_vk_pipeline_get_default_dynamic_state();
-  rasterization_state = pe_vk_pipeline_get_default_rasterization();
 
   VkGraphicsPipelineCreateInfo pipeline_create_info = {
 
@@ -241,34 +234,57 @@ void pe_vk_pipelines_init() {
       .pDepthStencilState = &depth_stencil,
 
       .subpass = 0};
+  
+  array_add(&pe_vk_pipeline_infos, &pipeline_create_info);
+  return array_pop(&pe_vk_pipeline_infos);
+}
 
 
-  VkPipelineShaderStageCreateInfo uniform[2];
-  pe_vk_shader_load(uniform,
-                    "/usr/libexec/swordfish/shaders/model_view_projection_vert.spv",
-                    "/usr/libexec/swordfish/shaders/red_frag.spv");
+void pe_vk_create_shader(const char* vertex, const char* fragment){
 
-  pipeline_create_info.pStages = uniform; //here is where we assing the shader
+  VkGraphicsPipelineCreateInfo* create_info = pe_vk_pipeline_create_info();
 
+  
+  pe_vk_shader_load(shader_create_info, vertex, fragment);
 
-  //example can be have vertex position and UV or more
-  PVertexAtrributes vertex_attributes = {
-    .has_attributes = true,
-    .position = true
-  };
+  create_info->pStages = shader_create_info; // here is where we assing the shader
+
+  // example can be have vertex position and UV or more
+  PVertexAtrributes vertex_attributes = {.has_attributes = true,
+                                         .position = true};
 
   vertex_input_state =
       pe_vk_pipeline_get_default_vertex_input(&vertex_attributes);
 
-  pipeline_create_info.pVertexInputState =
-      &vertex_input_state;
+  create_info->pVertexInputState = &vertex_input_state;
 
-  pipeline_create_info.layout = pe_vk_pipeline_layout_with_descriptors;
+  create_info->layout = pe_vk_pipeline_layout_with_descriptors;
 
-  array_add(&pe_vk_pipeline_infos, &pipeline_create_info);
+}
+
+void pe_vk_pipelines_init() {
+  
+
+  array_init(&pe_vk_pipeline_infos, sizeof(VkGraphicsPipelineCreateInfo),
+             PE_VK_PIPELINES_MAX);
+
+  array_init(&pe_graphics_pipelines, sizeof(VkPipeline), PE_VK_PIPELINES_MAX);
+
+  
+  depth_stencil = pe_vk_pipeline_get_default_depth_stencil();
+  color_blend_state = pe_vk_pipeline_get_default_color_blend();
+  multisample_state = pe_vk_pipeline_get_default_multisample();
+  input_assembly_state = pe_vk_pipeline_get_default_input_assembly();
+  viewport_state = pe_vk_pipeline_get_default_viewport();
+  dynamic_state = pe_vk_pipeline_get_default_dynamic_state();
+  rasterization_state = pe_vk_pipeline_get_default_rasterization();
+
+  // TODO get a shader id for getting the pipeline from engines pipelines
+  pe_vk_create_shader(
+      "/usr/libexec/swordfish/shaders/model_view_projection_vert.spv",
+      "/usr/libexec/swordfish/shaders/red_frag.spv");
 
 
-  // ####################################################
   // ############## Create pipelines ##################
   pe_vk_pipeline_create_pipelines();
 

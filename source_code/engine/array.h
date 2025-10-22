@@ -34,6 +34,7 @@ void array_resize(Array* array, int count);
 
 void *array_get_last(Array* array);
 
+//get the last element added
 inline static void* array_pop(Array* array){
 	return array_get(array,array->count-1);
 }

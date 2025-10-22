@@ -18,6 +18,7 @@ VkShaderModule pe_vk_shader_module_create(File *file) {
   return module;
 }
 
+//load .spv built shaders
 void pe_vk_shader_load(VkPipelineShaderStageCreateInfo *infos,
                        const char *vert_path, const char *frag_path) {
   File new_file;
