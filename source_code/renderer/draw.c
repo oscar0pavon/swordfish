@@ -24,14 +24,13 @@ void pe_vk_draw_commands(VkCommandBuffer *cmd_buffer, uint32_t index) {
 
   // TODO draw objets here
 
-  VkPipeline *uniform = array_get(&pe_graphics_pipelines, 0);
   pe_vk_uniform_buffer_update_two(&main_cube, index);
   descriptor_set = array_get(&main_cube.descriptor_sets, index);
 
   vkCmdBindDescriptorSets(*(cmd_buffer), VK_PIPELINE_BIND_POINT_GRAPHICS,
                           pe_vk_pipeline_layout_with_descriptors, 0, 1,
                           descriptor_set, 0, NULL);
-  vkCmdBindPipeline(*(cmd_buffer), VK_PIPELINE_BIND_POINT_GRAPHICS, *(uniform));
+  vkCmdBindPipeline(*(cmd_buffer), VK_PIPELINE_BIND_POINT_GRAPHICS, main_cube_pipeline);
 
   vkCmdBindVertexBuffers(*(cmd_buffer), 0, 1, &main_cube.vertex_buffer,
                          offsets);

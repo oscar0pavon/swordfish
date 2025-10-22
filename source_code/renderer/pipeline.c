@@ -10,7 +10,6 @@
 #include <stdbool.h>
 #include <vulkan/vulkan_core.h>
 
-VkPipeline pe_vk_pipeline;
 
 Array pe_vk_pipeline_infos;
 Array pe_graphics_pipelines;
@@ -83,13 +82,8 @@ VkPipelineDynamicStateCreateInfo pe_vk_pipeline_get_default_dynamic_state() {
 VkPipelineVertexInputStateCreateInfo
 pe_vk_pipeline_get_default_vertex_input(PVertexAtrributes *attributes) {
 
-  VkPipelineVertexInputStateCreateInfo info;
-  ZERO(info);
-  info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-  info.vertexBindingDescriptionCount = 0;
-  info.pVertexBindingDescriptions = NULL;
-  info.vertexAttributeDescriptionCount = 0;
-  info.pVertexAttributeDescriptions = NULL;
+  VkPipelineVertexInputStateCreateInfo info = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
 
   if (attributes->has_attributes == true) {
 
@@ -98,10 +92,10 @@ pe_vk_pipeline_get_default_vertex_input(PVertexAtrributes *attributes) {
 
     input_binding_description =
         pe_vk_vertex_get_binding_description();
-
-    pe_vk_vertex_get_attribute(attributes);
     info.vertexBindingDescriptionCount = 1;
     info.pVertexBindingDescriptions = &input_binding_description;
+
+    pe_vk_vertex_get_attribute(attributes);
     info.vertexAttributeDescriptionCount =
         attributes->attributes_descriptions.count;
     info.pVertexAttributeDescriptions =
@@ -199,6 +193,9 @@ VkPipelineColorBlendStateCreateInfo pe_vk_pipeline_get_default_color_blend() {
   return color_blending;
 }
 
+//you can fill pe_vk_pipeline_infos and then create 
+//multiples piles at the time
+
 void pe_vk_pipeline_create_pipelines() {
 
   array_resize(&pe_graphics_pipelines, pe_vk_pipeline_infos.count);
@@ -240,7 +237,7 @@ VkGraphicsPipelineCreateInfo* pe_vk_pipeline_create_info(){
 }
 
 
-void pe_vk_create_shader(const char* vertex, const char* fragment){
+void pe_vk_create_shader(VkPipeline* out_pipeline, const char* vertex, const char* fragment){
 
   VkGraphicsPipelineCreateInfo* create_info = pe_vk_pipeline_create_info();
 
@@ -253,6 +250,7 @@ void pe_vk_create_shader(const char* vertex, const char* fragment){
   PVertexAtrributes vertex_attributes = {.has_attributes = true,
                                          .position = true};
 
+  ZERO(vertex_input_state);
   vertex_input_state =
       pe_vk_pipeline_get_default_vertex_input(&vertex_attributes);
 
@@ -260,6 +258,10 @@ void pe_vk_create_shader(const char* vertex, const char* fragment){
 
   create_info->layout = pe_vk_pipeline_layout_with_descriptors;
 
+  int count = 1;
+  VKVALID(vkCreateGraphicsPipelines(vk_device, VK_NULL_HANDLE, count,
+                                    create_info, NULL, out_pipeline),
+          "Can't create pipeline");
 }
 
 void pe_vk_pipelines_init() {
@@ -279,15 +281,4 @@ void pe_vk_pipelines_init() {
   dynamic_state = pe_vk_pipeline_get_default_dynamic_state();
   rasterization_state = pe_vk_pipeline_get_default_rasterization();
 
-  // TODO get a shader id for getting the pipeline from engines pipelines
-  pe_vk_create_shader(
-      "/usr/libexec/swordfish/shaders/model_view_projection_vert.spv",
-      "/usr/libexec/swordfish/shaders/red_frag.spv");
-
-
-  // ############## Create pipelines ##################
-  pe_vk_pipeline_create_pipelines();
-
-  VkPipeline *triangle_pipeline = array_get(&pe_graphics_pipelines, 0);
-  pe_vk_pipeline = *(triangle_pipeline);
 }

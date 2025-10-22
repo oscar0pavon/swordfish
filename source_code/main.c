@@ -25,13 +25,6 @@
 
 #include "build.h"
 
-PModel main_cube;
-
-PModel cuad;
-
-Camera main_camera;
-
-bool finished_build = false;
 
 int main(){
 
@@ -50,12 +43,7 @@ int main(){
   pe_vk_init();
 
 
-
-  pe_vk_model_load(&main_cube, "/usr/libexec/swordfish/models/wireframe_cube.glb");
-
-
-  pe_2d_init();
-  //pe_2d_create_quad(&quad,50,50,50,50);
+  swordfish_init();
 
 
 

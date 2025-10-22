@@ -16,11 +16,10 @@ VkBuffer vertex_buffer;
 VkBuffer index_buffer;
 
 VkVertexInputBindingDescription pe_vk_vertex_get_binding_description() {
-  VkVertexInputBindingDescription binding;
-  ZERO(binding);
-  binding.binding = 0;
-  binding.stride = sizeof(PVertex);
-  binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  VkVertexInputBindingDescription binding = {.binding = 0,
+                                             .stride = sizeof(PVertex),
+                                             .inputRate =
+                                                 VK_VERTEX_INPUT_RATE_VERTEX};
   return binding;
 }
 
