@@ -7,5 +7,9 @@ layout(location = 0) out vec4 out_color;
 layout(binding = 1) uniform sampler2D texture_sampler;
 
 void main() {
-    out_color = vec4(texture(texture_sampler, in_uv).rgb , 1.0);
+    out_color = texture(texture_sampler, in_uv);
+    if(out_color.a < 0.1){
+        discard;
+    }
+
 }

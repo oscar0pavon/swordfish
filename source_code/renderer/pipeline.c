@@ -177,18 +177,28 @@ VkPipelineMultisampleStateCreateInfo pe_vk_pipeline_get_default_multisample() {
   return multisampling;
 }
 
-VkPipelineColorBlendStateCreateInfo pe_vk_pipeline_get_default_color_blend() {
+VkPipelineColorBlendStateCreateInfo pe_vk_pipeline_get_default_color_blend(bool transparency) {
 
   color_attachment.colorWriteMask =
       VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
       VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-  color_attachment.blendEnable = VK_FALSE;
+  if(transparency == false)
+    color_attachment.blendEnable = VK_FALSE;
+  else{//transparency == true
+    color_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    color_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    color_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+
+  }
 
   VkPipelineColorBlendStateCreateInfo color_blending = {
       .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
       .logicOpEnable = VK_FALSE,
       .attachmentCount = 1,
       .pAttachments = &color_attachment};
+
+  if(transparency)
+    color_blending.logicOp = VK_LOGIC_OP_COPY;
 
   return color_blending;
 }
@@ -211,15 +221,11 @@ void pe_vk_pipeline_create_pipelines() {
 //and return the create info pointer to fill it
 VkGraphicsPipelineCreateInfo* pe_vk_pipeline_create_info(){
 
-
-
   VkGraphicsPipelineCreateInfo pipeline_create_info = {
 
       .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
       .stageCount = 2,//fragment and vertex stages
-      //.pStages = red_shader, // created in pe_vk_shader_load() //TODO afer assining all
       .renderPass = pe_vk_render_pass, // created in pe_vk_create_render_pass()
-      //.pVertexInputState = &pe_vk_main_pipeline_info.vertex_input_state,//TODO after assining all
       .pInputAssemblyState = &input_assembly_state,
       .pViewportState = &viewport_state,
       .pRasterizationState = &rasterization_state,
@@ -235,13 +241,16 @@ VkGraphicsPipelineCreateInfo* pe_vk_pipeline_create_info(){
 }
 
 
-void pe_vk_create_shader(VkPipeline* out_pipeline, const char* vertex, const char* fragment,
-    VkPipelineLayout layout){
+void pe_vk_create_shader(PCreateShaderInfo* info){
 
   VkGraphicsPipelineCreateInfo* create_info = pe_vk_pipeline_create_info();
 
+  if(info->transparency)
+    color_blend_state = pe_vk_pipeline_get_default_color_blend(true);
+  else
+    color_blend_state = pe_vk_pipeline_get_default_color_blend(false);
   
-  pe_vk_shader_load(shader_create_info, vertex, fragment);
+  pe_vk_shader_load(shader_create_info, info->vertex_path, info->fragment_path);
 
   create_info->pStages = shader_create_info; // here is where we assing the shader
 
@@ -256,11 +265,11 @@ void pe_vk_create_shader(VkPipeline* out_pipeline, const char* vertex, const cha
 
   create_info->pVertexInputState = &vertex_input_state;
 
-  create_info->layout = layout;
+  create_info->layout = info->layout;
 
   int count = 1;
   VKVALID(vkCreateGraphicsPipelines(vk_device, VK_NULL_HANDLE, count,
-                                    create_info, NULL, out_pipeline),
+                                    create_info, NULL, info->out_pipeline),
           "Can't create pipeline");
 }
 
@@ -274,7 +283,6 @@ void pe_vk_pipelines_init() {
 
   
   depth_stencil = pe_vk_pipeline_get_default_depth_stencil();
-  color_blend_state = pe_vk_pipeline_get_default_color_blend();
   multisample_state = pe_vk_pipeline_get_default_multisample();
   input_assembly_state = pe_vk_pipeline_get_default_input_assembly();
   viewport_state = pe_vk_pipeline_get_default_viewport();

@@ -141,27 +141,40 @@ void swordfish_init(){
   pe_vk_create_descriptor_sets(&secondary_cube,pe_vk_descriptor_set_layout_with_texture);
   pe_vk_descriptor_with_image_update(&secondary_cube);
 
-  pe_vk_create_shader(
-      &main_cube.pipeline,
-      "/usr/libexec/swordfish/shaders/model_view_projection_vert.spv",
-      "/usr/libexec/swordfish/shaders/red_frag.spv",
-      pe_vk_pipeline_layout_with_descriptors);
+
+  PCreateShaderInfo main_cube_shader = {
+      .transparency = false,
+      .out_pipeline = &main_cube.pipeline,
+      .vertex_path = "/usr/libexec/swordfish/shaders/model_view_projection_vert.spv",
+      .fragment_path = "/usr/libexec/swordfish/shaders/red_frag.spv",
+      .layout = pe_vk_pipeline_layout_with_descriptors
+  };
 
 
+  pe_vk_create_shader(&main_cube_shader);
+
+
+  PCreateShaderInfo secondary_cube_shader = {
+      .transparency = false,
+      .out_pipeline = &secondary_cube.pipeline,
+      .vertex_path = "/usr/libexec/swordfish/shaders/model_view_projection_vert.spv",
+      .fragment_path = "/usr/libexec/swordfish/shaders/texture_frag.spv",
+      .layout = pe_vk_pipeline_layout3
+  };
   
-  pe_vk_create_shader(
-      &secondary_cube.pipeline,
-      "/usr/libexec/swordfish/shaders/model_view_projection_vert.spv",
-      "/usr/libexec/swordfish/shaders/texture_frag.spv",
-      pe_vk_pipeline_layout3);
+  pe_vk_create_shader(&secondary_cube_shader);
 
   init_secodary_cube(&secondary_cube);
 
   pe_2d_init();
   pe_2d_create_quad_geometry(&quad_model);
 
-  pe_vk_create_shader(&quad_model.pipeline,
-                      "/usr/libexec/swordfish/shaders/dimention_2d_vert.spv",
-                      "/usr/libexec/swordfish/shaders/texture_frag.spv",
-                      pe_vk_pipeline_layout3);
+  PCreateShaderInfo quad_shader = {
+      .transparency = true,
+      .out_pipeline = &quad_model.pipeline,
+      .vertex_path = "/usr/libexec/swordfish/shaders/dimention_2d_vert.spv",
+      .fragment_path = "/usr/libexec/swordfish/shaders/texture_frag.spv",
+      .layout = pe_vk_pipeline_layout3
+  };
+  pe_vk_create_shader(&quad_shader);
 }
