@@ -90,7 +90,7 @@ void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
   pe_vk_draw_model(&draw_seconday_cube);
 
   //quad
-  pe_2d_draw(&quad_model, index, VEC2(50,50), VEC2(400,400));
+  pe_2d_draw(&quad_model, index, VEC2(0,0), VEC2(1,1));
 
   pe_vk_descriptor_update(&quad_model);
 
@@ -167,7 +167,8 @@ void swordfish_init(){
   init_secodary_cube(&secondary_cube);
 
   pe_2d_init();
-  pe_2d_create_quad_geometry(&quad_model);
+  //pe_2d_create_quad_geometry(&quad_model);
+  pe_2d_create_text_geometry(&quad_model,"main.o input.o window.o", 24);
 
   PCreateShaderInfo quad_shader = {
       .transparency = true,
