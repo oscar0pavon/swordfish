@@ -31,14 +31,17 @@ Camera main_camera;
 
 bool finished_build = false;
 
-float left_position_z = -2;
+float left_position_z = -6;
+bool loop_animation = false;
+
+bool main_cube_start_scale = true;
 
 void init_secodary_cube(PModel* model){
    
   mat4 identity;
   glm_mat4_identity(identity);
-  glm_translate(identity, VEC3(0,1,-1));
-  glm_translate(identity, VEC3(0,0,-2));
+  glm_translate(identity, VEC3(0,3,-1));
+  glm_translate(identity, VEC3(0,0,-3));
 
   glm_mat4_copy(identity, model->model_mat);
   
@@ -47,11 +50,18 @@ void init_secodary_cube(PModel* model){
 void sworfish_set_secondary_cube_position(PModel* model, uint32_t image_index){
 
   //this is the far the cube can reach
-  float velocity = 0.001f;
-  if(left_position_z < -0.1){
+  float velocity = 0.002f;
+  if(loop_animation){
+    init_secodary_cube(model);
+    left_position_z = -6;
+    loop_animation = false;
+  }
+  if(left_position_z < -0.6){
 
     glm_translate(model->model_mat, VEC3(0,0,velocity));
     left_position_z += velocity;
+  }else{
+    loop_animation = true;
   }
   mat4 final_pisition;
   glm_mat4_mul(main_cube.model_mat, model->model_mat, final_pisition);
@@ -195,4 +205,9 @@ void swordfish_init(){
       .layout = pe_vk_pipeline_layout3
   };
   pe_vk_create_shader(&quad_shader);
+
+
+
+
+
 }
