@@ -37,22 +37,25 @@ void pe_2d_draw(PModel* model, u32 image_index, vec2 position, vec2 size){
 }
 
 void pe_2d_create_quad_geometry(PModel* model){
-
+  //Bottom left
   PVertex vert1;
   init_vec3(0, 0, 0.5f, vert1.position);
   vert1.uv[0] = 0;
   vert1.uv[1] = 0;
 
+  //top left
   PVertex vert2;
   init_vec3(0, 1, 0.5f, vert2.position);
   vert2.uv[0] = 0;
   vert2.uv[1] = 1;
 
+  //top right
   PVertex vert3;
   init_vec3(1, 1, 0.5f, vert3.position);
   vert3.uv[0] = 1;
   vert3.uv[1] = 1;
 
+  //bottom right
   PVertex vert4;
   init_vec3(1, 0, 0.5f, vert4.position);
   vert4.uv[0] = 1;
@@ -64,8 +67,7 @@ void pe_2d_create_quad_geometry(PModel* model){
   array_add(&model->vertex_array, &vert3);
   array_add(&model->vertex_array, &vert4);
 
-  //TODO maybe the size of the uint32_t can be different
-  array_init(&model->index_array, sizeof(uint16_t), 6);//we use 6 index
+  array_init(&model->index_array, sizeof(u16), 6);//we use 6 indices
   uint16_t number = 0;
   array_add(&model->index_array,&number);
   number = 1;
