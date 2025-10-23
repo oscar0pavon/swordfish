@@ -254,8 +254,9 @@ void pe_vk_create_texture(PTexture* new_texture, const char* path) {
   ZERO(texture);
   pe_load_image(path, &texture);
 
-  new_texture->mip_level =
-      floor(log2(GLM_MAX(texture.width, texture.heigth))) + 1;
+  // new_texture->mip_level =
+  //     floor(log2(GLM_MAX(texture.width, texture.heigth))) + 1;
+  new_texture->mip_level = 1;
 
   VkDeviceSize image_size = texture.width * texture.heigth * 4;
 

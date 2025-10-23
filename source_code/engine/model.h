@@ -65,8 +65,8 @@ typedef struct DrawData{
 
 static int pe_data_loader_models_loaded_count;
 
-PModel* pe_vk_model_load(PModel* model, char* path);
 
+PModel *pe_vk_model_load(PModel* model, const char *path);
 
 int pe_load_model(PModel* model, const char *path);
 

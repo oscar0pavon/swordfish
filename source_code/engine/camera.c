@@ -1,6 +1,7 @@
 //
 
 #include "camera.h"
+#include "renderer/cglm/cam.h"
 #include "renderer/cglm/types.h"
 #include "renderer/vulkan.h"
 #include "utils.h"
@@ -37,6 +38,9 @@ void camera_init(Camera* camera){
 
     glm_perspective(45.f, camera_width_screen / camera_height_screen, 0.001f,
                     5000.f, camera->projection);
+
+
+    camera->projection[1][1] *= -1;//In Vulkan the Z is up down
 }
 
 void camera_set_position(Camera* camera, vec3 position){
@@ -54,7 +58,7 @@ void camera_update(Camera* camera){
 }
 
 void pe_camera_look_at(Camera* camera, vec3 position){
-  
+    glm_lookat(camera->position, position, camera->up, camera->view); 
 }
 
 void camera_rotate_control(float yaw, float pitch){

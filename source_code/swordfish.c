@@ -9,6 +9,7 @@
 #include <engine/engine2d.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <vulkan/vulkan_core.h>
 
 #include "renderer/cglm/cglm.h"
 
@@ -22,6 +23,7 @@
 
 PModel main_cube;
 PModel secondary_cube;
+PModel background;
 
 PModel quad_model;
 
@@ -58,9 +60,22 @@ void sworfish_set_secondary_cube_position(PModel* model, uint32_t image_index){
   //glm_mat4_copy(model->model_mat, model->uniform_buffer_object.model);
   glm_mat4_copy(final_pisition, model->uniform_buffer_object.model);
 
-  pe_vk_send_uniform_buffer(model, image_index);
 }
 
+void draw_textured_model(PModel* model, VkCommandBuffer* cmd_buffer, u32 index){
+
+  pe_vk_send_uniform_buffer(model, index);
+  pe_vk_descriptor_with_image_update(model);
+
+  PDrawModelCommand draw = {
+    .model = model,
+    .command_buffer = *cmd_buffer,
+    .image_index = index,
+    .layout = pe_vk_pipeline_layout3
+  };
+
+  pe_vk_draw_model(&draw);
+}
 
 void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
 
@@ -78,16 +93,10 @@ void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
 
   //secondary_cube
   sworfish_set_secondary_cube_position(&secondary_cube, index);
-  pe_vk_descriptor_with_image_update(&secondary_cube);
-
-  PDrawModelCommand draw_seconday_cube = {
-    .model = &secondary_cube,
-    .command_buffer = *cmd_buffer,
-    .image_index = index,
-    .layout = pe_vk_pipeline_layout3
-  };
-
-  pe_vk_draw_model(&draw_seconday_cube);
+  draw_textured_model(&secondary_cube, cmd_buffer, index);
+ 
+  glm_mat4_identity(background.uniform_buffer_object.model);
+  draw_textured_model(&background, cmd_buffer, index);
 
   //quad
   pe_2d_draw(&quad_model, index, VEC2(0,0), VEC2(1,1));
@@ -127,19 +136,25 @@ void swordfish_update_main_cube(PModel *model, uint32_t image_index) {
 
 }
 
+// INFO first load the texture
+void load_textured_model(PModel* model, const char* path){
+  pe_vk_model_load(model, path);
+  pe_vk_create_descriptor_sets(model,pe_vk_descriptor_set_layout_with_texture);
+  //pe_vk_descriptor_with_image_update(model);
+}
+
 void swordfish_init(){
  
   pe_vk_create_texture(&secondary_cube.texture, "/usr/libexec/swordfish/images/bits.png");
   pe_vk_create_texture(&quad_model.texture, "/usr/libexec/swordfish/images/font.png");
-
+  pe_vk_create_texture(&background.texture, "/usr/libexec/swordfish/images/background1.png");
 
   pe_vk_model_load(&main_cube, "/usr/libexec/swordfish/models/wireframe_cube.glb");
   pe_vk_create_descriptor_sets(&main_cube,pe_vk_descriptor_set_layout);
   pe_vk_descriptor_update(&main_cube);
-  
-  pe_vk_model_load(&secondary_cube, "/usr/libexec/swordfish/models/secondary_cube.glb");
-  pe_vk_create_descriptor_sets(&secondary_cube,pe_vk_descriptor_set_layout_with_texture);
-  pe_vk_descriptor_with_image_update(&secondary_cube);
+ 
+  load_textured_model(&secondary_cube,"/usr/libexec/swordfish/models/secondary_cube.glb");
+  load_textured_model(&background,"/usr/libexec/swordfish/models/background.glb");
 
 
   PCreateShaderInfo main_cube_shader = {
@@ -163,6 +178,8 @@ void swordfish_init(){
   };
   
   pe_vk_create_shader(&secondary_cube_shader);
+
+  background.pipeline = secondary_cube.pipeline;
 
   init_secodary_cube(&secondary_cube);
 

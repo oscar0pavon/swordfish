@@ -38,7 +38,9 @@ int main(){
   camera_init(&main_camera);
   
 
-  camera_set_position(&main_camera, VEC3(-10,0,0));
+  //camera_set_position(&main_camera, VEC3(-10,0,0));
+  init_vec3(-10, 0, 4, main_camera.position);
+  pe_camera_look_at(&main_camera, VEC3(0,0,0));
 
   pe_vk_init();
 

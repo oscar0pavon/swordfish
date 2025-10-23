@@ -26,4 +26,5 @@ extern bool move_camera_input;
 
 extern float camera_rotate_angle;
 
+void pe_camera_look_at(Camera* camera, vec3 position);
 #endif //CAMERA_H

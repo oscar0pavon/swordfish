@@ -251,7 +251,7 @@ cgltf_result pe_loader_model_from_memory(PModel* model, void *gltf_data, u32 siz
   return result;
 }
 
-PModel *pe_vk_model_load(PModel* model, char *path) {
+PModel *pe_vk_model_load(PModel* model, const char *path) {
 
   pe_load_model(model, path);
 
