@@ -38,16 +38,15 @@ void pe_2d_draw(PModel* model, u32 image_index, vec2 position, vec2 size){
 
 void pe_2d_create_quad_geometry(PModel* model){
 
-  
   PVertex vert1;
-  init_vec3(0.f, 0.0, 0.5f, vert1.position);
+  init_vec3(0, 0, 0.5f, vert1.position);
   vert1.uv[0] = 0;
-  vert1.uv[1] = 1;
+  vert1.uv[1] = 0;
 
   PVertex vert2;
-  init_vec3(1.f, 0.f, 0.5f, vert2.position);
+  init_vec3(0, 1, 0.5f, vert2.position);
   vert2.uv[0] = 0;
-  vert2.uv[1] = 0;
+  vert2.uv[1] = 1;
 
   PVertex vert3;
   init_vec3(1, 1, 0.5f, vert3.position);
@@ -55,7 +54,7 @@ void pe_2d_create_quad_geometry(PModel* model){
   vert3.uv[1] = 1;
 
   PVertex vert4;
-  init_vec3(0, 1, 0.5f, vert4.position);
+  init_vec3(1, 0, 0.5f, vert4.position);
   vert4.uv[0] = 1;
   vert4.uv[1] = 0;
 
@@ -73,11 +72,11 @@ void pe_2d_create_quad_geometry(PModel* model){
   array_add(&model->index_array,&number);
   number = 2;
   array_add(&model->index_array,&number);
+  number = 0;
+  array_add(&model->index_array,&number);
   number = 2;
   array_add(&model->index_array,&number);
   number = 3;
-  array_add(&model->index_array,&number);
-  number = 0;
   array_add(&model->index_array,&number);
 
 
@@ -94,7 +93,7 @@ void pe_2d_create_quad_geometry(PModel* model){
 
   pe_vk_create_uniform_buffers(model);
   pe_vk_descriptor_pool_create(model);
-  pe_vk_create_descriptor_sets(model, pe_vk_descriptor_set_layout);
-  pe_vk_descriptor_update(model);
 
+  pe_vk_create_descriptor_sets(model, pe_vk_descriptor_set_layout_with_texture);
+  pe_vk_descriptor_with_image_update(model);
 }

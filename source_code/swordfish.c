@@ -90,7 +90,7 @@ void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
   pe_vk_draw_model(&draw_seconday_cube);
 
   //quad
-  pe_2d_draw(&quad_model, index, VEC2(50,50), VEC2(100,100));
+  pe_2d_draw(&quad_model, index, VEC2(50,50), VEC2(400,400));
 
   pe_vk_descriptor_update(&quad_model);
 
@@ -98,7 +98,7 @@ void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
     .model = &quad_model,
     .command_buffer = *cmd_buffer,
     .image_index = index,
-    .layout = pe_vk_pipeline_layout_with_descriptors
+    .layout = pe_vk_pipeline_layout3
   };
   pe_vk_draw_model(&draw_quad);
 
@@ -130,6 +130,7 @@ void swordfish_update_main_cube(PModel *model, uint32_t image_index) {
 void swordfish_init(){
  
   pe_vk_create_texture(&secondary_cube.texture, "/usr/libexec/swordfish/images/bits.png");
+  pe_vk_create_texture(&quad_model.texture, "/usr/libexec/swordfish/images/font.png");
 
 
   pe_vk_model_load(&main_cube, "/usr/libexec/swordfish/models/wireframe_cube.glb");
@@ -161,6 +162,6 @@ void swordfish_init(){
 
   pe_vk_create_shader(&quad_model.pipeline,
                       "/usr/libexec/swordfish/shaders/dimention_2d_vert.spv",
-                      "/usr/libexec/swordfish/shaders/red_frag.spv",
-                      pe_vk_pipeline_layout_with_descriptors);
+                      "/usr/libexec/swordfish/shaders/texture_frag.spv",
+                      pe_vk_pipeline_layout3);
 }
