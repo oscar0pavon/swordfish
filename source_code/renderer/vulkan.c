@@ -14,6 +14,7 @@
 #include "render_pass.h"
 #include "shader_module.h"
 #include "swap_chain.h"
+#include "swordfish.h"
 #include "sync.h"
 #include "uniform_buffer.h"
 #include "vk_images.h"
@@ -23,6 +24,8 @@
 #include <vulkan/vulkan_core.h>
 
 #include "../window.h"
+
+#include "display.h"
 
 VkInstance vk_instance;
 VkDevice vk_device;
@@ -53,11 +56,18 @@ VkPhysicalDevice vk_physical_device;
 
 const char *validation_layers[] = {"VK_LAYER_KHRONOS_validation"};
 
-const char *instance_extensions_names[] = {VK_KHR_SURFACE_EXTENSION_NAME,
-                                           VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
-                                           VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
+const char *instance_extensions_names[] = {
+    VK_KHR_DISPLAY_EXTENSION_NAME, 
+    VK_KHR_SURFACE_EXTENSION_NAME, 
+    //VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
+    VK_EXT_DEBUG_UTILS_EXTENSION_NAME, 
+    };
 
-const char *devices_extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+const char *devices_extensions[] = {
+  VK_KHR_SWAPCHAIN_EXTENSION_NAME, 
+  VK_KHR_DISPLAY_SWAPCHAIN_EXTENSION_NAME, 
+  "VK_EXT_acquire_drm_display"
+};
 
 VkDeviceQueueCreateInfo queues_creates_infos[2];
 
@@ -153,15 +163,15 @@ void pe_vk_queue_families_support() {
       // LOG("[X] No graphics queue found\n");
     }
 
-    VkBool32 present_support = false;
-    vkGetPhysicalDeviceSurfaceSupportKHR(vk_physical_device, i, vk_surface,
-                                         &present_support);
-    if (present_support == true)
-      q_present_family = i;
-    else {
-
-      // LOG("[X] NO present queue found");
-    }
+    // VkBool32 present_support = false;
+    // vkGetPhysicalDeviceSurfaceSupportKHR(vk_physical_device, i, vk_surface,
+    //                                      &present_support);
+    // if (present_support == true)
+    //   q_present_family = i;
+    // else {
+    //
+    //   // LOG("[X] NO present queue found");
+    // }
   }
 
   ZERO(queues_creates_infos);
@@ -205,16 +215,18 @@ void pe_vk_get_physical_device() {
 
 void pe_vk_create_surface() {
 
-  VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {
-      .sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
-      .dpy = display,
-      .window = swordfish_window,
-  };
+  if (!is_drm_rendering) {
 
-  if (vkCreateXlibSurfaceKHR(vk_instance, &surfaceCreateInfo, NULL,
-                             &vk_surface) != VK_SUCCESS) {
-    fprintf(stderr, "Failed to create Vulkan Xlib surface!\n");
-    exit(1);
+    VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
+        .dpy = display,
+        .window = swordfish_window,
+    };
+
+    if (vkCreateXlibSurfaceKHR(vk_instance, &surfaceCreateInfo, NULL,
+                               &vk_surface) != VK_SUCCESS) {
+      fprintf(stderr, "Failed to create Vulkan Xlib surface!\n");
+    }
   }
 }
 
@@ -263,15 +275,20 @@ int pe_vk_init() {
 
   pe_vk_create_instance();
 
-  pe_vk_create_surface();
-
   pe_vk_get_physical_device();
-
+  
   pe_vk_queue_families_support();
 
   pe_vk_create_logical_device();
+  
+  vk_get_displays();
 
   vkGetDeviceQueue(vk_device, q_graphic_family, 0, &vk_queue);
+
+  if(is_drm_rendering)
+    return 0;
+
+  pe_vk_create_surface();
 
   pe_vk_swch_create();
 

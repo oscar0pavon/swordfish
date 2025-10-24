@@ -8,9 +8,9 @@
 #include <engine/array.h>
 #include <engine/macros.h>
 
-#include "cglm/mat4.h"
-
 #include <engine/log.h>
+
+#include "cglm/cglm.h"
 
 #define VEC3(p1, p2, p3)                                                       \
   (vec3) { p1, p2, p3 }

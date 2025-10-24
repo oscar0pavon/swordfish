@@ -183,11 +183,19 @@ void init_direct_render(void) {
     perror("drmModeSetCrtc failed");
 
   
-  getchar();//wait for user input
 
 
   //drmModeRmFB(drm_device.file_descriptor, framebuffer_id);
-  ret = drmModeSetCrtc(
+
+  gbm_bo_destroy(buffer);
+  gbm_device_destroy(buffer_device);
+
+
+}
+
+void clean_drm(){
+  
+  int ret = drmModeSetCrtc(
       drm_device.file_descriptor, original_crtc->crtc_id, original_crtc->buffer_id, 
       original_crtc->x,
       original_crtc->y, &monitors[0].connector->connector_id, 1, &original_crtc->mode);
@@ -195,15 +203,6 @@ void init_direct_render(void) {
   if (ret != 0)
     perror("drmModeSetCrtc failed");
 
-  gbm_bo_destroy(buffer);
-  gbm_device_destroy(buffer_device);
-
-
-  clean_drm();
-}
-
-void clean_drm(){
-  
   for(int i = 0; i<monitors_number; i++){
     drmModeFreeEncoder(monitors[i].encoder);
     drmModeFreeCrtc(monitors[i].crtc);

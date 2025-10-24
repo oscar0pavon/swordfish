@@ -12,6 +12,7 @@ extern Camera main_camera;
 
 extern bool finished_build;
 
+extern bool is_drm_rendering;
 
 void swordfish_init();
 

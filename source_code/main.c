@@ -31,14 +31,15 @@
 int main(){
 
   pe_vk_validation_layer_enable = true;
+  
+  if(create_window() == false){
+    is_drm_rendering = true;
+    //init_direct_render();
+  }
 
   pe_init_memory();
   
 
-  if(create_window() == false){
-    init_direct_render();
-    return EXIT_SUCCESS;
-  }
 
 
   camera_init(&main_camera);
@@ -49,6 +50,12 @@ int main(){
   pe_camera_look_at(&main_camera, VEC3(0,0,0));
 
   pe_vk_init();
+  
+  if(is_drm_rendering){
+    getchar();
+    clean_drm(); 
+    return EXIT_SUCCESS;
+  }
 
 
   swordfish_init();

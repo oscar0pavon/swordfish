@@ -19,6 +19,7 @@
 #include "renderer/draw.h"
 #include "renderer/vk_images.h"
 
+bool is_drm_rendering = false;
 
 
 PModel main_cube;
