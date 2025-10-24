@@ -1,29 +1,32 @@
 #include "images_view.h"
 #include <engine/macros.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include "swap_chain.h"
 #include <engine/log.h>
 #include <engine/macros.h>
-
-#define PE_IMAGES_VIEWS_COUNT 4
+#include "swap_chain.h"
 
 Array pe_vk_images_views;
 
 VkImageView pe_vk_create_image_view(VkImage image, VkFormat format,
                                     VkImageAspectFlags aspect_flags,
                                     uint32_t mip_level) {
-  VkImageViewCreateInfo viewInfo = {};
-  viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-  viewInfo.image = image;
-  viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-  viewInfo.format = format;
-  viewInfo.subresourceRange.aspectMask = aspect_flags;
-  viewInfo.subresourceRange.baseMipLevel = 0;
-  viewInfo.subresourceRange.levelCount = mip_level;
-  viewInfo.subresourceRange.baseArrayLayer = 0;
-  viewInfo.subresourceRange.layerCount = 1;
-  
+  if(image == VK_NULL_HANDLE){
+    printf("ERROR Image null\n");
+  }
+  VkImageViewCreateInfo viewInfo = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .image = image,
+      .viewType = VK_IMAGE_VIEW_TYPE_2D,
+      .format = format,
+      .subresourceRange.aspectMask = aspect_flags,
+      .subresourceRange.baseMipLevel = 0,
+      .subresourceRange.levelCount = mip_level,
+      .subresourceRange.baseArrayLayer = 0,
+      .subresourceRange.layerCount = 1};
+
   VkImageView image_view;
 
   VKVALID(vkCreateImageView(vk_device, &viewInfo, NULL, &image_view),"Can't create image view");
@@ -32,15 +35,15 @@ VkImageView pe_vk_create_image_view(VkImage image, VkFormat format,
 }
 
 void pe_vk_create_images_views() {
-  array_init(&pe_vk_images_views, sizeof(VkImageView), PE_IMAGES_VIEWS_COUNT);
+  array_init(&pe_vk_images_views, sizeof(VkImageView), pe_vk_swapchain_image_count);
 
   // images view count equal to pe_vk_images array
-  for (size_t i = 0; i < PE_IMAGES_VIEWS_COUNT; i++) {
+  for (size_t i = 0; i < pe_vk_swapchain_image_count; i++) {
     VkImageView image_view;
-    ZERO(image_view);
 
     image_view = pe_vk_create_image_view(pe_vk_swch_images[i], pe_vk_swch_format,
         VK_IMAGE_ASPECT_COLOR_BIT,1);
+
     array_add(&pe_vk_images_views, &image_view);
   }
 }

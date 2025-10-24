@@ -19,6 +19,8 @@ VkSwapchainKHR pe_vk_swap_chain;
 VkFormat pe_vk_swch_format;
 VkExtent2D pe_vk_swch_extent;
 
+u32 pe_vk_swapchain_image_count;
+
 VkImage pe_vk_swch_images[4];
 
 typedef struct PSupportDetails {
@@ -104,12 +106,12 @@ void pe_vk_create_swapchain() {
       pe_vk_swch_choose_present_mode(&support.present_modes);
   VkExtent2D extent = pe_vk_swch_choose_extent(&support.capabilities);
 
-  uint32_t image_count = support.capabilities.minImageCount + 1;
+  pe_vk_swapchain_image_count = support.capabilities.minImageCount + 1;
 
   VkSwapchainCreateInfoKHR info = {
       .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
       .surface = vk_surface,
-      .minImageCount = image_count,
+      .minImageCount = pe_vk_swapchain_image_count,
       .imageFormat = format.format,
       .presentMode = mode,
       .imageExtent = extent,
@@ -132,14 +134,16 @@ void pe_vk_create_swapchain() {
 
   LOG("Swap chain extent %i, %i\n", pe_vk_swch_extent.width,
       pe_vk_swch_extent.height);
-
+  
+  u32 getting_images_count;
+  
   VKVALID(
-      vkGetSwapchainImagesKHR(vk_device, pe_vk_swap_chain, &image_count, NULL),
+      vkGetSwapchainImagesKHR(vk_device, pe_vk_swap_chain, &getting_images_count, NULL),
       "Can't get swap chain images");
 
-  printf("Swap chain images count %i\n", image_count);
+  printf("Getting %i swapchain images\n", getting_images_count);
 
-  VKVALID(vkGetSwapchainImagesKHR(vk_device, pe_vk_swap_chain, &image_count,
+  VKVALID(vkGetSwapchainImagesKHR(vk_device, pe_vk_swap_chain, &getting_images_count,
                                   pe_vk_swch_images),
           "Cant't get images from swapchain");
 

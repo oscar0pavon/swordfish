@@ -1,5 +1,6 @@
 #include "descriptor_set.h"
 
+#include "renderer/swap_chain.h"
 #include "vk_images.h"
 #include <engine/array.h>
 
@@ -20,11 +21,11 @@ void pe_vk_descriptor_pool_create(PModel *model) {
   VkDescriptorPoolSize pool_size[3];
   ZERO(pool_size);
   pool_size[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-  pool_size[0].descriptorCount = 4;
+  pool_size[0].descriptorCount = pe_vk_swapchain_image_count;
   pool_size[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-  pool_size[1].descriptorCount = 4;
+  pool_size[1].descriptorCount = pe_vk_swapchain_image_count;
   pool_size[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-  pool_size[2].descriptorCount = 4;
+  pool_size[2].descriptorCount = pe_vk_swapchain_image_count;
 
   VkDescriptorPoolCreateInfo info;
   ZERO(info);
@@ -122,7 +123,7 @@ void pe_vk_create_descriptor_set_layout() {
 }
 void pe_vk_descriptor_with_image_update(PModel *model) {
 
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < pe_vk_swapchain_image_count; i++) {
 
     VkBuffer *buffer = array_get(&model->uniform_buffers, i);
     VkDescriptorBufferInfo info = {.buffer = *buffer,
@@ -162,7 +163,7 @@ void pe_vk_descriptor_with_image_update(PModel *model) {
 // here is where you send uniform buffer with MVP matrix
 void pe_vk_descriptor_update(PModel *model) {
 
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < pe_vk_swapchain_image_count; i++) {
 
     VkBuffer *buffer = array_get(&model->uniform_buffers, i);
     VkDescriptorBufferInfo info = {
@@ -184,25 +185,25 @@ void pe_vk_descriptor_update(PModel *model) {
 
 void pe_vk_create_descriptor_sets(PModel *model, VkDescriptorSetLayout layout) {
 
-  VkDescriptorSetLayout layouts[4];
+  VkDescriptorSetLayout layouts[pe_vk_swapchain_image_count];
 
   ZERO(layouts);
 
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < pe_vk_swapchain_image_count; i++) {
     //layouts[i] = pe_vk_descriptor_set_layout_with_texture;
     layouts[i] = layout;
   }
 
-  array_init(&model->descriptor_sets, sizeof(VkDescriptorSet), 4);
+  array_init(&model->descriptor_sets, sizeof(VkDescriptorSet), pe_vk_swapchain_image_count);
 
   // resize because we need to allocate descriptor copy in array.data
-  array_resize(&model->descriptor_sets, 4);
+  array_resize(&model->descriptor_sets, pe_vk_swapchain_image_count);
 
   // Allocation
   VkDescriptorSetAllocateInfo alloc_info = {
       .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
       .descriptorPool = model->descriptor_pool,
-      .descriptorSetCount = 4,
+      .descriptorSetCount = pe_vk_swapchain_image_count,
       .pSetLayouts = layouts};
 
   vkAllocateDescriptorSets(vk_device, &alloc_info, model->descriptor_sets.data);
