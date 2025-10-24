@@ -36,10 +36,11 @@ void close_window() {
   XCloseDisplay(display);
 }
 
-void create_window(){
+bool create_window(){
     display = XOpenDisplay(NULL); // NULL for default display
     if (display == NULL) {
         // Handle error
+        return false;
     }
     
 

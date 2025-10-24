@@ -1,9 +1,9 @@
 
-CLINKS := -lX11 -lpthread -lm -lvulkan
+CLINKS := -lX11 -lpthread -lm -lvulkan -ldrm
 
 CFLAGS := -g
 
-CFLAGS_ENGINE := $(CFLAGS) -I/root/swordfish/source_code 
+CFLAGS_ENGINE := $(CFLAGS) -I/root/swordfish/source_code -I/usr/include/libdrm
 CFLAGS_ENGINE += -DCGLM_FORCE_DEPTH_ZERO_TO_ONE -DCGLM_FORCE_LEFT_HANDED
 
 vulkan_src := $(wildcard ./renderer/*.c)

@@ -23,6 +23,8 @@
 
 #include <engine/time.h>
 
+#include "direct_render.h"
+
 #include "build.h"
 
 
@@ -33,7 +35,11 @@ int main(){
   pe_init_memory();
   
 
-  create_window();
+  if(create_window() == false){
+    init_direct_render();
+    return EXIT_SUCCESS;
+  }
+
 
   camera_init(&main_camera);
   
