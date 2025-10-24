@@ -4,5 +4,6 @@
 
 void init_direct_render(void);
 
+void clean_drm();
 
 #endif
