@@ -1,5 +1,6 @@
 #include "swap_chain.h"
 #include "debug.h"
+#include "swordfish.h"
 #include "vulkan.h"
 #include <engine/log.h>
 #include <engine/macros.h>
@@ -18,18 +19,16 @@ VkSwapchainKHR pe_vk_swap_chain;
 VkFormat pe_vk_swch_format;
 VkExtent2D pe_vk_swch_extent;
 
-
 VkImage pe_vk_swch_images[4];
 
-typedef struct PE_VK_SWCH_SupportDetails {
+typedef struct PSupportDetails {
   VkSurfaceCapabilitiesKHR capabilities;
   Array formats;
   Array present_modes;
-} PE_VK_SWCH_SupportDetails;
+} PSupportDetails;
 
-PE_VK_SWCH_SupportDetails
-pe_vk_query_swap_chain_support(VkPhysicalDevice device) {
-  PE_VK_SWCH_SupportDetails details;
+PSupportDetails pe_vk_query_swap_chain_support(VkPhysicalDevice device) {
+  PSupportDetails details;
   ZERO(details);
   vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk_physical_device, vk_surface,
                                             &details.capabilities);
@@ -81,18 +80,24 @@ pe_vk_swch_choose_extent(const VkSurfaceCapabilitiesKHR *capabilities) {
   if (capabilities->currentExtent.width != UINT32_MAX)
     return capabilities->currentExtent;
   else {
-    VkExtent2D actual = {WINDOW_WIDTH, WINDOW_HEIGHT};
-    return actual;
+    VkExtent2D current;
+    if (is_drm_rendering) {
+      current.width = 1920;
+      current.height = 1920;
+    } else {
+      current.width = WINDOW_WIDTH;
+      current.height = WINDOW_HEIGHT;
+    }
+    return current;
   }
 }
 
-void pe_vk_swch_create() {
-  if(vk_physical_device == NULL){
-    printf("ERROE None device selected\n");
+void pe_vk_create_swapchain() {
+  if (vk_physical_device == NULL) {
+    printf("ERROR None phisical device selected\n");
   }
 
-  PE_VK_SWCH_SupportDetails support =
-      pe_vk_query_swap_chain_support(vk_physical_device);
+  PSupportDetails support = pe_vk_query_swap_chain_support(vk_physical_device);
   VkSurfaceFormatKHR format =
       pe_vk_swch_choose_surface_format(&support.formats);
   VkPresentModeKHR mode =
@@ -101,22 +106,23 @@ void pe_vk_swch_create() {
 
   uint32_t image_count = support.capabilities.minImageCount + 1;
 
-  VkSwapchainCreateInfoKHR info;
-  ZERO(info);
-  info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-  info.surface = vk_surface;
-  info.minImageCount = image_count;
-  info.imageFormat = format.format;
-  info.presentMode = mode;
-  info.imageExtent = extent;
-  info.imageArrayLayers = 1;
-  info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-  info.preTransform = support.capabilities.currentTransform;
-  // info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-  info.compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+  VkSwapchainCreateInfoKHR info = {
+      .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+      .surface = vk_surface,
+      .minImageCount = image_count,
+      .imageFormat = format.format,
+      .presentMode = mode,
+      .imageExtent = extent,
+      .imageArrayLayers = 1,
+      .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+      .preTransform = support.capabilities.currentTransform,
+      .clipped = VK_FALSE,
+      .oldSwapchain = VK_NULL_HANDLE};
 
-  info.clipped = VK_TRUE;
-  info.oldSwapchain = VK_NULL_HANDLE;
+  if (is_drm_rendering)
+    info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+  else
+    info.compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
 
   VKVALID(vkCreateSwapchainKHR(vk_device, &info, NULL, &pe_vk_swap_chain),
           "Can't create a swap schain");
@@ -124,12 +130,20 @@ void pe_vk_swch_create() {
   pe_vk_swch_extent = extent;
   pe_vk_swch_format = format.format;
 
-  //  LOG("Swap chain extent %i, %i", pe_vk_swch_extent.width,
-  //  pe_vk_swch_extent.height);
+  LOG("Swap chain extent %i, %i\n", pe_vk_swch_extent.width,
+      pe_vk_swch_extent.height);
 
-  vkGetSwapchainImagesKHR(vk_device, pe_vk_swap_chain, &image_count, NULL);
+  VKVALID(
+      vkGetSwapchainImagesKHR(vk_device, pe_vk_swap_chain, &image_count, NULL),
+      "Can't get swap chain images");
+
+  printf("Swap chain images count %i\n", image_count);
 
   VKVALID(vkGetSwapchainImagesKHR(vk_device, pe_vk_swap_chain, &image_count,
                                   pe_vk_swch_images),
-          "Cant't create images view");
+          "Cant't get images from swapchain");
+
+  if (pe_vk_swch_images[0] == VK_NULL_HANDLE) {
+    printf("Swapchain image not valid");
+  }
 }

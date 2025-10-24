@@ -59,7 +59,7 @@ const char *validation_layers[] = {"VK_LAYER_KHRONOS_validation"};
 const char *instance_extensions_names[] = {
     VK_KHR_DISPLAY_EXTENSION_NAME, 
     VK_KHR_SURFACE_EXTENSION_NAME, 
-    //VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
+    VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
     VK_EXT_DEBUG_UTILS_EXTENSION_NAME, 
     };
 
@@ -280,17 +280,15 @@ int pe_vk_init() {
   pe_vk_queue_families_support();
 
   pe_vk_create_logical_device();
-  
-  vk_get_displays();
+ 
+  if(is_drm_rendering)
+    vk_get_displays();
 
   vkGetDeviceQueue(vk_device, q_graphic_family, 0, &vk_queue);
 
-  if(is_drm_rendering)
-    return 0;
-
   pe_vk_create_surface();
 
-  pe_vk_swch_create();
+  pe_vk_create_swapchain();
 
   pe_vk_set_viewport_and_sccisor();
 

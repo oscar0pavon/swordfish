@@ -4,7 +4,7 @@
 #include <vulkan/vulkan.h>
 #include <engine/array.h>
 
-void pe_vk_swch_create();
+void pe_vk_create_swapchain();
 
 extern VkSwapchainKHR pe_vk_swap_chain;
 
