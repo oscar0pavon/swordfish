@@ -9,7 +9,7 @@
 #include <xf86drmMode.h>
 
 #include <gbm.h>
-
+#include "tty.h"
 
 #include <engine/numbers.h>
 
@@ -28,6 +28,9 @@ typedef struct PMonitor{
 }PMonitor;
 
 KernelModeSettingDevice drm_device;
+
+drmModeCrtcPtr original_crtc;
+
 
 #define MAX_MONITOR 8
 PMonitor monitors[MAX_MONITOR] = {};
@@ -117,7 +120,6 @@ void get_drm_info() {
 
 void init_direct_render(void) {
 
-
   drm_device.file_descriptor = open(DRM_DEVICE_PATH, O_RDWR | O_CLOEXEC);
 
   if (drm_device.file_descriptor < 0) {
@@ -145,6 +147,9 @@ void init_direct_render(void) {
   printf("width %i\n",monitors[0].crtc->mode.hdisplay);
   printf("height %i\n",monitors[0].crtc->mode.vdisplay);
   printf("Name %s\n",monitors[0].crtc->mode.name);
+
+  u32 original_crtc_id = monitors[0].crtc->crtc_id;
+  original_crtc = drmModeGetCrtc(drm_device.file_descriptor, original_crtc_id);
 
   
   struct gbm_device* buffer_device;
@@ -177,9 +182,18 @@ void init_direct_render(void) {
   if(ret != 0)
     perror("drmModeSetCrtc failed");
 
+  
+  getchar();//wait for user input
 
 
-  drmModeRmFB(drm_device.file_descriptor, framebuffer_id);
+  //drmModeRmFB(drm_device.file_descriptor, framebuffer_id);
+  ret = drmModeSetCrtc(
+      drm_device.file_descriptor, original_crtc->crtc_id, original_crtc->buffer_id, 
+      original_crtc->x,
+      original_crtc->y, &monitors[0].connector->connector_id, 1, &original_crtc->mode);
+
+  if (ret != 0)
+    perror("drmModeSetCrtc failed");
 
   gbm_bo_destroy(buffer);
   gbm_device_destroy(buffer_device);
