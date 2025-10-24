@@ -1,4 +1,5 @@
 #include "direct_render.h"
+#include <complex.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -154,9 +155,31 @@ void init_direct_render(void) {
 
 
 
-  
-  
+  u32 framebuffer_id;
+  int ret = drmModeAddFB(drm_device.file_descriptor,
+      1920, 1080, 24, 32,
+      gbm_bo_get_stride(buffer),
+      gbm_bo_get_handle(buffer).u32, 
+      &framebuffer_id);
+  if(ret != 0)
+    perror("drmModeAddFB failed");
 
+
+
+  ret = drmModeSetCrtc(drm_device.file_descriptor,
+      monitors[0].crtc->crtc_id,
+      framebuffer_id,
+      0,
+      0,
+      &monitors[0].connector->connector_id,
+      1,
+      &monitors[0].crtc->mode);
+  if(ret != 0)
+    perror("drmModeSetCrtc failed");
+
+
+
+  drmModeRmFB(drm_device.file_descriptor, framebuffer_id);
 
   gbm_bo_destroy(buffer);
   gbm_device_destroy(buffer_device);
@@ -166,7 +189,7 @@ void init_direct_render(void) {
 }
 
 void clean_drm(){
-
+  
   for(int i = 0; i<monitors_number; i++){
     drmModeFreeEncoder(monitors[i].encoder);
     drmModeFreeCrtc(monitors[i].crtc);
