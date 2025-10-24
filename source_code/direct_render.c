@@ -7,6 +7,9 @@
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
+#include <gbm.h>
+
+
 #include <engine/numbers.h>
 
 #define DRM_DEVICE_PATH "/dev/dri/card0"
@@ -29,6 +32,27 @@ KernelModeSettingDevice drm_device;
 PMonitor monitors[MAX_MONITOR] = {};
 u8 monitors_number = 0;
 
+struct gbm_bo *create_gbm_buffer(struct gbm_device *gbm_dev, int width, int height) {
+    uint32_t format = GBM_FORMAT_XRGB8888;
+    uint32_t usage = GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING;
+
+    struct gbm_bo *bo = gbm_bo_create(gbm_dev, width, height, format, usage);
+    if (!bo) {
+        fprintf(stderr, "Error creating GBM buffer object\n");
+    }
+    return bo;
+}
+
+struct gbm_device *create_gbm_device(int drm_file_descriptor) {
+    struct gbm_device *gbm_dev = gbm_create_device(drm_file_descriptor);
+    if (!gbm_dev) {
+        fprintf(stderr, "Error creating GBM device\n");
+    }
+    return gbm_dev;
+}
+
+
+
 void get_drm_info() {
 
   int connector_number;
@@ -42,6 +66,7 @@ void get_drm_info() {
   for (connector_number = 0;
        connector_number < drm_device.resources->count_connectors;
        connector_number++) {
+    bool connector_mode_connected = false;
     
     current_connector =
         drmModeGetConnector(drm_device.file_descriptor,
@@ -64,10 +89,12 @@ void get_drm_info() {
           current_crtc = drmModeGetCrtc(drm_device.file_descriptor,
                                         current_encoder->crtc_id);
           
-          monitors[connector_number].connector = current_connector;
-          monitors[connector_number].encoder = current_encoder;
-          monitors[connector_number].crtc = current_crtc;
+          monitors[monitors_number].connector = current_connector;
+          monitors[monitors_number].encoder = current_encoder;
+          monitors[monitors_number].crtc = current_crtc;
           monitors_number++;
+
+          connector_mode_connected = true;
 
           continue; // we don't free conector and encoder if we find a monitor
 
@@ -79,9 +106,11 @@ void get_drm_info() {
         drmModeFreeEncoder(current_encoder);
       }
     }
+    if(connector_mode_connected == false){
 
-    printf("Free connector %i\n",connector_number);
-    drmModeFreeConnector(current_connector);
+      printf("Free connector %i\n",connector_number);
+      drmModeFreeConnector(current_connector);
+    }
   }
 }
 
@@ -112,11 +141,32 @@ void init_direct_render(void) {
 
   get_drm_info();
 
+  printf("width %i\n",monitors[0].crtc->mode.hdisplay);
+  printf("height %i\n",monitors[0].crtc->mode.vdisplay);
+  printf("Name %s\n",monitors[0].crtc->mode.name);
+
+  
+  struct gbm_device* buffer_device;
+  buffer_device = create_gbm_device(drm_device.file_descriptor);
+
+  struct gbm_bo* buffer;
+  buffer = create_gbm_buffer(buffer_device, 1920, 1080);
+
+
+
+  
+  
+
+
+  gbm_bo_destroy(buffer);
+  gbm_device_destroy(buffer_device);
+
 
   clean_drm();
 }
 
 void clean_drm(){
+
   for(int i = 0; i<monitors_number; i++){
     drmModeFreeEncoder(monitors[i].encoder);
     drmModeFreeCrtc(monitors[i].crtc);

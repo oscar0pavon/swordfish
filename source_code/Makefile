@@ -1,5 +1,5 @@
 
-CLINKS := -lX11 -lpthread -lm -lvulkan -ldrm
+CLINKS := -lX11 -lpthread -lm -lvulkan -ldrm -lgbm
 
 CFLAGS := -g
 
