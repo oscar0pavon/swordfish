@@ -13,12 +13,17 @@
 #include <math.h>
 #include <stdalign.h>
 #include <stdint.h>
+#include <time.h>
 #include <vulkan/vulkan_core.h>
 #include <wchar.h>
 #include <wctype.h>
 
 
 VkImageView pe_vk_depth_image_view;
+
+
+
+
 
 
 void pe_vk_transition_image_layout(VkImage image, VkFormat format,
@@ -92,6 +97,17 @@ void pe_vk_image_copy_buffer(VkBuffer buffer, VkImage image, uint32_t width,
 }
 
 void pe_vk_create_image(PImageCreateInfo *info) {
+  if(info->texture->mip_level == 0){
+    info->texture->mip_level = 1;
+  }
+
+  VkExternalMemoryImageCreateInfo external_info = {};
+  if(info->is_exportable){
+      external_info.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
+      external_info.pNext = NULL;
+      external_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+  }
+
   VkImageCreateInfo image_info = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
                                   .imageType = VK_IMAGE_TYPE_2D,
                                   .extent.width = info->width,
@@ -106,20 +122,37 @@ void pe_vk_create_image(PImageCreateInfo *info) {
                                   .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
                                   .samples = info->number_of_samples};
 
+  if(info->is_exportable){
+    image_info.pNext = &external_info;
+  }
+
   VKVALID(vkCreateImage(vk_device, &image_info, NULL, &info->texture->image),
           "failed to create image !");
 
-  VkMemoryRequirements image_memory_requirements;
+  VkMemoryRequirements memory_requirements;
   vkGetImageMemoryRequirements(vk_device, info->texture->image,
-                               &image_memory_requirements);
+                               &memory_requirements);
+
+  VkExportMemoryAllocateInfo export_memory_info = {};
+  if(info->is_exportable){
+    export_memory_info.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
+    export_memory_info.pNext = NULL;
+    export_memory_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+  }
 
   VkMemoryAllocateInfo info_alloc = {
       .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-      .allocationSize = image_memory_requirements.size,
+      .allocationSize = memory_requirements.size,
       .memoryTypeIndex = pe_vk_memory_find_type(
-          image_memory_requirements.memoryTypeBits, info->properties)};
+          memory_requirements.memoryTypeBits, info->properties)};
 
-  vkAllocateMemory(vk_device, &info_alloc, NULL, &info->texture->memory);
+  if(info->is_exportable){
+    info_alloc.pNext = &export_memory_info;
+  }
+
+  VKVALID(
+      vkAllocateMemory(vk_device, &info_alloc, NULL, &info->texture->memory),
+      "Can't allocate memory for image");
 
   vkBindImageMemory(vk_device, info->texture->image, info->texture->memory, 0);
 }
@@ -229,8 +262,6 @@ void pe_vk_create_depth_resources() {
   VkFormat format = VK_FORMAT_D32_SFLOAT;
 
   PTexture depth;
-  depth.mip_level = 1;
-
   PImageCreateInfo image_create_info = {
       .width = pe_vk_swch_extent.width,
       .height = pe_vk_swch_extent.height,
@@ -249,6 +280,26 @@ void pe_vk_create_depth_resources() {
 
 }
 
+void pe_vk_create_exportable_images(){
+  for (int i = 0; i < pe_vk_swapchain_image_count; i++) {
+    PTexture exportable_image;
+    PImageCreateInfo image_create_info = {
+        .width = 1920,
+        .height = 1080,
+        .texture = &exportable_image,
+        //.format = VK_FORMAT_R8G8B8A8_SRGB,//TODO could be this
+        .format = VK_FORMAT_R8G8B8A8_UNORM,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        .number_of_samples = VK_SAMPLE_COUNT_1_BIT};
+    
+    pe_vk_create_image(&image_create_info);
+    pe_vk_exportable_images[i] = exportable_image.image;
+
+  }
+}
+
 void pe_vk_create_texture(PTexture* new_texture, const char* path) {
   PImage texture;
   ZERO(texture);
@@ -264,6 +315,7 @@ void pe_vk_create_texture(PTexture* new_texture, const char* path) {
                                               VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
   PImageCreateInfo image_create_info = {
+      .is_exportable = false, 
       .width = texture.width,
       .height = texture.heigth,
       .texture = new_texture,

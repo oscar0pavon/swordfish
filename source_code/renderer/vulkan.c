@@ -66,7 +66,9 @@ const char *instance_extensions_names[] = {
 const char *devices_extensions[] = {
   VK_KHR_SWAPCHAIN_EXTENSION_NAME, 
   VK_KHR_DISPLAY_SWAPCHAIN_EXTENSION_NAME, 
-  "VK_EXT_acquire_drm_display"
+  "VK_EXT_acquire_drm_display",
+  "VK_EXT_external_memory_dma_buf",
+  "VK_KHR_external_memory_fd"
 };
 
 VkDeviceQueueCreateInfo queues_creates_infos[2];
@@ -289,6 +291,9 @@ int pe_vk_init() {
   pe_vk_create_surface();
 
   pe_vk_create_swapchain();
+
+  if(is_drm_rendering)
+    pe_vk_create_exportable_images();
 
   pe_vk_set_viewport_and_sccisor();
 

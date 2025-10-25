@@ -21,7 +21,9 @@ VkExtent2D pe_vk_swch_extent;
 
 u32 pe_vk_swapchain_image_count;
 
+//TODO we use four images buffer we can use less
 VkImage pe_vk_swch_images[4];
+VkImage pe_vk_exportable_images[4];
 
 typedef struct PSupportDetails {
   VkSurfaceCapabilitiesKHR capabilities;

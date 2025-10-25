@@ -17,6 +17,7 @@ typedef struct PImageCreateInfo {
   VkMemoryPropertyFlags properties;
   PTexture* texture;
   VkSampleCountFlagBits number_of_samples;
+  bool is_exportable;
 } PImageCreateInfo;
 
 
@@ -27,5 +28,7 @@ void pe_vk_create_texture(PTexture* new_texture, const char* path);
 
 void pe_vk_create_image(PImageCreateInfo *info);
 void pe_vk_create_depth_resources();
+
+void pe_vk_create_exportable_images();
 
 #endif
