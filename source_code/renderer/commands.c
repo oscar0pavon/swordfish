@@ -61,20 +61,23 @@ void pe_vk_commands_pool_init(){
 
 }
 
-void pe_vk_record_commands_buffer(int i){
+VkCommandBuffer pe_vk_start_record_command(int swapchain_image_index) {
 
-    VkCommandBufferBeginInfo begininfo;
-    ZERO(begininfo);
-    begininfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    begininfo.flags = 0;
-    begininfo.pInheritanceInfo = NULL;
+  VkCommandBufferBeginInfo begininfo = {
+      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+      .flags = 0,
+      .pInheritanceInfo = NULL
 
-    VkCommandBuffer *buffer = array_get(&pe_vk_command_buffers, i);
-    //vkResetCommandBuffer(*(buffer),0);
+  };
 
-    vkBeginCommandBuffer(*(buffer), &begininfo);
-    pe_vk_start_render_pass(i);
+  VkCommandBuffer *command =
+      array_get(&pe_vk_command_buffers, swapchain_image_index);
+
+  vkBeginCommandBuffer(*command, &begininfo);
+
+  return *command;
 }
+
 void pe_vk_command_init() {
 
 
@@ -94,7 +97,6 @@ void pe_vk_command_init() {
 }
 
 
-void pe_vk_commands_end(int i) {
-  VkCommandBuffer *buffer = array_get(&pe_vk_command_buffers, i);
-  vkEndCommandBuffer(*(buffer));
+void pe_vk_end_command(VkCommandBuffer command) {
+  vkEndCommandBuffer(command);
 }

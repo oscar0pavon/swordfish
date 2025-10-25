@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include <vulkan/vulkan_core.h>
+#include "render_pass.h"
 
 #include "renderer/descriptor_set.h"
 
@@ -60,13 +61,16 @@ void pe_vk_draw_frame() {
                         pe_vk_semaphore_images_available, VK_NULL_HANDLE,
                         &image_index);
 
-  // pe_vk_uniform_buffer_update(image_index);
-  pe_vk_record_commands_buffer(image_index);//INFO this is where we draw things
+  VkCommandBuffer current_command = pe_vk_start_record_command(image_index);
+
+  pe_vk_start_render_pass(current_command, image_index);//INFO this is where we draw things
+
+
+  pe_vk_end_command(current_command);
 
   VkSemaphore singal_semaphore[] = {pe_vk_semaphore_render_finished};
   VkSemaphore wait_semaphores[] = {pe_vk_semaphore_images_available};
   
-  VkCommandBuffer *command_buffer = array_get(&pe_vk_command_buffers, image_index);
 
   VkPipelineStageFlags wait_stages[] = {
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -78,7 +82,7 @@ void pe_vk_draw_frame() {
                               .pWaitSemaphores = wait_semaphores,
                               .pWaitDstStageMask = wait_stages,
                               .commandBufferCount = 1,
-                              .pCommandBuffers = command_buffer,
+                              .pCommandBuffers = &current_command,
                               .signalSemaphoreCount = 1,
                               .pSignalSemaphores = singal_semaphore};
 

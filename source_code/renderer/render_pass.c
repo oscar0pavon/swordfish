@@ -104,11 +104,9 @@ void pe_vk_create_render_pass() {
           "Can't create render pass");
 }
 
-void pe_vk_start_render_pass(int i){
+void pe_vk_start_render_pass(VkCommandBuffer command, int i){
 
   VkFramebuffer *framebuffer = array_get(&pe_vk_framebuffers, i);
-
-  VkCommandBuffer *cmd_buffer = array_get(&pe_vk_command_buffers, i);
 
 
   //we use two clear values, 
@@ -135,12 +133,11 @@ void pe_vk_start_render_pass(int i){
       .clearValueCount = 2,
       .pClearValues = clear_values};
 
-  vkCmdBeginRenderPass(*(cmd_buffer), &info, VK_SUBPASS_CONTENTS_INLINE);
+  vkCmdBeginRenderPass(command, &info, VK_SUBPASS_CONTENTS_INLINE);
 
-    pe_vk_draw_commands(cmd_buffer, i);
+    pe_vk_draw_commands(&command, i);
 
-  vkCmdEndRenderPass(*(cmd_buffer));
+  vkCmdEndRenderPass(command);
 
 
-  pe_vk_commands_end(i);
 }

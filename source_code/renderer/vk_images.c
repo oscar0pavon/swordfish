@@ -21,10 +21,27 @@
 
 VkImageView pe_vk_depth_image_view;
 
+void pe_vk_transition_image_swapchain(VkImage image, VkImageLayout old_layout,
+                                      VkImageLayout new_layout) {
+
+  VkCommandBuffer command = pe_vk_begin_single_time_cmd();
+
+  VkImageMemoryBarrier barrier = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .oldLayout = old_layout,
+      .newLayout = new_layout,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .image = image,
+      .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+      .subresourceRange.baseMipLevel = 0,
+      .subresourceRange.levelCount = 1,
+      .subresourceRange.baseArrayLayer = 0,
+      .subresourceRange.layerCount = 1};
 
 
 
-
+}
 
 void pe_vk_transition_image_layout(VkImage image, VkFormat format,
                                    VkImageLayout old_layout,
