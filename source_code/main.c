@@ -52,20 +52,19 @@ int main(){
   pe_vk_init();
   
   if(is_drm_rendering){
-    getchar();
-    clean_drm(); 
-    return EXIT_SUCCESS;
+    // getchar();
+    // clean_drm(); 
+    // return EXIT_SUCCESS;
   }
 
 
   swordfish_init();
 
-
-
-  pthread_t thread_id;
-
-  pthread_create(&thread_id,NULL,handle_input, NULL);//TODO to much CPU usage
-
+  if (!is_drm_rendering) {
+    pthread_t thread_id;
+    pthread_create(&thread_id, NULL, handle_input,
+                   NULL); // TODO to much CPU usage
+  }
 
   pthread_t make_thread_id;
   //pthread_create(&make_thread_id,NULL,call_make, NULL);

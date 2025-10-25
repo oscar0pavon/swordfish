@@ -37,6 +37,8 @@ typedef struct PUniformBufferObject {
   vec4 light_position;
 } PUniformBufferObject;
 
+extern PFN_vkGetMemoryFdKHR pe_vk_get_memory_file_descriptor;
+
 
 int pe_vk_init();
 void pe_vk_end();

@@ -7,6 +7,7 @@
 #include "commands.h"
 #include "debug.h"
 #include "descriptor_set.h"
+#include "direct_render.h"
 #include "engine/images.h"
 #include "framebuffer.h"
 #include "images_view.h"
@@ -22,6 +23,7 @@
 #include <engine/log.h>
 #include <engine/macros.h>
 #include <vulkan/vulkan_core.h>
+#include <wchar.h>
 
 #include "../window.h"
 
@@ -52,6 +54,8 @@ VkDeviceMemory pe_vk_color_memory;
 VkImageView pe_vk_color_image_view;
 
 
+PFN_vkGetMemoryFdKHR pe_vk_get_memory_file_descriptor;
+
 VkPhysicalDevice vk_physical_device;
 
 const char *validation_layers[] = {"VK_LAYER_KHRONOS_validation"};
@@ -64,11 +68,9 @@ const char *instance_extensions_names[] = {
     };
 
 const char *devices_extensions[] = {
-  VK_KHR_SWAPCHAIN_EXTENSION_NAME, 
-  VK_KHR_DISPLAY_SWAPCHAIN_EXTENSION_NAME, 
-  "VK_EXT_acquire_drm_display",
-  "VK_EXT_external_memory_dma_buf",
-  "VK_KHR_external_memory_fd"
+  VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+  VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+  VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME
 };
 
 VkDeviceQueueCreateInfo queues_creates_infos[2];
@@ -91,10 +93,10 @@ void pe_vk_create_instance() {
   VkApplicationInfo app_info = {
       .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
       .pApplicationName = "swordfish",
-      .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
+      .applicationVersion = VK_MAKE_VERSION(1, 1, 0),
       .pEngineName = "swordfish_engine",
       .engineVersion = VK_MAKE_VERSION(1, 0, 0),
-      .apiVersion = VK_API_VERSION_1_0,
+      .apiVersion = VK_API_VERSION_1_3,
   };
 
   VkInstanceCreateInfo instance_info = {
@@ -136,8 +138,10 @@ int pe_vk_create_logical_device() {
   info.queueCreateInfoCount = 1;
   info.pQueueCreateInfos = queues_creates_infos;
 
-  info.enabledExtensionCount = 1;
+  info.enabledExtensionCount = sizeof(devices_extensions) /
+                               sizeof(devices_extensions[0]);
   info.ppEnabledExtensionNames = devices_extensions;
+
   VKVALID(vkCreateDevice(vk_physical_device, &info, NULL, &vk_device),
           "Can't create vkphydevice")
 }
@@ -283,8 +287,16 @@ int pe_vk_init() {
 
   pe_vk_create_logical_device();
  
-  if(is_drm_rendering)
+  if(is_drm_rendering){
+    pe_vk_get_memory_file_descriptor =
+        (PFN_vkGetMemoryFdKHR)vkGetDeviceProcAddr(vk_device, "vkGetMemoryFdKHR");
+
+    if(!pe_vk_get_memory_file_descriptor){
+      printf("Error can't get vulkan extenstion\n");
+      return 1;
+    }
     vk_get_displays();
+  }
 
   vkGetDeviceQueue(vk_device, q_graphic_family, 0, &vk_queue);
 
@@ -292,8 +304,10 @@ int pe_vk_init() {
 
   pe_vk_create_swapchain();
 
-  if(is_drm_rendering)
+  if(is_drm_rendering){
     pe_vk_create_exportable_images();
+    //init_direct_render();
+  }
 
   pe_vk_set_viewport_and_sccisor();
 

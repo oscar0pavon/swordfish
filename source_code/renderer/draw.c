@@ -70,12 +70,6 @@ void pe_vk_draw_frame() {
 
   pe_vk_start_render_pass(current_command, image_index);//INFO this is where we draw things
 
-  if(is_drm_rendering){
-    VkImage current_drm_image = pe_vk_exportable_images[image_index];
-    pe_vk_image_color_to_transfer(current_swapchain_image);
-    pe_vk_image_to_destination(current_drm_image);
-    pe_vk_copy_image(current_swapchain_image, current_drm_image);
-  }
 
   pe_vk_end_command(current_command);
 
@@ -98,6 +92,10 @@ void pe_vk_draw_frame() {
                               .pSignalSemaphores = singal_semaphore};
 
   vkQueueSubmit(vk_queue, 1, &submit_info, pe_vk_fence_in_flight);
+
+  if(is_drm_rendering){
+    vkWaitForFences(vk_device,1, &pe_vk_fence_in_flight, VK_TRUE, UINT64_MAX);
+  }
 
   VkPresentInfoKHR present_info = {
 

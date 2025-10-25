@@ -58,6 +58,28 @@ void pe_vk_image_to_destination(VkImage image) {
   pe_vk_end_single_time_cmd(command);
 }
 
+void pe_vk_image_transfer_to_present(VkImage image) {
+
+  VkCommandBuffer command = pe_vk_begin_single_time_cmd();
+
+  VkImageMemoryBarrier barrier = pe_vk_create_barrier();
+  barrier.image = image;
+  barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+  barrier.newLayout= VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+  barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+  barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+
+
+  VkPipelineStageFlags source_stage, destination_stage;
+  source_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+  destination_stage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+
+  vkCmdPipelineBarrier(command, source_stage, destination_stage, 0, 0, NULL, 0,
+                       NULL, 1, &barrier);
+
+  pe_vk_end_single_time_cmd(command);
+}
+
 void pe_vk_image_color_to_transfer(VkImage image) {
 
   VkCommandBuffer command = pe_vk_begin_single_time_cmd();
@@ -255,6 +277,22 @@ void pe_vk_create_image(PImageCreateInfo *info) {
       "Can't allocate memory for image");
 
   vkBindImageMemory(vk_device, info->texture->image, info->texture->memory, 0);
+
+ 
+  if(info->is_exportable){
+
+    VkMemoryGetFdInfoKHR file_descriptor_info = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR,
+        .memory = info->texture->memory,
+        .pNext = &export_memory_info, 
+        .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT};
+
+
+    VKVALID(pe_vk_get_memory_file_descriptor(vk_device, &file_descriptor_info,
+                             &info->texture->memory_file_descriptor),
+            "Can't get DMA file descriptor");
+  }
+
 }
 
 void pe_vk_create_texture_sampler(PTexture* new_texture) {
@@ -382,11 +420,10 @@ void pe_vk_create_depth_resources() {
 
 void pe_vk_create_exportable_images(){
   for (int i = 0; i < pe_vk_swapchain_image_count; i++) {
-    PTexture exportable_image;
     PImageCreateInfo image_create_info = {
         .width = 1920,
         .height = 1080,
-        .texture = &exportable_image,
+        .texture = &pe_vk_exportable_images[i],
         //.format = VK_FORMAT_R8G8B8A8_SRGB,//TODO could be this
         .format = VK_FORMAT_R8G8B8A8_UNORM,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
@@ -395,7 +432,6 @@ void pe_vk_create_exportable_images(){
         .number_of_samples = VK_SAMPLE_COUNT_1_BIT};
     
     pe_vk_create_image(&image_create_info);
-    pe_vk_exportable_images[i] = exportable_image.image;
 
   }
 }

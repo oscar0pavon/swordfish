@@ -21,6 +21,7 @@ typedef struct PTexture{
     u32 mip_level;
     VkSampler sampler;
     VkImageView image_view;
+    int memory_file_descriptor;
 }PTexture;
 
 int pe_load_image(const char* path, PImage* image);

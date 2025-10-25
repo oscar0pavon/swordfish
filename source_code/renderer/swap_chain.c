@@ -1,5 +1,6 @@
 #include "swap_chain.h"
 #include "debug.h"
+#include "engine/images.h"
 #include "swordfish.h"
 #include "vulkan.h"
 #include <engine/log.h>
@@ -23,7 +24,8 @@ u32 pe_vk_swapchain_image_count;
 
 //TODO we use four images buffer we can use less
 VkImage pe_vk_swch_images[4];
-VkImage pe_vk_exportable_images[4];
+PTexture pe_vk_exportable_images[4];
+int pe_vk_exportable_images_id[4];
 
 typedef struct PSupportDetails {
   VkSurfaceCapabilitiesKHR capabilities;

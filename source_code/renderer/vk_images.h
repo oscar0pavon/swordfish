@@ -39,4 +39,6 @@ void pe_vk_image_to_destination(VkImage image);
 
 void pe_vk_copy_image(VkImage source, VkImage destination);
 
+void pe_vk_image_transfer_to_present(VkImage image);
+
 #endif
