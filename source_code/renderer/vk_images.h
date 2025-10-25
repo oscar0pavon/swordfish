@@ -31,4 +31,12 @@ void pe_vk_create_depth_resources();
 
 void pe_vk_create_exportable_images();
 
+void pe_vk_image_to_color_attacthment(VkImage image);
+
+void pe_vk_image_color_to_transfer(VkImage image);
+
+void pe_vk_image_to_destination(VkImage image);
+
+void pe_vk_copy_image(VkImage source, VkImage destination);
+
 #endif

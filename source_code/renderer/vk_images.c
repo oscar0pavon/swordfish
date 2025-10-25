@@ -21,26 +21,84 @@
 
 VkImageView pe_vk_depth_image_view;
 
-void pe_vk_transition_image_swapchain(VkImage image, VkImageLayout old_layout,
-                                      VkImageLayout new_layout) {
-
-  VkCommandBuffer command = pe_vk_begin_single_time_cmd();
+VkImageMemoryBarrier pe_vk_create_barrier() {
 
   VkImageMemoryBarrier barrier = {
       .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-      .oldLayout = old_layout,
-      .newLayout = new_layout,
       .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
       .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .image = image,
       .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
       .subresourceRange.baseMipLevel = 0,
       .subresourceRange.levelCount = 1,
       .subresourceRange.baseArrayLayer = 0,
       .subresourceRange.layerCount = 1};
 
+  return barrier;
+}
+
+void pe_vk_image_to_destination(VkImage image) {
+
+  VkCommandBuffer command = pe_vk_begin_single_time_cmd();
+
+  VkImageMemoryBarrier barrier = pe_vk_create_barrier();
+  barrier.image = image;
+  barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+  barrier.srcAccessMask = 0;
+  barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
 
+  VkPipelineStageFlags source_stage, destination_stage;
+  source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+  destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+
+  vkCmdPipelineBarrier(command, source_stage, destination_stage, 0, 0, NULL, 0,
+                       NULL, 1, &barrier);
+
+  pe_vk_end_single_time_cmd(command);
+}
+
+void pe_vk_image_color_to_transfer(VkImage image) {
+
+  VkCommandBuffer command = pe_vk_begin_single_time_cmd();
+
+  VkImageMemoryBarrier barrier = pe_vk_create_barrier();
+  barrier.image = image;
+  barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+  barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+  barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+
+  VkPipelineStageFlags source_stage, destination_stage;
+  source_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+  destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+
+  vkCmdPipelineBarrier(command, source_stage, destination_stage, 0, 0, NULL, 0,
+                       NULL, 1, &barrier);
+
+  pe_vk_end_single_time_cmd(command);
+}
+void pe_vk_image_to_color_attacthment(VkImage image) {
+
+  VkCommandBuffer command = pe_vk_begin_single_time_cmd();
+
+  VkImageMemoryBarrier barrier = pe_vk_create_barrier();
+  barrier.image = image;
+  barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  barrier.srcAccessMask = 0;
+  barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+
+  VkPipelineStageFlags source_stage, destination_stage;
+  source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+  destination_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+  vkCmdPipelineBarrier(command, source_stage, destination_stage, 0, 0, NULL, 0,
+                       NULL, 1, &barrier);
+
+  pe_vk_end_single_time_cmd(command);
 }
 
 void pe_vk_transition_image_layout(VkImage image, VkFormat format,
@@ -88,6 +146,31 @@ void pe_vk_transition_image_layout(VkImage image, VkFormat format,
 
   vkCmdPipelineBarrier(command, source_stage, destination_stage, 0, 0, NULL, 0,
                        NULL, 1, &barrier);
+
+  pe_vk_end_single_time_cmd(command);
+}
+
+void pe_vk_copy_image(VkImage source, VkImage destination) {
+
+  VkCommandBuffer command = pe_vk_begin_single_time_cmd();
+
+  VkImageCopy copy_info = {
+      .srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+      .srcSubresource.baseArrayLayer = 0,
+      .srcSubresource.layerCount = 1,
+      .srcSubresource.mipLevel = 0,
+      .srcOffset = {0, 0, 0},
+      .dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+      .dstSubresource.baseArrayLayer = 0,
+      .dstSubresource.layerCount = 1,
+      .dstSubresource.mipLevel = 0,
+      .dstOffset = {0, 0, 0},
+      .extent = {1920, 1080, 1} // Swapchain image dimensions
+  };
+
+  vkCmdCopyImage(command, source, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                 destination, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                 &copy_info);
 
   pe_vk_end_single_time_cmd(command);
 }
