@@ -71,15 +71,19 @@ int main(){
 
 
 
+  start_delta_time();
   //INFO main loop
   while (swordfish_running) {
 
-    start_render_time();
+    //start_render_time();
+    
 
     pe_vk_draw_frame();
 
-    delay_render_time();
+    usleep(16667);//16.6ms
+    update_delta_time();
     
+    //delay_render_time();
   }
 
 

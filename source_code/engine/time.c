@@ -12,9 +12,12 @@
 typedef struct timespec PTime;
 static PTime frame_start_time;
 static PTime frame_start_time_input;
+PTime delta_time_counter;
+
+double delta_time;
 
 
-static void start_frame_timer(PTime time) {
+void start_frame_timer(PTime time) {
     clock_gettime(CLOCK_MONOTONIC, &time);
 }
 
@@ -36,6 +39,23 @@ static void delay_for_frame(PTime time) {
     }
 }
 
+void calculate_delta_time(PTime last_frame_time) {
+  PTime current_time;
+  clock_gettime(CLOCK_MONOTONIC, &current_time);
+  delta_time =
+      (double)(current_time.tv_sec - last_frame_time.tv_sec) +
+      (double)(current_time.tv_nsec - last_frame_time.tv_nsec) / NSEC_PER_SEC;
+
+  last_frame_time = current_time;
+}
+
+void update_delta_time(){
+    calculate_delta_time(delta_time_counter);
+}
+
+void start_delta_time(){
+    start_frame_timer(delta_time_counter);
+}
 
 void start_render_time(){
     start_frame_timer(frame_start_time);

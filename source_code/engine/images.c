@@ -3,7 +3,7 @@
 #include <engine/macros.h>
 #include <engine/file_loader.h>
 #include <engine/log.h>
-#include "lodepng.h"
+#include <lodepng.h>
 
 
 int pe_load_image(const char* path,  PImage* out_image){

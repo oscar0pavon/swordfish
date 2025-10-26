@@ -19,6 +19,8 @@
 #include "renderer/draw.h"
 #include "renderer/vk_images.h"
 
+#include <engine/time.h>
+
 bool is_drm_rendering = false;
 
 
@@ -51,7 +53,7 @@ void init_secodary_cube(PModel* model){
 void sworfish_set_secondary_cube_position(PModel* model, uint32_t image_index){
 
   //this is the far the cube can reach
-  float velocity = 0.002f;
+  float velocity = 0.0002f*delta_time;
   if(loop_animation){
     init_secodary_cube(model);
     left_position_z = -6;
@@ -130,7 +132,7 @@ void swordfish_update_main_cube(PModel *model, uint32_t image_index) {
 
   if (finished_build == false) {
 
-    glm_rotate(model->model_mat, -0.0001f, VEC3(0, 0, 1));
+    glm_rotate(model->model_mat, -0.0001f*delta_time, VEC3(0, 0, 1));
     glm_mat4_copy(model->model_mat, model->uniform_buffer_object.model);
   } else {
     mat4 identity;
