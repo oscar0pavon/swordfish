@@ -1,7 +1,7 @@
 #ifndef VERTEX_H
 #define VERTEX_H
 
-#include "../renderer/cglm/cglm.h"
+#include <cglm/cglm.h>
 
 typedef struct PVertex {
   vec3 position;

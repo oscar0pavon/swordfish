@@ -7,7 +7,7 @@
 
 #include "stdio.h"
 
-#include "../renderer/cglm/vec3.h"
+#include <cglm/vec3.h>
 #include "file_loader.h"
 
 

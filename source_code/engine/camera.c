@@ -1,8 +1,8 @@
 //
 
 #include "camera.h"
-#include "renderer/cglm/cam.h"
-#include "renderer/cglm/types.h"
+#include <cglm/cam.h>
+#include <cglm/types.h>
 #include "renderer/vulkan.h"
 #include "utils.h"
 #include "window.h"

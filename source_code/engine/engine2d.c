@@ -10,7 +10,6 @@
 
 #include "../renderer/vk_buffer.h"
 #include "../window.h"
-#include "renderer/cglm/clipspace/ortho_rh_no.h"
 #include "renderer/uniform_buffer.h"
 #include "renderer/descriptor_set.h"
 

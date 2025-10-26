@@ -4,7 +4,7 @@
 #include "cglm/vec4.h"
 
 #include "engine/model.h"
-#include "renderer/cglm/mat4.h"
+#include <cglm/mat4.h>
 #include "vk_buffer.h"
 
 #include <stdint.h>

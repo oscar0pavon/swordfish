@@ -3,7 +3,7 @@
 
 #include <engine/model.h>
 
-#include "renderer/cglm/cglm.h"
+#include <cglm/cglm.h>
 
 typedef struct UV{
   float u;

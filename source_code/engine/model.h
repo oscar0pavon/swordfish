@@ -6,7 +6,7 @@
 #include <engine/images.h>
 #include "array.h"
 
-#include "../renderer/cglm/vec3.h"
+#include <cglm/vec3.h>
 
 #include "renderer/vulkan.h"
 

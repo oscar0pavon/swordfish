@@ -5,7 +5,7 @@
 #ifndef CAMERA_H
 #define CAMERA_H 
 
-#include "renderer/cglm/cglm.h"
+#include <cglm/cglm.h>
 #include "renderer/vulkan.h"
 
 

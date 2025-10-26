@@ -2,16 +2,14 @@
 #include "engine/array.h"
 #include <engine/model.h>
 
-#include "renderer/cglm/affine.h"
-#include "renderer/cglm/mat4.h"
-#include "renderer/cglm/types.h"
+#include <cglm/cglm.h>
 #include "renderer/pipeline.h"
 #include <engine/engine2d.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <vulkan/vulkan_core.h>
 
-#include "renderer/cglm/cglm.h"
+#include <cglm/cglm.h>
 
 #include "renderer/uniform_buffer.h"
 
