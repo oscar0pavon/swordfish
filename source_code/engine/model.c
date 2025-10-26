@@ -3,10 +3,11 @@
 #include <vulkan/vulkan_core.h>
 
 #define CGLTF_IMPLEMENTATION
-#include "../renderer/cglm/vec3.h"
-#include "cgltf.h"
+#include <cgltf.h>
+
 #include "stdio.h"
 
+#include "../renderer/cglm/vec3.h"
 #include "file_loader.h"
 
 
