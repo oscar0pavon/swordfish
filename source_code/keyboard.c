@@ -17,7 +17,8 @@ void handle_xkb_keyboard_event(InputEvent *event) {
       libinput_event_keyboard_get_key_state(key_event);
 
   enum xkb_key_direction direction;
-
+  
+  // XKB uses keycodes offset by 8 (evdev codes start at 8)
   xkb_keycode_t xkb_keycode = key_code + 8;
 
   if (key_state == LIBINPUT_KEY_STATE_PRESSED) {
@@ -28,13 +29,15 @@ void handle_xkb_keyboard_event(InputEvent *event) {
         xkb_state_update_key(xkb_state, xkb_keycode, direction);
 
     xkb_keysym_t sym = xkb_state_key_get_one_sym(xkb_state, xkb_keycode);
+
     uint32_t unicode = xkb_keysym_to_utf32(sym);
 
     if (unicode) {
       printf("Key pressed: %c (U+%04x)\n", (char)unicode, unicode);
     }
+
   } else {                  // LIBINPUT_KEY_STATE_RELEASED
-    direction = XKB_KEY_UP; // Use XKB_KEY_UP for released
+    direction = XKB_KEY_UP;
     xkb_state_update_key(xkb_state, xkb_keycode, direction);
   }
 
