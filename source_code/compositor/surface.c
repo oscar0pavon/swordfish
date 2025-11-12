@@ -79,10 +79,15 @@ static void destroy_surface(WaylandResource* resource){
 
 void create_surface(WaylandClient *client, WaylandResource *resource,
                     uint32_t id) {
+
+  printf("Creating surface\n");
+
   SwordfishCompositor *compositor = wl_resource_get_user_data(resource);
-  SwordfishSurface *surface = calloc(1, sizeof(*surface));
+  SwordfishSurface *surface = calloc(1, sizeof(SwordfishSurface));
+  printf("allocated surface\n");
 
   if (!surface) {
+    printf("Can't create wayland surface\n");
     wl_client_post_no_memory(client);
     return;
   }
@@ -91,14 +96,18 @@ void create_surface(WaylandClient *client, WaylandResource *resource,
   surface->resource = wl_resource_create(client, &wl_surface_interface, 1, id);
   if (!surface->resource) {
     free(surface);
+    printf("Can't create wayland resource\n");
     wl_client_post_no_memory(client);
     return;
   }
+  printf("Created resource\n");
 
   // 2. Link our C struct to the Wayland resource handle
   wl_resource_set_implementation(surface->resource, &surface_implementation,
                                  surface,
                                  destroy_surface); // Set the destroy handler
+
+  printf("implementation\n");
 
   // 3. Add to the compositor's list of surfaces
   surface->compositor = compositor;
