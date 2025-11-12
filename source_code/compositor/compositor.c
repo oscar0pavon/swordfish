@@ -9,8 +9,11 @@
 #include <wayland-server.h>
 #include <fcntl.h>
 #include <errno.h>
+#include "surface.h"
 
 SwordfishCompositor compositor;
+
+WaylanCompositorInterface compositor_interface;
 
 
 void finish_compositor(){
@@ -55,6 +58,12 @@ static const struct wl_shell_interface shell_interface = {
 static void compositor_bind(struct wl_client *client, void *data,
                             uint32_t version, uint32_t id) {
 
+  SwordfishCompositor* compositor = data;
+  WaylandResource* resource;
+
+  resource = wl_resource_create(client, &wl_compositor_interface, version, id);
+
+  wl_resource_set_implementation(resource, &compositor_interface, compositor, NULL);
   printf("Compositor bound\n");
 }
 
@@ -85,13 +94,15 @@ void* run_compositor(void* none) {
     pthread_exit(NULL);
   }
 
+
   // Create the global registry.
-  wl_global_create(compositor.display, &wl_shm_interface, 1, &compositor,
-                   shm_bind);
+  // wl_global_create(compositor.display, &wl_shm_interface, 1, &compositor,
+  //                  shm_bind);
+  //
+  // wl_global_create(compositor.display, &wl_shell_interface, 1, &compositor,
+  //                  shell_bind);
 
-  wl_global_create(compositor.display, &wl_shell_interface, 1, &compositor,
-                   shell_bind);
-
+  compositor_interface.create_surface = create_surface;
   wl_global_create(compositor.display, &wl_compositor_interface, 1, &compositor,
                    compositor_bind);
 
