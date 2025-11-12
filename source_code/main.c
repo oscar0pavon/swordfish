@@ -23,7 +23,7 @@
 #include <engine/utils.h>
 
 #include <engine/time.h>
-#include "compositor.h"
+#include "compositor/compositor.h"
 
 #include "direct_render.h"
 

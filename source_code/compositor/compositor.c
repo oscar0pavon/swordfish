@@ -1,6 +1,7 @@
 #include "compositor.h"
 
 #include <pthread.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,14 +9,6 @@
 #include <wayland-server.h>
 #include <fcntl.h>
 #include <errno.h>
-
-
-// Client state structure for surfaces
-struct simple_surface {
-    struct wl_resource *resource;
-    SwordfishCompositor *compositor;
-};
-
 
 SwordfishCompositor compositor;
 
@@ -95,9 +88,11 @@ void* run_compositor(void* none) {
   // Create the global registry.
   wl_global_create(compositor.display, &wl_shm_interface, 1, &compositor,
                    shm_bind);
+
   wl_global_create(compositor.display, &wl_shell_interface, 1, &compositor,
                    shell_bind);
-  wl_global_create(compositor.display, &wl_compositor_interface, 3, &compositor,
+
+  wl_global_create(compositor.display, &wl_compositor_interface, 1, &compositor,
                    compositor_bind);
 
   // TODO Set up rendering, input
