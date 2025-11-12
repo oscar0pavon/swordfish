@@ -22,6 +22,7 @@
 #include <engine/utils.h>
 
 #include <engine/time.h>
+#include "compositor.h"
 
 #include "direct_render.h"
 
@@ -63,6 +64,8 @@ int main(){
   pthread_t input_thread_id;
   pthread_create(&input_thread_id, NULL, handle_input, NULL);
 
+  pthread_t compositor_thread_id;
+  pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
 
   pthread_t make_thread_id;
   //pthread_create(&make_thread_id,NULL,call_make, NULL);
