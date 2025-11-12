@@ -75,4 +75,6 @@ extern Camera main_camera;
 extern VkViewport viewport;
 extern VkRect2D scissor;
 
+extern Array buffers;
+
 #endif

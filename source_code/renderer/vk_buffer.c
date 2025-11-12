@@ -21,6 +21,8 @@ void pe_vk_create_buffer_memory(PBufferCreateInfo *buffer_info) {
   VKVALID(vkCreateBuffer(vk_device, &info, NULL, &buffer),
           "Can't create buffer");
 
+  array_add(&buffers,&buffer);
+
   VkMemoryRequirements requirement = pe_vk_memory_get_requirements(buffer);
   VkDeviceMemory memory = pe_vk_memory_allocate(requirement);
 

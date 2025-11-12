@@ -2,6 +2,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,7 +25,9 @@ void handle_child_output(int pipe_fd) {
   }
 }
 
-void *call_make(void *none) {
+
+void call_program(const char* command){
+
   int pipefd[2];
   pid_t pid;
 
@@ -44,9 +47,9 @@ void *call_make(void *none) {
     dup2(pipefd[WRITE_END], STDOUT_FILENO);
     dup2(pipefd[WRITE_END], STDERR_FILENO);
     close(pipefd[WRITE_END]);
-    execlp("make", "make", "-j32", NULL);
+    execlp(command, command, NULL);
     perror("execlp");
-    exit(EXIT_FAILURE);
+    pthread_exit("Error executing command");
   } else { // parent
     close(pipefd[WRITE_END]);
 
@@ -89,6 +92,11 @@ void *call_make(void *none) {
     close(pipefd[READ_END]);
   }
 
+}
+
+
+void *call_make(void *none) {
+  call_program("make");
   finished_build = true;
 
 }

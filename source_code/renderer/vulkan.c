@@ -8,6 +8,7 @@
 #include "debug.h"
 #include "descriptor_set.h"
 #include "direct_render.h"
+#include "engine/array.h"
 #include "engine/images.h"
 #include "framebuffer.h"
 #include "images_view.h"
@@ -76,6 +77,9 @@ const char *devices_extensions[] = {
 VkDeviceQueueCreateInfo queues_creates_infos[2];
 
 const float queue_priority = 1.f;
+
+Array buffers;
+
 
 void pe_vk_create_instance() {
 
@@ -279,6 +283,8 @@ void pe_vk_set_viewport_and_sccisor(){
 int pe_vk_init() {
   pe_vk_msaa_samples = VK_SAMPLE_COUNT_4_BIT;
 
+  array_init(&buffers, sizeof(VkBuffer), 512);
+
   pe_vk_create_instance();
 
   pe_vk_get_physical_device();
@@ -352,6 +358,10 @@ int pe_vk_init() {
 }
 
 void pe_vk_end() {
+  for(int i = 0; i < buffers.count; i++){
+    VkBuffer* buffer = array_get(&buffers, i);
+    vkDestroyBuffer(vk_device,*buffer,NULL);
+  }
   pe_vk_debug_end();
   vkDestroySurfaceKHR(vk_instance, vk_surface, NULL);
   vkDestroyDevice(vk_device, NULL);

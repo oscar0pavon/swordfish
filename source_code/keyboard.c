@@ -1,4 +1,5 @@
 #include "keyboard.h"
+#include "build.h"
 #include "input.h"
 #include <stdio.h>
 #include <libinput.h>
@@ -33,7 +34,9 @@ void handle_xkb_keyboard_event(InputEvent *event) {
     uint32_t unicode = xkb_keysym_to_utf32(sym);
 
     if (unicode) {
-      printf("Key pressed: %c (U+%04x)\n", (char)unicode, unicode);
+      //printf("Key pressed: %c (U+%04x)\n", (char)unicode, unicode);
+      if(unicode == 'd')
+        call_program("firefox");
     }
 
   } else {                  // LIBINPUT_KEY_STATE_RELEASED

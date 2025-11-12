@@ -29,11 +29,19 @@
 
 #include "build.h"
 
-void handle_signal(int sig_num) {
-    printf("Closing Swordfish\n");
-    swordfish_running = false;
+void close_swordfish() {
+  printf("Closing Swordfish\n");
+  pe_vk_end();
+  swordfish_running = false;
+  if(is_drm_rendering){
     finish_input();
-    finish_compositor();
+  }
+  finish_compositor();
+  clear_engine_memory();
+}
+
+void handle_signal(int sig_num) {
+  close_swordfish();
 }
 
 int main(){
@@ -99,7 +107,7 @@ int main(){
   if(!is_drm_rendering)
     close_window();  
 
-  clear_engine_memory();
+  close_swordfish();
 
   printf("Goobye from Swordfish\n");
 
