@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <poll.h>
+#include "swordfish.h"
 #include "window.h"
 #include <engine/time.h>
 #include "keyboard.h"
@@ -97,9 +98,12 @@ void finish_input() {
   finish_keyboard();
   libinput_unref(libinput);
   udev_unref(udev);
+  printf("finished input\n");
 }
 
 void *handle_input(void *none) {
+  if(!is_drm_rendering)
+    handle_input_xorg();
 
   init_input();
   init_keyboard();
@@ -141,7 +145,6 @@ void *handle_input(void *none) {
     }
   }
 
-  finish_input();
 
   return NULL;
 }

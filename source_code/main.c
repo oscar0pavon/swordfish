@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include "swordfish.h"
 
@@ -28,8 +29,15 @@
 
 #include "build.h"
 
+void handle_signal(int sig_num) {
+    printf("Closing Swordfish\n");
+    swordfish_running = false;
+    finish_input();
+    finish_compositor();
+}
 
 int main(){
+  signal(SIGINT, handle_signal);
 
   pe_vk_validation_layer_enable = true;
   
@@ -93,6 +101,7 @@ int main(){
 
   clear_engine_memory();
 
+  printf("Goobye from Swordfish\n");
 
 
 

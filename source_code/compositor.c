@@ -9,11 +9,6 @@
 #include <fcntl.h>
 #include <errno.h>
 
-typedef struct SwordfishCompositor{
-    struct wl_display *display;
-    struct wl_event_loop *event_loop;
-    // libinput components
-}SwordfishCompositor;
 
 // Client state structure for surfaces
 struct simple_surface {
@@ -21,6 +16,16 @@ struct simple_surface {
     SwordfishCompositor *compositor;
 };
 
+
+SwordfishCompositor compositor;
+
+
+void finish_compositor(){
+  
+  wl_display_destroy(compositor.display);
+
+  printf("Finish compositor\n");
+}
 
 void shm_create_pool(struct wl_client *client, struct wl_resource *resource,
                      uint32_t id, int32_t fd, int32_t size) {
@@ -72,7 +77,6 @@ static void shell_bind(struct wl_client *client, void *data, uint32_t version,
 }
 
 void* run_compositor(void* none) {
-  SwordfishCompositor compositor = {0};
 
   // Create the Wayland display
   compositor.display = wl_display_create();
@@ -118,13 +122,7 @@ void* run_compositor(void* none) {
   // Run the event loop indefinitely
 
   wl_display_run(compositor.display);
-
-
-  wl_display_destroy(compositor.display);
-
-  printf("Wayland executed\n");
  
-  pthread_exit(NULL);
-
+  
   return NULL;
 }
