@@ -8,6 +8,7 @@
 #include <poll.h>
 #include "window.h"
 #include <engine/time.h>
+#include "keyboard.h"
 
 LibInput* libinput;
 struct udev *udev;
@@ -93,6 +94,7 @@ void handle_input_xorg(){
 }
 
 void finish_input() {
+  finish_keyboard();
   libinput_unref(libinput);
   udev_unref(udev);
 }
@@ -100,6 +102,7 @@ void finish_input() {
 void *handle_input(void *none) {
 
   init_input();
+  init_keyboard();
 
   struct pollfd pfd = {
       .fd = libinput_get_fd(libinput),
@@ -126,7 +129,10 @@ void *handle_input(void *none) {
         break;
       case LIBINPUT_EVENT_POINTER_MOTION:
         // Handle pointer motion event
-        printf("mouse movement\n");
+        //printf("mouse movement\n");
+        break;
+      case LIBINPUT_EVENT_KEYBOARD_KEY:
+        handle_xkb_keyboard_event(event);
         break;
         // ... other event types
       }
