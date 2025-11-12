@@ -1,5 +1,6 @@
 
 CLINKS := -lX11 -lpthread -lm -lvulkan -ldrm -lgbm -llodepng 
+CLINKS += -linput -ludev
 
 CFLAGS := -g
 
