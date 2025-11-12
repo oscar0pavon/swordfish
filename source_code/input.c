@@ -105,6 +105,8 @@ void *handle_input(void *none) {
   if(!is_drm_rendering)
     handle_input_xorg();
 
+  printf("Input initialazing\n");
+
   init_input();
   init_keyboard();
 

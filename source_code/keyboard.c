@@ -35,8 +35,10 @@ void handle_xkb_keyboard_event(InputEvent *event) {
 
     if (unicode) {
       //printf("Key pressed: %c (U+%04x)\n", (char)unicode, unicode);
-      if(unicode == 'd')
-        call_program("firefox");
+      if(unicode == 'd'){
+        printf("Calling program\n");
+        call_program("pwayland_window");
+      }
     }
 
   } else {                  // LIBINPUT_KEY_STATE_RELEASED

@@ -49,8 +49,9 @@ void call_program(const char* command){
     close(pipefd[WRITE_END]);
     execlp(command, command, NULL);
     perror("execlp");
-    pthread_exit("Error executing command");
+    //pthread_exit("Error executing command");
   } else { // parent
+    printf("Running %s\n",command);
     close(pipefd[WRITE_END]);
 
     fd_set fds;
