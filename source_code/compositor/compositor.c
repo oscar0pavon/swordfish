@@ -45,16 +45,6 @@ static void shm_bind(struct wl_client *client, void *data, uint32_t version,
   wl_resource_set_implementation(resource, &shm_interface, data, NULL);
 }
 
-// Wayland interface implementation for wl_shell (simple desktop shell)
-static void shell_get_shell_surface(struct wl_client *client,
-                                    struct wl_resource *resource, uint32_t id,
-                                    struct wl_resource *surface_resource) {
-  // TODO create a shell surface object
-}
-
-static const struct wl_shell_interface shell_interface = {
-    .get_shell_surface = shell_get_shell_surface,
-};
 
 static void compositor_bind(WaylandClient *client, void *data, uint32_t version,
                             uint32_t id) {

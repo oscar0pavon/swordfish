@@ -4,15 +4,18 @@
 #include <stdint.h>
 #include <wayland-server-core.h>
 #include <wayland-server.h>
+#include "desktop-server.h"
 
 typedef struct wl_resource WaylandResource;
 typedef struct wl_client WaylandClient;
 typedef struct wl_compositor_interface WaylanCompositorInterface;
+typedef struct xdg_wm_base DesktopBase;
 
 typedef struct SwordfishCompositor{
     struct wl_display *display;
     struct wl_event_loop *event_loop;
     struct wl_list surfaces; 
+    DesktopBase *desktop_base;
     // libinput components
 }SwordfishCompositor;
 

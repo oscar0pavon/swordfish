@@ -9,9 +9,11 @@ Build software with 3D status progress like Swordfish movie
 ![current_status](images/current_status.png)  
 
 # Dependencies
-- XDG Shell header
+- XDG Shell header and code
 ```
 wayland-scanner server-header /usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml desktop-server.h
+wayland-scanner public-code /usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml desktop-server.c
+
 ```
 - vulkan drivers
 - vulkan headers
