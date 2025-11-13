@@ -5,9 +5,10 @@
 #include <wayland-server.h>
 #include <stdlib.h>
 #include <string.h>
+#include "desktop.h"
 
 typedef struct TopLevel{
-  SwordfishSurface *surface;
+  DesktopSurface *surface;
   WaylandResource *resource;
   char *title;
 }TopLevel;
@@ -34,7 +35,7 @@ const struct xdg_toplevel_interface top_level_implementation = {
 void get_top_level_implementation(WaylandClient *client,
                                   WaylandResource *resource, uint32_t id) {
 
-  SwordfishSurface *surface = wl_resource_get_user_data(resource);
+  DesktopSurface *surface = wl_resource_get_user_data(resource);
 
   TopLevel *top_level = calloc(1, sizeof(TopLevel));
   top_level->surface = surface;
@@ -47,8 +48,7 @@ void get_top_level_implementation(WaylandClient *client,
   wl_resource_set_implementation(top_level->resource, &top_level_implementation, top_level,
                                  NULL);
 
-  printf("set implementation\n");
 
   uint32_t serial = 70; //TODO implement generate serial
-  //xdg_surface_send_configure(surface->resource, serial);
+  xdg_surface_send_configure(top_level->surface->resource, serial);
 }

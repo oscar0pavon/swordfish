@@ -42,7 +42,7 @@ void get_desktop_surface(WaylandClient *client, WaylandResource *resource,
                                  desktop_surface, NULL);
 
   printf("Get desktop surface\n");
-  //TODO: implement xdg_top_level
+
 }
 
 const struct xdg_wm_base_interface desktop_implementation = {
