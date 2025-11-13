@@ -5,18 +5,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "top_level.h"
+
 //recieve from client
 void do_desktop_ack(WaylandClient* client, WaylandResource* resource, uint32_t serial){
-
+  printf("ack\n");
 }
 
 void do_desktop_pong(WaylandClient* client, WaylandResource* resource, uint32_t serial){
   //TODO respond to client
+  printf("pong\n");
 }
 
 const struct xdg_surface_interface desktop_surface_implementation = {
     .destroy = NULL,
-    .get_toplevel = NULL,//TODO get top level
+    .get_toplevel = get_top_level_implementation,
     .get_popup = NULL,
     .set_window_geometry = NULL,
     .ack_configure = do_desktop_ack,
@@ -37,6 +40,8 @@ void get_desktop_surface(WaylandClient *client, WaylandResource *resource,
   wl_resource_set_implementation(desktop_surface->resource,
                                  &desktop_surface_implementation,
                                  desktop_surface, NULL);
+
+  printf("Get desktop surface\n");
   //TODO: implement xdg_top_level
 }
 
@@ -45,15 +50,6 @@ const struct xdg_wm_base_interface desktop_implementation = {
   .get_xdg_surface = get_desktop_surface,
   .pong = do_desktop_pong
 };
-
-
-
-
-void get_shell_surface(WaylandClient *client, WaylandResource *resource,
-                       uint32_t id, WaylandResource *surface_resource) {
-
-
-}
 
 
 
