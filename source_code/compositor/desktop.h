@@ -12,6 +12,7 @@ typedef struct DesktopSurface{
   uint32_t pending_serial;
 }DesktopSurface;
 
-extern struct xdg_wm_base_interface desktop_implementation;
 
+void bind_desktop(WaylandClient *client, void *data, uint32_t version,
+                       uint32_t id);
 #endif

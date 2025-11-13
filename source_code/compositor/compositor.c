@@ -10,11 +10,16 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <wayland-util.h>
+#include "compositor/desktop-server.h"
+#include "compositor/desktop.h"
 #include "surface.h"
 
 SwordfishCompositor compositor;
 
-static WaylanCompositorInterface compositor_interface;
+const WaylanCompositorInterface compositor_interface = {
+  .create_surface = create_surface,
+  .create_region = NULL
+};
 
 
 void finish_compositor(){
@@ -46,7 +51,7 @@ static void shm_bind(struct wl_client *client, void *data, uint32_t version,
 }
 
 
-static void compositor_bind(WaylandClient *client, void *data, uint32_t version,
+void bind_compositor(WaylandClient *client, void *data, uint32_t version,
                             uint32_t id) {
 
   SwordfishCompositor* compositor = (SwordfishCompositor*)data;
@@ -65,16 +70,6 @@ static void compositor_bind(WaylandClient *client, void *data, uint32_t version,
   printf("Compositor bound\n");
 }
 
-static void shell_bind(struct wl_client *client, void *data, uint32_t version,
-                       uint32_t id) {
-  struct wl_resource *resource =
-      wl_resource_create(client, &wl_shell_interface, version, id);
-  if (!resource) {
-    wl_client_post_no_memory(client);
-    return;
-  }
-  wl_resource_set_implementation(resource, &shell_interface, data, NULL);
-}
 
 void* run_compositor(void* none) {
 
@@ -92,25 +87,20 @@ void* run_compositor(void* none) {
     pthread_exit(NULL);
   }
 
+  wl_list_init(&compositor.surfaces);
 
   // Create the global registry.
   // wl_global_create(compositor.display, &wl_shm_interface, 1, &compositor,
   //                  shm_bind);
   //
-  // wl_global_create(compositor.display, &wl_shell_interface, 1, &compositor,
-  //                  shell_bind);
 
-  compositor_interface.create_surface = create_surface;
-  compositor_interface.create_region = NULL;
-
-  wl_list_init(&compositor.surfaces);
+  wl_global_create(compositor.display, &xdg_wm_base_interface, 1, &compositor,
+                   bind_desktop);
 
   wl_global_create(compositor.display, &wl_compositor_interface, 1, &compositor,
-                   compositor_bind);
+                   bind_compositor);
 
-  // TODO Set up rendering, input
 
-  // Start the compositor
   const char *socket = wl_display_add_socket_auto(compositor.display);
   if (!socket) {
     fprintf(stderr, "Failed to create Wayland socket\n");
@@ -121,13 +111,6 @@ void* run_compositor(void* none) {
   printf("Wayland socket available at %s\n", socket);
   printf("Compositor running. Use a Wayland client to connect.\n");
 
-  // // This is how clients discover Wayland interfaces.
-  // if (!wl_display_init_shm(compositor.display)) {
-  //     fprintf(stderr, "Failed to initialize SHM\n");
-  //     return 1;
-  // }
-
-  // Run the event loop indefinitely
 
   wl_display_run(compositor.display);
  
