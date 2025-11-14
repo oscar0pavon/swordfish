@@ -12,9 +12,11 @@
 #include <wayland-util.h>
 #include "compositor/desktop-server.h"
 #include "compositor/desktop.h"
+#include "compositor/seat.h"
 #include "surface.h"
 #include "dma.h"
 #include "shared_memory.h"
+#include "swordfish.h"
 
 SwordfishCompositor compositor;
 
@@ -54,6 +56,7 @@ void bind_compositor(WaylandClient *client, void *data, uint32_t version,
 
 
 void* run_compositor(void* none) {
+
 
   // Create the Wayland display
   compositor.display = wl_display_create();

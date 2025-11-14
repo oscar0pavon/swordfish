@@ -5,6 +5,7 @@
 #include <wayland-server-core.h>
 #include <wayland-server.h>
 #include "desktop-server.h"
+#include <libseat.h>
 
 typedef struct wl_resource WaylandResource;
 typedef struct wl_client WaylandClient;
@@ -16,6 +17,11 @@ typedef struct SwordfishCompositor{
     struct wl_event_loop *event_loop;
     struct wl_list surfaces; 
     DesktopBase *desktop_base;
+    struct libseat *seat;
+    int gpu_fd;
+    const char *gpu_path;
+    int seat_active;
+    int seat_fd;
     // libinput components
 }SwordfishCompositor;
 

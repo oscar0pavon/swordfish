@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <signal.h>
 
+#include "compositor/seat.h"
 #include "swordfish.h"
 
 #include "engine/camera.h"
@@ -52,6 +53,9 @@ int main(){
   if(create_window() == false){
     is_drm_rendering = true;
     //init_direct_render();
+    compositor.gpu_path = "/dev/dri/card0";
+
+    init_seat();
   }
 
   pe_init_memory();
@@ -92,6 +96,8 @@ int main(){
   //INFO main loop
   while (swordfish_running) {
 
+    //if(is_drm_rendering)
+      //check_libseat();
     //start_render_time();
     
 

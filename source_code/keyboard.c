@@ -39,6 +39,10 @@ void handle_xkb_keyboard_event(InputEvent *event) {
         printf("Calling program\n");
         call_program("/root/pterminal/pterminal");
       }
+      if(unicode == 'q'){
+        printf("Calling program\n");
+        exit(0);
+      }
     }
 
   } else {                  // LIBINPUT_KEY_STATE_RELEASED
