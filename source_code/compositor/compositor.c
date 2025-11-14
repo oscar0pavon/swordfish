@@ -14,6 +14,7 @@
 #include "compositor/desktop.h"
 #include "surface.h"
 #include "dma.h"
+#include "shared_memory.h"
 
 SwordfishCompositor compositor;
 
@@ -30,26 +31,6 @@ void finish_compositor(){
   printf("Finish compositor\n");
 }
 
-void shm_create_pool(struct wl_client *client, struct wl_resource *resource,
-                     uint32_t id, int32_t fd, int32_t size) {
-  // Wayland interface implementation for wl_shm
-  // A real implementation would manage shared memory pools
-}
-
-static const struct wl_shm_interface shm_interface = {
-    .create_pool = shm_create_pool,
-};
-
-static void shm_bind(struct wl_client *client, void *data, uint32_t version,
-                     uint32_t id) {
-  struct wl_resource *resource =
-      wl_resource_create(client, &wl_shm_interface, version, id);
-  if (!resource) {
-    wl_client_post_no_memory(client);
-    return;
-  }
-  wl_resource_set_implementation(resource, &shm_interface, data, NULL);
-}
 
 
 void bind_compositor(WaylandClient *client, void *data, uint32_t version,
@@ -90,10 +71,8 @@ void* run_compositor(void* none) {
 
   wl_list_init(&compositor.surfaces);
 
-  // Create the global registry.
-  // wl_global_create(compositor.display, &wl_shm_interface, 1, &compositor,
-  //                  shm_bind);
-  //
+
+  init_shared_memory();
 
   wl_global_create(compositor.display, &xdg_wm_base_interface, 1, &compositor,
                    bind_desktop);
