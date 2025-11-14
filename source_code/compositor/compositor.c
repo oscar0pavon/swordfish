@@ -13,6 +13,7 @@
 #include "compositor/desktop-server.h"
 #include "compositor/desktop.h"
 #include "surface.h"
+#include "dma.h"
 
 SwordfishCompositor compositor;
 
@@ -100,6 +101,8 @@ void* run_compositor(void* none) {
   wl_global_create(compositor.display, &wl_compositor_interface, 1, &compositor,
                    bind_compositor);
 
+  init_dma();
+
 
   const char *socket = wl_display_add_socket_auto(compositor.display);
   if (!socket) {
@@ -110,6 +113,7 @@ void* run_compositor(void* none) {
   setenv("WAYLAND_DISPLAY", socket, true);
   setenv("MESA_LOADER_DRIVER_OVERRIDE", "radeonsi", true);
   setenv("EGL_PLATFORM", "wayland", true);
+  setenv("MESA_DRM_DRIVER", "radeon", true);
 
   printf("Wayland socket available at %s\n", socket);
   printf("Compositor running. Use a Wayland client to connect.\n");

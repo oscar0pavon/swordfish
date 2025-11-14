@@ -9,6 +9,13 @@
 
 //recieve from client
 void do_desktop_ack(WaylandClient* client, WaylandResource* resource, uint32_t serial){
+
+  DesktopSurface * desktop_surface = wl_resource_get_user_data(resource);
+  SwordfishSurface *surface = desktop_surface->surface;
+
+  
+   
+  
   printf("ack\n");
 }
 
