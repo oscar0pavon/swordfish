@@ -37,7 +37,7 @@ void handle_xkb_keyboard_event(InputEvent *event) {
       //printf("Key pressed: %c (U+%04x)\n", (char)unicode, unicode);
       if(unicode == 'd'){
         printf("Calling program\n");
-        call_program("pwayland_window");
+        call_program("/root/pterminal/pterminal");
       }
     }
 

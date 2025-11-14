@@ -107,6 +107,9 @@ void* run_compositor(void* none) {
     wl_display_destroy(compositor.display);
     pthread_exit(NULL);
   }
+  setenv("WAYLAND_DISPLAY", socket, true);
+  setenv("MESA_LOADER_DRIVER_OVERRIDE", "radeonsi", true);
+  setenv("EGL_PLATFORM", "wayland", true);
 
   printf("Wayland socket available at %s\n", socket);
   printf("Compositor running. Use a Wayland client to connect.\n");
