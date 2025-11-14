@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "desktop.h"
+#include "engine/array.h"
 
 typedef struct TopLevel{
   DesktopSurface *surface;
@@ -32,6 +33,21 @@ const struct xdg_toplevel_interface top_level_implementation = {
   .set_title = set_title
 };
 
+void send_top_level_configure(TopLevel* toplevel, int width, int height){
+  struct wl_array states;
+  wl_array_init(&states);
+
+  xdg_toplevel_send_configure(toplevel->resource,
+      width,
+      height,
+      &states);
+
+  wl_array_release(&states);
+  uint32_t serial = 30;
+  xdg_surface_send_configure(toplevel->surface->resource, serial);
+
+}
+
 void get_top_level_implementation(WaylandClient *client,
                                   WaylandResource *resource, uint32_t id) {
 
@@ -48,7 +64,6 @@ void get_top_level_implementation(WaylandClient *client,
   wl_resource_set_implementation(top_level->resource, &top_level_implementation, top_level,
                                  NULL);
 
+  send_top_level_configure(top_level, 800, 600);
 
-  uint32_t serial = 70; //TODO implement generate serial
-  xdg_surface_send_configure(top_level->surface->resource, serial);
 }
