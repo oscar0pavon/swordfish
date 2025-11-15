@@ -63,14 +63,22 @@ int main(){
   }else{
     create_window();
   }
-
+  
   pe_init_memory();
+
+  pthread_t input_thread_id;
+  pthread_create(&input_thread_id, NULL, handle_input, NULL);
+
+  pthread_t compositor_thread_id;
+  pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
+
+  while(1){
+
+  }
+
+  //graphics stuff
   
-
-
-
   camera_init(&main_camera);
-  
 
   //camera_set_position(&main_camera, VEC3(-10,0,0));
   init_vec3(-10, 0, 4, main_camera.position);
@@ -84,19 +92,10 @@ int main(){
     // return EXIT_SUCCESS;
   }
 
-
   swordfish_init();
-
-  pthread_t input_thread_id;
-  pthread_create(&input_thread_id, NULL, handle_input, NULL);
-
-  pthread_t compositor_thread_id;
-  pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
 
   pthread_t make_thread_id;
   //pthread_create(&make_thread_id,NULL,call_make, NULL);
-
-
 
   start_delta_time();
   //INFO main loop

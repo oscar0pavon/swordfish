@@ -202,9 +202,6 @@ void pe_vk_queue_families_support() {
 
 void pe_vk_get_physical_device() {
 
-  //****************
-  // Physical devices
-  //****************
   uint32_t devices_count = 0;
 
   vkEnumeratePhysicalDevices(vk_instance, &devices_count, NULL);
@@ -219,7 +216,7 @@ void pe_vk_get_physical_device() {
 
   vk_physical_device = devices[0];
   if (vk_physical_device == NULL) {
-    printf("Can't asssig device\n");
+    printf("Can't assing device\n");
   }
 
   VkPhysicalDeviceProperties properties;

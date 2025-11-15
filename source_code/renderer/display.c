@@ -3,6 +3,7 @@
 #include "vulkan.h"
 #include "window.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <vulkan/vulkan_core.h>
 
 VkDisplayKHR vk_display;
@@ -32,6 +33,10 @@ void vk_get_displays() {
                                           NULL);
 
   printf("Vulkan displays count: %i\n", display_count);
+  if(display_count == 0){
+    printf("None display detected. Exit\n");
+    exit(1);
+  }
 
   VkDisplayPropertiesKHR displays[display_count];
   vkGetPhysicalDeviceDisplayPropertiesKHR(vk_physical_device,

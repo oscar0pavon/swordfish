@@ -12,7 +12,10 @@
 #include <sys/types.h> 
 #include <poll.h> 
 #include "compositor.h"
+#include "tty.h"
 #include <pthread.h>
+#include <xf86drm.h>
+
 
 static void on_seat_disable(struct libseat *seat, void *userdata);
 static void on_seat_enable(struct libseat *seat, void *userdata);
@@ -74,6 +77,13 @@ void init_seat() {
            compositor.gpu_fd, device_id);
     compositor.seat_active = 1;
   }
+
+  // if (drmSetMaster(compositor.gpu_fd) < 0) {
+  //   printf("Can't be DRM master\n");
+  // }
+
+  // tty_save_state();
+
 }
 
 void check_libseat(){
