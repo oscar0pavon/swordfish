@@ -19,6 +19,10 @@
 
 #include <drm_fourcc.h>
 
+#include "GLES2/gl2.h"
+
+#include "direct_render.h"
+
 EGLDisplay egl_display;
 EGLContext egl_context;
 EGLSurface egl_surface;
@@ -112,8 +116,8 @@ void init_egl() {
     fprintf(stderr, "Failed to create EGL context: 0x%x\n", eglGetError());
   }
 
-  egl_surface = eglCreateWindowSurface(
-      egl_display, config, (EGLNativeWindowType)display_surface, NULL);
+  egl_surface = eglCreatePlatformWindowSurface(
+      egl_display, config, display_surface, NULL);
 
   if (egl_surface == EGL_NO_SURFACE) {
     fprintf(stderr, "Failed to create EGL window surface: 0x%x\n",
@@ -124,4 +128,36 @@ void init_egl() {
   unsetenv("EGL_PLATFORM"); 
   printf("Finihsh EGL initialization\n");
 
+}
+
+void draw_with_egl() {
+
+  EGLBoolean make_current =
+      eglMakeCurrent(egl_display, egl_surface, egl_surface, egl_context);
+  if (!make_current)
+    printf("Can't make current context\n");
+
+  while (1) {
+    glClearColor(0.3f, 0.3f, 0.9f, 1.0f); // Clear to a blue color
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glFlush();
+
+    if (eglSwapBuffers(egl_display, egl_surface) == EGL_FALSE) {
+      EGLint error = eglGetError();
+      fprintf(stderr, "eglSwapBuffers failed, EGL Error: 0x%x\n", error);
+      // Common errors include EGL_BAD_SURFACE, EGL_NOT_INITIALIZED,
+      // EGL_CONTEXT_LOST
+    }
+
+    struct gbm_bo *buffer;
+    buffer = gbm_surface_lock_front_buffer(display_surface);
+    if (!buffer) {
+      printf("Can't get front buffer\n");
+    }
+
+    create_framebuffer(buffer);
+
+    gbm_surface_release_buffer(display_surface, buffer);
+  }
 }

@@ -99,6 +99,7 @@ void* run_compositor(void* none) {
   setenv("EGL_LOG_LEVEL", "debug", true);
   setenv("MESA_DEBUG", "1", true);
   setenv("LIBGL_DEBUG", "verbose", true);
+  setenv("LIBGL_ALWAYS_SOFTWARE", "1", true);
   //setenv("EGL_WL_DRM", "1", true);
   //setenv("MESA_LOADER_DRIVER_OVERRIDE", "radeonsi", true);
   //setenv("MESA_DRM_DRIVER", "radeon", true);

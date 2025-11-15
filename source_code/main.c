@@ -1,6 +1,7 @@
 #include <EGL/egl.h>
 #include <X11/Xlib.h>
 #include <gbm.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
@@ -31,8 +32,6 @@
 
 #include "compositor/egl.h"
 
-#include "GLES2/gl2.h"
-
 #include "direct_render.h"
 
 #include "build.h"
@@ -57,19 +56,17 @@ int main(){
 
   pe_vk_validation_layer_enable = false;
 
-  bool is_wayland = true;
 
-  if(is_wayland){
+  if(!create_window()){
     is_drm_rendering = true;
-    //init_direct_render();
+
     compositor.gpu_path = "/dev/dri/card0";
 
     init_seat();
     init_egl();
     init_direct_render();
-  }else{
-    create_window();
   }
+
   
   pe_init_memory();
 
@@ -79,38 +76,8 @@ int main(){
   pthread_t compositor_thread_id;
   pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
 
-  EGLBoolean make_current =
-      eglMakeCurrent(egl_display, egl_surface, egl_surface, egl_context);
-  if(!make_current)
-    printf("Can't make current context\n");
-
-  while(1){
-    glClearColor(0.3f, 0.3f, 0.9f, 1.0f); // Clear to a blue color
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    glFlush();
-
-    if (eglSwapBuffers(egl_display, egl_surface) == EGL_FALSE) {
-      EGLint error = eglGetError();
-      fprintf(stderr, "eglSwapBuffers failed, EGL Error: 0x%x\n", error);
-      // Common errors include EGL_BAD_SURFACE, EGL_NOT_INITIALIZED,
-      // EGL_CONTEXT_LOST
-    }
-
-    struct gbm_bo *buffer;
-    buffer = gbm_surface_lock_front_buffer(display_surface);
-    if(!buffer){
-      printf("Can't get front buffer\n");
-    }
-
-
-    create_framebuffer(buffer);
-
-
-    gbm_surface_release_buffer(display_surface, buffer);
-
-
-  }
+  if(is_drm_rendering)
+    draw_with_egl();
 
   //graphics stuff
   
