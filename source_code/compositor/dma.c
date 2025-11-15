@@ -1,9 +1,11 @@
 #include "dma.h"
 #include "linux-dmabuf.h"
 #include "compositor.h"
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <wayland-server-core.h>
+#include <unistd.h>
 
 void bind_dma(WaylandClient *client, void *data, uint32_t version,
                        uint32_t id);
@@ -61,6 +63,7 @@ const struct zwp_linux_buffer_params_v1_interface params_implementation = {
 void create_params(WaylandClient *client, WaylandResource *resource,
     uint32_t id) {
 
+  printf("########Create params before\n");
   WaylandResource *params_resource =
       wl_resource_create(client, &zwp_linux_buffer_params_v1_interface, 1, id);
 
@@ -70,9 +73,24 @@ void create_params(WaylandClient *client, WaylandResource *resource,
   printf("Create params\n");
 }
 
+void create_feedback(WaylandClient *client, WaylandResource *resource,
+    uint32_t id) {
+
+  WaylandResource *feedback = wl_resource_create(
+      client, &zwp_linux_dmabuf_feedback_v1_interface, 1, id);
+
+  // int feedback_fd = dup(compositor.gpu_fd);
+  //
+  // zwp_linux_dmabuf_feedback_v1_send_main_device(feedback, feedback_fd);
+
+  printf("Get feed back\n");
+
+
+}
+
 const struct zwp_linux_dmabuf_v1_interface dmabuf_implementation = {
-    .get_default_feedback = NULL, // For protocol version 4+
-    .create_params = create_params, // <-- Add this here
+    .get_default_feedback = create_feedback,
+    .create_params = create_params
 };
 
 void bind_dma(WaylandClient *client, void *data, uint32_t version,

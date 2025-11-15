@@ -50,14 +50,18 @@ int main(){
   signal(SIGINT, handle_signal);
 
   pe_vk_validation_layer_enable = false;
-  
-  if(create_window() == false){
+
+  bool is_wayland = true;
+
+  if(is_wayland){
     is_drm_rendering = true;
     //init_direct_render();
     compositor.gpu_path = "/dev/dri/card0";
 
     init_seat();
     init_egl();
+  }else{
+    create_window();
   }
 
   pe_init_memory();

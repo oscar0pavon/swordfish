@@ -75,6 +75,8 @@ void* run_compositor(void* none) {
   wl_list_init(&compositor.surfaces);
 
 
+  init_dma();
+
   init_shared_memory();
 
   wl_global_create(compositor.display, &xdg_wm_base_interface, 1, &compositor,
@@ -83,7 +85,6 @@ void* run_compositor(void* none) {
   wl_global_create(compositor.display, &wl_compositor_interface, 1, &compositor,
                    bind_compositor);
 
-  init_dma();
 
 
   const char *socket = wl_display_add_socket_auto(compositor.display);
@@ -93,9 +94,10 @@ void* run_compositor(void* none) {
     pthread_exit(NULL);
   }
   setenv("WAYLAND_DISPLAY", socket, true);
-  setenv("EGL_PLATFORM", "wayland", true);
+  //setenv("EGL_PLATFORM", "wayland", true);
   setenv("EGL_LOG_LEVEL", "debug", true);
-  setenv("MESA_LOADER_DRIVER_OVERRIDE", "radeonsi", true);
+  //setenv("EGL_WL_DRM", "1", true);
+  //setenv("MESA_LOADER_DRIVER_OVERRIDE", "radeonsi", true);
   //setenv("MESA_DRM_DRIVER", "radeon", true);
 
   printf("Wayland socket available at %s\n", socket);
