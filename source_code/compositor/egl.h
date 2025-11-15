@@ -12,4 +12,5 @@ extern EGLDisplay egl_display;
 extern EGLContext egl_context;
 extern EGLSurface egl_surface;
 
+extern struct gbm_surface *display_surface;
 #endif

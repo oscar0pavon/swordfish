@@ -1,4 +1,6 @@
+#include <EGL/egl.h>
 #include <X11/Xlib.h>
+#include <gbm.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
@@ -64,6 +66,7 @@ int main(){
 
     init_seat();
     init_egl();
+    init_direct_render();
   }else{
     create_window();
   }
@@ -76,7 +79,10 @@ int main(){
   pthread_t compositor_thread_id;
   pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
 
-  eglMakeCurrent(egl_display, egl_surface, egl_surface, egl_context);
+  EGLBoolean make_current =
+      eglMakeCurrent(egl_display, egl_surface, egl_surface, egl_context);
+  if(!make_current)
+    printf("Can't make current context\n");
 
   while(1){
     glClearColor(0.3f, 0.3f, 0.9f, 1.0f); // Clear to a blue color
@@ -84,7 +90,25 @@ int main(){
 
     glFlush();
 
-    eglSwapBuffers(egl_display, egl_surface);
+    if (eglSwapBuffers(egl_display, egl_surface) == EGL_FALSE) {
+      EGLint error = eglGetError();
+      fprintf(stderr, "eglSwapBuffers failed, EGL Error: 0x%x\n", error);
+      // Common errors include EGL_BAD_SURFACE, EGL_NOT_INITIALIZED,
+      // EGL_CONTEXT_LOST
+    }
+
+    struct gbm_bo *buffer;
+    buffer = gbm_surface_lock_front_buffer(display_surface);
+    if(!buffer){
+      printf("Can't get front buffer\n");
+    }
+
+
+    create_framebuffer(buffer);
+
+
+    gbm_surface_release_buffer(display_surface, buffer);
+
 
   }
 

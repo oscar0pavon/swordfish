@@ -11,4 +11,6 @@ struct gbm_device *create_gbm_device(int drm_file_descriptor);
 
 struct gbm_bo *create_gbm_buffer(struct gbm_device *gbm_dev, int width, int height);
 
+void create_framebuffer(struct gbm_bo* in_buffer);
+
 #endif

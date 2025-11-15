@@ -57,7 +57,6 @@ void init_egl() {
   egl_display =
       eglGetPlatformDisplay(EGL_PLATFORM_GBM_KHR, buffer_device, NULL);
 
-  unsetenv("EGL_PLATFORM"); 
 
   if (egl_display == EGL_NO_DISPLAY) {
     fprintf(stderr,
@@ -122,6 +121,7 @@ void init_egl() {
     return;
   }
 
+  unsetenv("EGL_PLATFORM"); 
   printf("Finihsh EGL initialization\n");
 
 }

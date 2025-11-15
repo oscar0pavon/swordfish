@@ -9,6 +9,7 @@
 #include <xf86drmMode.h>
 
 #include <gbm.h>
+#include "compositor/compositor.h"
 #include "tty.h"
 
 #include <engine/numbers.h>
@@ -121,7 +122,8 @@ void get_drm_info() {
 
 void init_direct_render(void) {
 
-  drm_device.file_descriptor = open(DRM_DEVICE_PATH, O_RDWR | O_CLOEXEC);
+  //drm_device.file_descriptor = open(DRM_DEVICE_PATH, O_RDWR | O_CLOEXEC);
+  drm_device.file_descriptor = compositor.gpu_fd;
 
   if (drm_device.file_descriptor < 0) {
     fprintf(stderr, "Error opening DRM device %s: %s\n", DRM_DEVICE_PATH,
@@ -153,7 +155,7 @@ void init_direct_render(void) {
   original_crtc = drmModeGetCrtc(drm_device.file_descriptor, original_crtc_id);
 
   
-  buffer_device = create_gbm_device(drm_device.file_descriptor);
+  //buffer_device = create_gbm_device(drm_device.file_descriptor);
 
   // struct gbm_bo* buffer;
   // buffer = create_gbm_buffer(buffer_device, 1920, 1080);
@@ -171,29 +173,29 @@ void init_direct_render(void) {
 
 }
 
-void create_framebuffer(){
+void create_framebuffer(struct gbm_bo* in_buffer){
 
-  // u32 framebuffer_id;
-  // int ret = drmModeAddFB(drm_device.file_descriptor,
-  //     1920, 1080, 24, 32,
-  //     gbm_bo_get_stride(buffer),
-  //     gbm_bo_get_handle(buffer).u32, 
-  //     &framebuffer_id);
-  // if(ret != 0)
-  //   perror("drmModeAddFB failed");
+  u32 framebuffer_id;
+  int ret = drmModeAddFB(compositor.gpu_fd,
+      1920, 1080, 24, 32,
+      gbm_bo_get_stride(in_buffer),
+      gbm_bo_get_handle(in_buffer).u32, 
+      &framebuffer_id);
+  if(ret != 0)
+    perror("drmModeAddFB failed");
 
 
 
-  // ret = drmModeSetCrtc(drm_device.file_descriptor,
-  //     monitors[0].crtc->crtc_id,
-  //     framebuffer_id,
-  //     0,
-  //     0,
-  //     &monitors[0].connector->connector_id,
-  //     1,
-  //     &monitors[0].crtc->mode);
-  // if(ret != 0)
-  //   perror("drmModeSetCrtc failed");
+  ret = drmModeSetCrtc(drm_device.file_descriptor,
+      monitors[0].crtc->crtc_id,
+      framebuffer_id,
+      0,
+      0,
+      &monitors[0].connector->connector_id,
+      1,
+      &monitors[0].crtc->mode);
+  if(ret != 0)
+    perror("drmModeSetCrtc failed");
 }
 
 void clean_drm(){
