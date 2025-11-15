@@ -93,9 +93,10 @@ void* run_compositor(void* none) {
     pthread_exit(NULL);
   }
   setenv("WAYLAND_DISPLAY", socket, true);
-  setenv("MESA_LOADER_DRIVER_OVERRIDE", "radeonsi", true);
   setenv("EGL_PLATFORM", "wayland", true);
-  setenv("MESA_DRM_DRIVER", "radeon", true);
+  setenv("EGL_LOG_LEVEL", "debug", true);
+  setenv("MESA_LOADER_DRIVER_OVERRIDE", "radeonsi", true);
+  //setenv("MESA_DRM_DRIVER", "radeon", true);
 
   printf("Wayland socket available at %s\n", socket);
   printf("Compositor running. Use a Wayland client to connect.\n");

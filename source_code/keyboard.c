@@ -1,9 +1,11 @@
 #include "keyboard.h"
 #include "build.h"
+#include "compositor/compositor.h"
 #include "input.h"
 #include <stdio.h>
 #include <libinput.h>
 #include <xkbcommon/xkbcommon.h>
+#include <libseat.h>
 
 struct xkb_context *xkb_context;
 struct xkb_keymap *xkb_keymap;
@@ -37,11 +39,14 @@ void handle_xkb_keyboard_event(InputEvent *event) {
       //printf("Key pressed: %c (U+%04x)\n", (char)unicode, unicode);
       if(unicode == 'd'){
         printf("Calling program\n");
-        call_program("/root/pterminal/pterminal");
+        call_program("/root/pterminal/test_terminal");
       }
       if(unicode == 'q'){
         printf("Calling program\n");
         exit(0);
+      }
+      if(unicode == 'w'){
+       libseat_switch_session(compositor.seat, 3);
       }
     }
 

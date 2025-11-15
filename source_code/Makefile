@@ -2,7 +2,7 @@
 CLINKS := -lX11 -lpthread -lm -lvulkan -ldrm -lgbm -llodepng 
 CLINKS += -linput -ludev -lxkbcommon
 CLINKS += -lwayland-server
-CLINKS += -lseat
+CLINKS += -lseat -lEGL
 
 CFLAGS := -g
 

@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <signal.h>
 
+#include "compositor/egl.h"
 #include "compositor/seat.h"
 #include "swordfish.h"
 
@@ -48,7 +49,7 @@ void handle_signal(int sig_num) {
 int main(){
   signal(SIGINT, handle_signal);
 
-  pe_vk_validation_layer_enable = true;
+  pe_vk_validation_layer_enable = false;
   
   if(create_window() == false){
     is_drm_rendering = true;
@@ -56,6 +57,7 @@ int main(){
     compositor.gpu_path = "/dev/dri/card0";
 
     init_seat();
+    init_egl();
   }
 
   pe_init_memory();
@@ -95,6 +97,8 @@ int main(){
   start_delta_time();
   //INFO main loop
   while (swordfish_running) {
+    if(compositor.gpu_fd < 0)
+      continue;
 
     //if(is_drm_rendering)
       //check_libseat();

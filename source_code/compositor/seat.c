@@ -12,6 +12,7 @@
 #include <sys/types.h> 
 #include <poll.h> 
 #include "compositor.h"
+#include <pthread.h>
 
 static void on_seat_disable(struct libseat *seat, void *userdata);
 static void on_seat_enable(struct libseat *seat, void *userdata);
@@ -72,6 +73,9 @@ void init_seat() {
   }
 
   printf("libseat session opened successfully. Entering main loop.\n");
+
+  pthread_t seat_thread_id;
+  pthread_create(&seat_thread_id, NULL, run_seat_loop, NULL);
 }
 
 void check_libseat(){
@@ -86,3 +90,10 @@ void check_libseat(){
     }
   }
 }
+
+void* run_seat_loop(void*none){
+  while(1){
+    check_libseat();
+  }
+}
+
