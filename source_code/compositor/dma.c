@@ -10,11 +10,6 @@
 void bind_dma(WaylandClient *client, void *data, uint32_t version,
                        uint32_t id);
 
-void init_dma(){
-
-  wl_global_create(compositor.display, &zwp_linux_dmabuf_v1_interface, 1,
-                   &compositor, bind_dma);
-}
 
 void params_add(struct wl_client *client,
 		    struct wl_resource *resource,
@@ -96,6 +91,8 @@ const struct zwp_linux_dmabuf_v1_interface dmabuf_implementation = {
 void bind_dma(WaylandClient *client, void *data, uint32_t version,
                        uint32_t id) {
   
+  printf("## Implementing DMA buffers\n");
+
   SwordfishCompositor* compositor = (SwordfishCompositor*)data;
   WaylandResource *resource;
 
@@ -108,4 +105,10 @@ void bind_dma(WaylandClient *client, void *data, uint32_t version,
 
   wl_resource_set_implementation(resource, &dmabuf_implementation, data, NULL);
   printf("DMA buffers implemented\n");
+}
+
+void init_dma(){
+
+  wl_global_create(compositor.display, &zwp_linux_dmabuf_v1_interface, 1,
+                   &compositor, bind_dma);
 }

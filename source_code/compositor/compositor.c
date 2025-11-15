@@ -93,9 +93,12 @@ void* run_compositor(void* none) {
     wl_display_destroy(compositor.display);
     pthread_exit(NULL);
   }
+
   setenv("WAYLAND_DISPLAY", socket, true);
-  //setenv("EGL_PLATFORM", "wayland", true);
+  setenv("EGL_PLATFORM", "wayland", true);
   setenv("EGL_LOG_LEVEL", "debug", true);
+  setenv("MESA_DEBUG", "1", true);
+  setenv("LIBGL_DEBUG", "verbose", true);
   //setenv("EGL_WL_DRM", "1", true);
   //setenv("MESA_LOADER_DRIVER_OVERRIDE", "radeonsi", true);
   //setenv("MESA_DRM_DRIVER", "radeon", true);

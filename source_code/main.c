@@ -27,6 +27,10 @@
 #include <engine/time.h>
 #include "compositor/compositor.h"
 
+#include "compositor/egl.h"
+
+#include "GLES2/gl2.h"
+
 #include "direct_render.h"
 
 #include "build.h"
@@ -72,7 +76,15 @@ int main(){
   pthread_t compositor_thread_id;
   pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
 
+  eglMakeCurrent(egl_display, egl_surface, egl_surface, egl_context);
+
   while(1){
+    glClearColor(0.3f, 0.3f, 0.9f, 1.0f); // Clear to a blue color
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glFlush();
+
+    eglSwapBuffers(egl_display, egl_surface);
 
   }
 
