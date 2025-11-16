@@ -9,6 +9,9 @@
 #include <unistd.h>
 #include "direct_render.h"
 #include <sys/stat.h>
+#include "feedback.h"
+
+uint64_t main_device_id;
 
 #define MAX_DMA_PLANES 4
 
@@ -22,18 +25,6 @@ typedef struct DMABuffer{
     // ... other parameters like width, height, format will be set in create_immed
 }DMABuffer;
 
-void bind_dma(WaylandClient *client, void *data, uint32_t version,
-                       uint32_t id);
-
-void destroy_feedback_handler(WaylandClient* client, WaylandResource *resource) {
-    // Free any user data attached to the feedback resource
-    // wl_resource_get_user_data(...)
-}
-
-const struct zwp_linux_dmabuf_feedback_v1_interface feedback_implementation = {
-    .destroy = destroy_feedback_handler
-};
-
 uint64_t get_drm_device_id(const char *device_path) {
     struct stat st;
     if (stat(device_path, &st) < 0) {
@@ -43,82 +34,10 @@ uint64_t get_drm_device_id(const char *device_path) {
     // The device ID is a combination of major and minor numbers
     return (uint64_t)st.st_rdev; 
 }
-void send_supported_formats(struct wl_resource *resource) {
-    printf("sending supported format\n");
-    
-    struct wl_array formats_array;
-    wl_array_init(&formats_array);
 
-    uint32_t format = DRM_FORMAT_ARGB8888;
-    uint64_t modifier = DRM_FORMAT_MOD_LINEAR;
+void bind_dma(WaylandClient *client, void *data, uint32_t version,
+                       uint32_t id);
 
-    // Use wl_array_add correctly
-    *(uint32_t *)wl_array_add(&formats_array, sizeof(uint32_t)) = format;
-    *(uint64_t *)wl_array_add(&formats_array, sizeof(uint64_t)) = modifier;
-
-    zwp_linux_dmabuf_feedback_v1_send_tranche_formats(resource, &formats_array);
-
-    wl_array_release(&formats_array);
-}
-
-void send_dmabuf_feedback(struct wl_resource *resource) {
-  struct wl_array device_array;
-  wl_array_init(&device_array);
-  
-  uint64_t main_device_id = get_drm_device_id("/dev/dri/card0");
-  //uint64_t main_device_id = dup(compositor.gpu_fd);
-  uint64_t *device_id_ptr = wl_array_add(&device_array, sizeof(uint64_t));
- 
-  *device_id_ptr = (uint64_t)main_device_id;
-
-
-  zwp_linux_dmabuf_feedback_v1_send_main_device(resource, &device_array);
-
-
-  send_format_table(resource);
-
-  // 1. Mark the start of a tranche for this device (version 4+ protocol)
-  zwp_linux_dmabuf_feedback_v1_send_tranche_target_device(resource,
-                                                          &device_array);
-
-  // 2. Send supported format/modifier pairs within a tranche
-  send_supported_formats(resource);
-
-  // 3. Mark the tranche as complete
-  zwp_linux_dmabuf_feedback_v1_send_tranche_flags(
-      resource, 0); // No specific flags needed usually
-
-
-  zwp_linux_dmabuf_feedback_v1_send_tranche_done(resource);
-  // *** END SECTION ***
-
-  wl_array_release(&device_array);
-
-  // Finally, send the done event
-  zwp_linux_dmabuf_feedback_v1_send_done(resource);
-}
-
-void get_feedback(WaylandClient *client, WaylandResource *resource,
-    uint32_t id) {
-
-  WaylandResource *feedback =
-      wl_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface,
-                         wl_resource_get_version(resource), id);
-
-
-  wl_resource_set_user_data(feedback, &compositor);
-
-  wl_resource_set_implementation(feedback, &feedback_implementation,
-                                 &compositor, NULL);
-
-  printf("Sending feed back\n");
-
-  send_dmabuf_feedback(feedback);
-
-  printf("Get feed back\n");
-
-
-}
 
 void params_add(WaylandClient *client,
 		    WaylandResource *resource,
@@ -237,7 +156,7 @@ void create_params(WaylandClient *client, WaylandResource *resource,
 const struct zwp_linux_dmabuf_v1_interface dmabuf_implementation = {
     .create_params = create_params, 
     .get_default_feedback = get_feedback,
-    .get_surface_feedback = NULL, 
+    .get_surface_feedback = get_surface_feedback
 };
 
 
@@ -281,6 +200,7 @@ void init_dma(){
 
   printf("Added DMA global\n");
 
+  main_device_id = get_drm_device_id("/dev/dri/card0");
   wl_global_create(compositor.display, &zwp_linux_dmabuf_v1_interface, 4,
                    &compositor, bind_dma);
 }
