@@ -37,5 +37,7 @@ void* run_compositor(void* none);
 
 void finish_compositor();
 
+extern bool is_opengl;
+
 extern SwordfishCompositor compositor;
 #endif

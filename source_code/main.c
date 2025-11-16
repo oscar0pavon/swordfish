@@ -36,6 +36,8 @@
 
 #include "build.h"
 
+bool is_opengl = true;
+
 void close_swordfish() {
   printf("Closing Swordfish\n");
   pe_vk_end();
@@ -56,7 +58,6 @@ int main(){
 
   pe_vk_validation_layer_enable = false;
 
-  bool is_opengl = true;
 
   if(!create_window()){
     is_drm_rendering = true;
@@ -65,6 +66,9 @@ int main(){
 
     init_seat();
   }
+
+  pthread_t compositor_thread_id;
+  pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
 
   if(is_opengl){
     init_egl();
@@ -79,8 +83,6 @@ int main(){
   pthread_t input_thread_id;
   pthread_create(&input_thread_id, NULL, handle_input, NULL);
 
-  pthread_t compositor_thread_id;
-  pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
 
   if(is_opengl)
     draw_with_egl();

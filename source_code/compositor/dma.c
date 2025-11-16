@@ -6,13 +6,115 @@
 #include <stdio.h>
 #include <wayland-server-core.h>
 #include <unistd.h>
+#include "direct_render.h"
+#include <sys/stat.h>
+
+#define MAX_DMA_PLANES 4
+
+typedef struct DMABuffer{
+    WaylandClient *client;
+    int32_t fds[MAX_DMA_PLANES];
+    uint32_t offsets[MAX_DMA_PLANES];
+    uint32_t strides[MAX_DMA_PLANES];
+    uint64_t modifiers[MAX_DMA_PLANES];
+    int num_planes;
+    // ... other parameters like width, height, format will be set in create_immed
+}DMABuffer;
 
 void bind_dma(WaylandClient *client, void *data, uint32_t version,
                        uint32_t id);
 
+void destroy_feedback_handler(WaylandClient* client, WaylandResource *resource) {
+    // Free any user data attached to the feedback resource
+    // wl_resource_get_user_data(...)
+}
 
-void params_add(struct wl_client *client,
-		    struct wl_resource *resource,
+const struct zwp_linux_dmabuf_feedback_v1_interface feedback_implementation = {
+    .destroy = destroy_feedback_handler,
+};
+
+uint64_t get_drm_device_id(const char *device_path) {
+    struct stat st;
+    if (stat(device_path, &st) < 0) {
+        perror("stat device_path");
+        return 0; // Error
+    }
+    // The device ID is a combination of major and minor numbers
+    return (uint64_t)st.st_rdev; 
+}
+void send_supported_formats(struct wl_resource *resource) {
+    printf("sending supported format\n");
+    
+    struct wl_array formats_array;
+    wl_array_init(&formats_array);
+
+    uint32_t format = DRM_FORMAT_ARGB8888;
+    uint64_t modifier = DRM_FORMAT_MOD_LINEAR;
+
+    // Use wl_array_add correctly
+    *(uint32_t *)wl_array_add(&formats_array, sizeof(uint32_t)) = format;
+    *(uint64_t *)wl_array_add(&formats_array, sizeof(uint64_t)) = modifier;
+
+    zwp_linux_dmabuf_feedback_v1_send_tranche_formats(resource, &formats_array);
+
+    wl_array_release(&formats_array);
+}
+
+void send_dmabuf_feedback(struct wl_resource *resource) {
+  struct wl_array device_array;
+  wl_array_init(&device_array);
+  uint64_t main_device_id = get_drm_device_id("/dev/dri/card0");
+  uint64_t *device_id_ptr = wl_array_add(&device_array, sizeof(uint64_t));
+
+
+  zwp_linux_dmabuf_feedback_v1_send_main_device(resource, &device_array);
+
+
+
+  // 1. Mark the start of a tranche for this device (version 4+ protocol)
+  zwp_linux_dmabuf_feedback_v1_send_tranche_target_device(resource,
+                                                          &device_array);
+
+  // 2. Send supported format/modifier pairs within a tranche
+  send_supported_formats(resource);
+
+  // 3. Mark the tranche as complete
+  zwp_linux_dmabuf_feedback_v1_send_tranche_flags(
+      resource, 0); // No specific flags needed usually
+  zwp_linux_dmabuf_feedback_v1_send_tranche_done(resource);
+  // *** END SECTION ***
+
+  wl_array_release(&device_array);
+
+  // Finally, send the done event
+  zwp_linux_dmabuf_feedback_v1_send_done(resource);
+}
+
+void get_feedback(WaylandClient *client, WaylandResource *resource,
+    uint32_t id) {
+
+  WaylandResource *feedback =
+      wl_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface,
+                         wl_resource_get_version(resource), id);
+
+
+  int feedback_fd = dup(compositor.gpu_fd);
+  wl_resource_set_user_data(feedback, &compositor);
+
+  wl_resource_set_implementation(feedback, &feedback_implementation,
+                                 &compositor, NULL);
+
+  printf("Sending feed back\n");
+
+  send_dmabuf_feedback(feedback);
+
+  printf("Get feed back\n");
+
+
+}
+
+void params_add(WaylandClient *client,
+		    WaylandResource *resource,
 		    int32_t fd,
 		    uint32_t plane_idx,
 		    uint32_t offset,
@@ -20,8 +122,37 @@ void params_add(struct wl_client *client,
 		    uint32_t modifier_hi,
         uint32_t modifier_lo){
 
+  printf("Adding params\n");
+
+  DMABuffer *params = wl_resource_get_user_data(resource);
+
+  if (!params) {
+    close(fd);
+    return;
+  }
+
+  if (plane_idx >= MAX_DMA_PLANES) {
+    close(fd);
+    return;
+  }
+
+  if (params->fds[plane_idx] != -1) {
+    close(fd);
+    wl_resource_post_error(resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_PLANE_IDX,
+                           "Plane already added");
+    return;
+  }
+
+  params->fds[plane_idx] = fd;
+  params->offsets[plane_idx] = offset;
+  params->strides[plane_idx] = stride;
+  // Reconstruct the 64-bit modifier
+  params->modifiers[plane_idx] = ((uint64_t)modifier_hi << 32) | modifier_lo;
+  params->num_planes++;
+
+  printf("Added DMA buffer plane %u with FD %d\n", plane_idx, fd);
 }
-	
+
 void params_create(struct wl_client *client,
 		       struct wl_resource *resource,
 		       int32_t width,
@@ -54,39 +185,69 @@ const struct zwp_linux_buffer_params_v1_interface params_implementation = {
     .create = params_create,
     .create_immed = linux_dmabuf_create_immed, // <-- The critical function
 };
-
+void destroy_params_handler(struct wl_resource *resource) {
+    DMABuffer *params = wl_resource_get_user_data(resource);
+    
+    if (params) {
+        // Close any FDs that might not have been consumed yet (e.g., if creation failed)
+        for (int i = 0; i < MAX_DMA_PLANES; i++) {
+            if (params->fds[i] != -1) {
+                close(params->fds[i]);
+            }
+        }
+        free(params);
+    }
+    printf("Destroy params\n");
+}
 void create_params(WaylandClient *client, WaylandResource *resource,
     uint32_t id) {
 
-  printf("########Create params before\n");
+  printf("Creating params\n");
+
   WaylandResource *params_resource =
-      wl_resource_create(client, &zwp_linux_buffer_params_v1_interface, 1, id);
+      wl_resource_create(client, &zwp_linux_buffer_params_v1_interface, 3, id);
 
-  wl_resource_set_implementation(params_resource, &params_implementation, NULL,
-                                 NULL);
 
-  printf("Create params\n");
+  DMABuffer *params = calloc(1, sizeof(DMABuffer));
+
+  for (int i = 0; i < MAX_DMA_PLANES; i++) {
+      params->fds[i] = -1;
+  }
+
+  params->client = client;
+
+  wl_resource_set_user_data(params_resource, params);
+
+
+
+  wl_resource_set_implementation(params_resource, &params_implementation,
+                                 params, destroy_params_handler);
+
+  printf("Created params\n");
 }
 
-void create_feedback(WaylandClient *client, WaylandResource *resource,
-    uint32_t id) {
-
-  WaylandResource *feedback = wl_resource_create(
-      client, &zwp_linux_dmabuf_feedback_v1_interface, 1, id);
-
-  // int feedback_fd = dup(compositor.gpu_fd);
-  //
-  // zwp_linux_dmabuf_feedback_v1_send_main_device(feedback, feedback_fd);
-
-  printf("Get feed back\n");
-
-
-}
 
 const struct zwp_linux_dmabuf_v1_interface dmabuf_implementation = {
-    .get_default_feedback = create_feedback,
-    .create_params = create_params
+    .create_params = create_params, 
+    .get_default_feedback = get_feedback,
+    .get_surface_feedback = NULL, 
 };
+
+
+void send_formats(WaylandResource* resource){
+
+
+  zwp_linux_dmabuf_v1_send_format(resource, DRM_FORMAT_ARGB8888); 
+  zwp_linux_dmabuf_v1_send_format(resource, DRM_FORMAT_XRGB8888);
+
+  zwp_linux_dmabuf_v1_send_modifier(resource, DRM_FORMAT_ARGB8888, 
+                                    DRM_FORMAT_MOD_INVALID >> 32, 
+                                    DRM_FORMAT_MOD_INVALID & 0xFFFFFFFF);
+
+  zwp_linux_dmabuf_v1_send_modifier(resource, DRM_FORMAT_XRGB8888, 
+                                    DRM_FORMAT_MOD_INVALID >> 32, 
+                                    DRM_FORMAT_MOD_INVALID & 0xFFFFFFFF);
+}
 
 void bind_dma(WaylandClient *client, void *data, uint32_t version,
                        uint32_t id) {
@@ -102,13 +263,23 @@ void bind_dma(WaylandClient *client, void *data, uint32_t version,
     printf("Can't implement DMA\n");
     return;
   }
+  
+  zwp_linux_dmabuf_v1_send_format(resource, DRM_FORMAT_XRGB8888);
+  zwp_linux_dmabuf_v1_send_modifier(resource, DRM_FORMAT_XRGB8888, 
+                                    DRM_FORMAT_MOD_INVALID >> 32, 
+                                    DRM_FORMAT_MOD_INVALID & 0xFFFFFFFF);
 
   wl_resource_set_implementation(resource, &dmabuf_implementation, data, NULL);
+  wl_client_flush(client);
+
   printf("DMA buffers implemented\n");
 }
 
+
 void init_dma(){
 
-  wl_global_create(compositor.display, &zwp_linux_dmabuf_v1_interface, 1,
+  printf("Added DMA global\n");
+
+  wl_global_create(compositor.display, &zwp_linux_dmabuf_v1_interface, 4,
                    &compositor, bind_dma);
 }

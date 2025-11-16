@@ -5,10 +5,6 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
-#include <xf86drm.h>
-#include <xf86drmMode.h>
-
-#include <gbm.h>
 #include "compositor/compositor.h"
 #include "tty.h"
 

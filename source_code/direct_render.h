@@ -1,6 +1,14 @@
 #ifndef DIRECT_RENDER_H
 #define DIRECT_RENDER_H
 
+#include <xf86drm.h>
+#include <xf86drmMode.h>
+#include <drm_mode.h>
+
+#include <gbm.h>
+
+#include <drm/drm_fourcc.h>
+
 extern struct gbm_device* buffer_device;
 
 void init_direct_render(void);

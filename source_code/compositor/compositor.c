@@ -54,6 +54,9 @@ void bind_compositor(WaylandClient *client, void *data, uint32_t version,
   printf("Compositor bound\n");
 }
 
+static void your_error_handler_func(void *data, const char *msg) {
+    fprintf(stderr, "Wayland Error: %s\n", msg);
+}
 
 void* run_compositor(void* none) {
 
@@ -75,16 +78,17 @@ void* run_compositor(void* none) {
   wl_list_init(&compositor.surfaces);
 
 
+
+  wl_global_create(compositor.display, &xdg_wm_base_interface, 3, &compositor,
+                   bind_desktop);
+
+  wl_global_create(compositor.display, &wl_compositor_interface, 3, &compositor,
+                   bind_compositor);
+
+
   init_dma();
 
   init_shared_memory();
-
-  wl_global_create(compositor.display, &xdg_wm_base_interface, 1, &compositor,
-                   bind_desktop);
-
-  wl_global_create(compositor.display, &wl_compositor_interface, 1, &compositor,
-                   bind_compositor);
-
 
 
   const char *socket = wl_display_add_socket_auto(compositor.display);
@@ -95,11 +99,11 @@ void* run_compositor(void* none) {
   }
 
   setenv("WAYLAND_DISPLAY", socket, true);
-  setenv("EGL_PLATFORM", "wayland", true);
+  //setenv("EGL_PLATFORM", "wayland", true);
   setenv("EGL_LOG_LEVEL", "debug", true);
-  setenv("MESA_DEBUG", "1", true);
-  setenv("LIBGL_DEBUG", "verbose", true);
-  setenv("LIBGL_ALWAYS_SOFTWARE", "1", true);
+ // setenv("MESA_DEBUG", "1", true);
+  //setenv("LIBGL_DEBUG", "verbose", true);
+  //setenv("LIBGL_ALWAYS_SOFTWARE", "1", true);
   //setenv("EGL_WL_DRM", "1", true);
   //setenv("MESA_LOADER_DRIVER_OVERRIDE", "radeonsi", true);
   //setenv("MESA_DRM_DRIVER", "radeon", true);
