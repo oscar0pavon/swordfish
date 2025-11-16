@@ -35,9 +35,16 @@ struct gbm_surface *display_surface;
 
 void create_display_buffer(){
 
+  int width = 1920;
+  int height = 1080;
+  if(!is_drm_rendering){
+   width = WINDOW_WIDTH;
+   height = WINDOW_HEIGHT;
+  }
+
   display_surface = gbm_surface_create(buffer_device,
-      1920, 
-      1080,
+      width, 
+      height,
       DRM_FORMAT_XRGB8888, 
       GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
  
@@ -64,6 +71,9 @@ void init_egl() {
   }
 
   buffer_device = create_gbm_device(compositor.gpu_fd);
+  if(!buffer_device){
+    printf("Can't create GBM device\n");
+  }
 
   create_display_buffer();
 
