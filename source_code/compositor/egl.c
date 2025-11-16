@@ -22,6 +22,8 @@
 #include "GLES2/gl2.h"
 
 #include "direct_render.h"
+#include "swordfish.h"
+#include "window.h"
 
 EGLDisplay egl_display;
 EGLContext egl_context;
@@ -50,17 +52,32 @@ void init_egl() {
   printf("Initializing EGL\n");
   const char *egl_extensions;
 
+  if(!is_drm_rendering){
+     const char *drm_device_path = "/dev/dri/renderD128";
+     int fd;
+     fd = open(drm_device_path, O_RDWR);
+     if (fd < 0) {
+       perror("Failed to open DRM device");
+     }else{
+       compositor.gpu_fd = fd;
+     }
+  }
+
   buffer_device = create_gbm_device(compositor.gpu_fd);
 
   create_display_buffer();
 
   EGLint major, minor;
 
-  setenv("EGL_PLATFORM", "gbm", 1);
 
-  egl_display =
-      eglGetPlatformDisplay(EGL_PLATFORM_GBM_KHR, buffer_device, NULL);
-
+  if(is_drm_rendering){
+    setenv("EGL_PLATFORM", "gbm", 1);
+    egl_display =
+        eglGetPlatformDisplay(EGL_PLATFORM_GBM_KHR, buffer_device, NULL);
+  }else{
+    egl_display = 
+      eglGetDisplay((EGLNativeDisplayType)display);
+  }
 
   if (egl_display == EGL_NO_DISPLAY) {
     fprintf(stderr,
@@ -116,17 +133,21 @@ void init_egl() {
     fprintf(stderr, "Failed to create EGL context: 0x%x\n", eglGetError());
   }
 
-  egl_surface = eglCreatePlatformWindowSurface(
-      egl_display, config, display_surface, NULL);
+  if(is_drm_rendering){
+    egl_surface = eglCreatePlatformWindowSurface(egl_display, config,
+                                                 display_surface, NULL);
+  }else{
+    egl_surface = eglCreateWindowSurface(egl_display, config, swordfish_window, NULL);
+  }
 
   if (egl_surface == EGL_NO_SURFACE) {
     fprintf(stderr, "Failed to create EGL window surface: 0x%x\n",
             eglGetError());
     return;
   }
-
+  
   unsetenv("EGL_PLATFORM"); 
-  printf("Finihsh EGL initialization\n");
+  printf("Finish EGL initialization\n");
 
 }
 
@@ -134,6 +155,7 @@ void draw_with_egl() {
 
   EGLBoolean make_current =
       eglMakeCurrent(egl_display, egl_surface, egl_surface, egl_context);
+  
   if (!make_current)
     printf("Can't make current context\n");
 
@@ -146,18 +168,21 @@ void draw_with_egl() {
     if (eglSwapBuffers(egl_display, egl_surface) == EGL_FALSE) {
       EGLint error = eglGetError();
       fprintf(stderr, "eglSwapBuffers failed, EGL Error: 0x%x\n", error);
-      // Common errors include EGL_BAD_SURFACE, EGL_NOT_INITIALIZED,
-      // EGL_CONTEXT_LOST
     }
 
-    struct gbm_bo *buffer;
-    buffer = gbm_surface_lock_front_buffer(display_surface);
-    if (!buffer) {
-      printf("Can't get front buffer\n");
+    if (is_drm_rendering) {
+
+      struct gbm_bo *buffer;
+
+      buffer = gbm_surface_lock_front_buffer(display_surface);
+      if (!buffer) {
+        printf("Can't get front buffer\n");
+      }
+
+      create_framebuffer(buffer);
+
+      gbm_surface_release_buffer(display_surface, buffer);
+
     }
-
-    create_framebuffer(buffer);
-
-    gbm_surface_release_buffer(display_surface, buffer);
   }
 }

@@ -56,6 +56,7 @@ int main(){
 
   pe_vk_validation_layer_enable = false;
 
+  bool is_opengl = true;
 
   if(!create_window()){
     is_drm_rendering = true;
@@ -63,9 +64,14 @@ int main(){
     compositor.gpu_path = "/dev/dri/card0";
 
     init_seat();
-    init_egl();
-    init_direct_render();
   }
+
+  if(is_opengl){
+    init_egl();
+  }
+
+  if(is_drm_rendering)
+    init_direct_render();
 
   
   pe_init_memory();
@@ -76,7 +82,7 @@ int main(){
   pthread_t compositor_thread_id;
   pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
 
-  if(is_drm_rendering)
+  if(is_opengl)
     draw_with_egl();
 
   //graphics stuff
