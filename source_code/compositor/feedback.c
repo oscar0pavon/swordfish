@@ -1,4 +1,5 @@
 #include "feedback.h"
+#include "compositor/compositor.h"
 #include "dma.h"
 #include "linux-dmabuf.h"
 #include <stdint.h>
@@ -96,6 +97,7 @@ void send_format_table(WaylandResource* resource) {
 void destroy_feedback_handler(WaylandClient* client, WaylandResource *resource) {
     // Free any user data attached to the feedback resource
     // wl_resource_get_user_data(...)
+  printf("Destroy feed back\n");
 }
 
 const struct zwp_linux_dmabuf_feedback_v1_interface feedback_implementation = {
@@ -108,10 +110,9 @@ void send_supported_formats(struct wl_resource *resource) {
     struct wl_array formats_array;
     wl_array_init(&formats_array);
 
-    uint32_t format = DRM_FORMAT_ARGB8888;
+    uint32_t format = DRM_FORMAT_XRGB8888;
     uint64_t modifier = DRM_FORMAT_MOD_LINEAR;
 
-    // Use wl_array_add correctly
     *(uint32_t *)wl_array_add(&formats_array, sizeof(uint32_t)) = format;
     *(uint64_t *)wl_array_add(&formats_array, sizeof(uint64_t)) = modifier;
 
@@ -138,6 +139,36 @@ void send_main_device(WaylandResource* resource){
 
 }
 
+void send_surface_feedback(WaylandResource *resource){
+
+  struct wl_array device_array;
+  wl_array_init(&device_array);
+  
+  //uint64_t main_device_id = dup(compositor.gpu_fd);
+  uint64_t *device_id_ptr = wl_array_add(&device_array, sizeof(uint64_t));
+ 
+  *device_id_ptr = (uint64_t)main_device_id;
+
+  zwp_linux_dmabuf_feedback_v1_send_main_device(resource, &device_array);
+
+  send_surface_format_table(resource);
+
+  zwp_linux_dmabuf_feedback_v1_send_tranche_target_device(resource,
+                                                          &device_array);
+
+  wl_array_release(&device_array);
+
+  zwp_linux_dmabuf_feedback_v1_send_tranche_flags(
+      resource, 0); // No specific flags needed usually
+
+
+  zwp_linux_dmabuf_feedback_v1_send_tranche_done(resource);
+
+
+  zwp_linux_dmabuf_feedback_v1_send_done(resource);
+
+}
+
 void send_dmabuf_feedback(struct wl_resource *resource) {
   struct wl_array device_array;
   wl_array_init(&device_array);
@@ -151,26 +182,28 @@ void send_dmabuf_feedback(struct wl_resource *resource) {
   zwp_linux_dmabuf_feedback_v1_send_main_device(resource, &device_array);
 
 
+
   send_format_table(resource);
+  send_supported_formats(resource);
 
   zwp_linux_dmabuf_feedback_v1_send_tranche_target_device(resource,
                                                           &device_array);
 
-  send_supported_formats(resource);
+  wl_array_release(&device_array);
 
   zwp_linux_dmabuf_feedback_v1_send_tranche_flags(
-      resource, 0); // No specific flags needed usually
-
+      resource, 0);
 
   zwp_linux_dmabuf_feedback_v1_send_tranche_done(resource);
 
-  wl_array_release(&device_array);
-
   zwp_linux_dmabuf_feedback_v1_send_done(resource);
+
 }
 
 void get_feedback(WaylandClient *client, WaylandResource *resource,
     uint32_t id) {
+
+  printf("Sending feed back\n");
 
   WaylandResource *feedback =
       wl_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface,
@@ -179,12 +212,12 @@ void get_feedback(WaylandClient *client, WaylandResource *resource,
 
   wl_resource_set_user_data(feedback, &compositor);
 
+  send_dmabuf_feedback(feedback);
+
   wl_resource_set_implementation(feedback, &feedback_implementation,
                                  &compositor, NULL);
 
-  printf("Sending feed back\n");
 
-  send_dmabuf_feedback(feedback);
 
   printf("Sent feed back\n");
 
@@ -206,15 +239,18 @@ void get_surface_feedback(WaylandClient *client,
   WaylandResource *feedback =
       wl_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface,
                          wl_resource_get_version(resource), id);
-
+  if (!feedback) {
+    wl_client_post_no_memory(client);
+    return;
+  }
 
   wl_resource_set_user_data(feedback, surface);
 
 
-  send_surface_format_table(feedback);
-
   wl_resource_set_implementation(feedback, &feedback_implementation,
                                  surface, NULL);
+  
+  send_surface_feedback(feedback);
 
   printf("Sent surface feedback\n");
 

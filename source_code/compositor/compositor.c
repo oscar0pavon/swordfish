@@ -78,6 +78,9 @@ void* run_compositor(void* none) {
   wl_list_init(&compositor.surfaces);
 
 
+  init_dma();
+
+  //init_shared_memory();
 
   wl_global_create(compositor.display, &xdg_wm_base_interface, 3, &compositor,
                    bind_desktop);
@@ -86,9 +89,6 @@ void* run_compositor(void* none) {
                    bind_compositor);
 
 
-  init_dma();
-
-  init_shared_memory();
 
 
   const char *socket = wl_display_add_socket_auto(compositor.display);

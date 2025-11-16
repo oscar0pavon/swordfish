@@ -125,7 +125,7 @@ void destroy_params_handler(struct wl_resource *resource) {
     }
     printf("Destroy params\n");
 }
-void create_params(WaylandClient *client, WaylandResource *resource,
+static void create_params(WaylandClient *client, WaylandResource *resource,
     uint32_t id) {
 
   printf("Creating params\n");
@@ -153,27 +153,12 @@ void create_params(WaylandClient *client, WaylandResource *resource,
 }
 
 
-const struct zwp_linux_dmabuf_v1_interface dmabuf_implementation = {
-    .create_params = create_params, 
+static const struct zwp_linux_dmabuf_v1_interface dmabuf_implementation = {
+    .create_params = create_params,
     .get_default_feedback = get_feedback,
     .get_surface_feedback = get_surface_feedback
 };
 
-
-void send_formats(WaylandResource* resource){
-
-
-  zwp_linux_dmabuf_v1_send_format(resource, DRM_FORMAT_ARGB8888); 
-  zwp_linux_dmabuf_v1_send_format(resource, DRM_FORMAT_XRGB8888);
-
-  zwp_linux_dmabuf_v1_send_modifier(resource, DRM_FORMAT_ARGB8888, 
-                                    DRM_FORMAT_MOD_INVALID >> 32, 
-                                    DRM_FORMAT_MOD_INVALID & 0xFFFFFFFF);
-
-  zwp_linux_dmabuf_v1_send_modifier(resource, DRM_FORMAT_XRGB8888, 
-                                    DRM_FORMAT_MOD_INVALID >> 32, 
-                                    DRM_FORMAT_MOD_INVALID & 0xFFFFFFFF);
-}
 
 void bind_dma(WaylandClient *client, void *data, uint32_t version,
                        uint32_t id) {

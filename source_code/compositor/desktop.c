@@ -41,15 +41,14 @@ void get_desktop_surface(WaylandClient *client, WaylandResource *resource,
   DesktopSurface *desktop_surface = calloc(1, sizeof(DesktopSurface));
 
   desktop_surface->surface = surface;
-  desktop_surface->resource =
-      wl_resource_create(client, &xdg_surface_interface, 1, id);
+  desktop_surface->resource = wl_resource_create(
+      client, &xdg_surface_interface, wl_resource_get_version(resource), id);
 
   wl_resource_set_implementation(desktop_surface->resource,
                                  &desktop_surface_implementation,
                                  desktop_surface, NULL);
 
   printf("Get desktop surface\n");
-
 }
 
 const struct xdg_wm_base_interface desktop_implementation = {
