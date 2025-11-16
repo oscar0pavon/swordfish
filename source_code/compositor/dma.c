@@ -1,4 +1,5 @@
 #include "dma.h"
+#include "compositor/feedback.h"
 #include "linux-dmabuf.h"
 #include "compositor.h"
 #include <stdint.h>
@@ -30,7 +31,7 @@ void destroy_feedback_handler(WaylandClient* client, WaylandResource *resource) 
 }
 
 const struct zwp_linux_dmabuf_feedback_v1_interface feedback_implementation = {
-    .destroy = destroy_feedback_handler,
+    .destroy = destroy_feedback_handler
 };
 
 uint64_t get_drm_device_id(const char *device_path) {
@@ -63,13 +64,18 @@ void send_supported_formats(struct wl_resource *resource) {
 void send_dmabuf_feedback(struct wl_resource *resource) {
   struct wl_array device_array;
   wl_array_init(&device_array);
+  
   uint64_t main_device_id = get_drm_device_id("/dev/dri/card0");
+  //uint64_t main_device_id = dup(compositor.gpu_fd);
   uint64_t *device_id_ptr = wl_array_add(&device_array, sizeof(uint64_t));
+ 
+  *device_id_ptr = (uint64_t)main_device_id;
 
 
   zwp_linux_dmabuf_feedback_v1_send_main_device(resource, &device_array);
 
 
+  send_format_table(resource);
 
   // 1. Mark the start of a tranche for this device (version 4+ protocol)
   zwp_linux_dmabuf_feedback_v1_send_tranche_target_device(resource,
@@ -81,6 +87,8 @@ void send_dmabuf_feedback(struct wl_resource *resource) {
   // 3. Mark the tranche as complete
   zwp_linux_dmabuf_feedback_v1_send_tranche_flags(
       resource, 0); // No specific flags needed usually
+
+
   zwp_linux_dmabuf_feedback_v1_send_tranche_done(resource);
   // *** END SECTION ***
 
@@ -98,7 +106,6 @@ void get_feedback(WaylandClient *client, WaylandResource *resource,
                          wl_resource_get_version(resource), id);
 
 
-  int feedback_fd = dup(compositor.gpu_fd);
   wl_resource_set_user_data(feedback, &compositor);
 
   wl_resource_set_implementation(feedback, &feedback_implementation,
@@ -264,13 +271,7 @@ void bind_dma(WaylandClient *client, void *data, uint32_t version,
     return;
   }
   
-  zwp_linux_dmabuf_v1_send_format(resource, DRM_FORMAT_XRGB8888);
-  zwp_linux_dmabuf_v1_send_modifier(resource, DRM_FORMAT_XRGB8888, 
-                                    DRM_FORMAT_MOD_INVALID >> 32, 
-                                    DRM_FORMAT_MOD_INVALID & 0xFFFFFFFF);
-
   wl_resource_set_implementation(resource, &dmabuf_implementation, data, NULL);
-  wl_client_flush(client);
 
   printf("DMA buffers implemented\n");
 }
