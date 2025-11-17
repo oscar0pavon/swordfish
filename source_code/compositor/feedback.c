@@ -27,8 +27,7 @@ static int create_anon_file(size_t size) {
         ftruncate(fd, size);
         return fd;
     }
-    // Fallback for systems without memfd_create
-    // ... (omitted for brevity, but a robust compositor needs this) ...
+    printf("Can't create shared memory\n");
     return -1;
 }
 
@@ -37,8 +36,12 @@ static int create_anon_file(size_t size) {
 void send_format_table(WaylandResource* resource) {
     printf("Compositor sending format table via shared memory\n");
 
-    FormatTable supported_formats[] = {
-        { DRM_FORMAT_XRGB8888, 0, DRM_FORMAT_MOD_LINEAR },
+  FormatTable supported_formats[] = {
+        // Essential formats for Radeonsi driver compatibility:
+        { DRM_FORMAT_XRGB8888, 0, DRM_FORMAT_MOD_LINEAR }, // Very standard opaque format
+        { DRM_FORMAT_BGRA8888, 0, DRM_FORMAT_MOD_LINEAR }, // Standard format with alpha
+        { DRM_FORMAT_RGBX8888, 0, DRM_FORMAT_MOD_LINEAR },
+        { DRM_FORMAT_RGBA8888, 0, DRM_FORMAT_MOD_LINEAR }, 
     };
 
     size_t num_formats = sizeof(supported_formats) / sizeof(supported_formats[0]);
@@ -50,7 +53,7 @@ void send_format_table(WaylandResource* resource) {
         return;
     }
 
-  void *map = mmap(NULL, table_size, PROT_WRITE, MAP_SHARED, fd, 0);
+    void *map = mmap(NULL, table_size, PROT_WRITE, MAP_SHARED, fd, 0);
     if (map == MAP_FAILED) {
         close(fd);
         fprintf(stderr, "Failed to mmap shared memory\n");
@@ -59,6 +62,7 @@ void send_format_table(WaylandResource* resource) {
     memcpy(map, supported_formats, table_size);
     munmap(map, table_size);
 
+    
     zwp_linux_dmabuf_feedback_v1_send_format_table(resource, fd, table_size);
 
 
