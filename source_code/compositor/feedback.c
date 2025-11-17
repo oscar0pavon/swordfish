@@ -32,35 +32,7 @@ static int create_anon_file(size_t size) {
     return -1;
 }
 
-void send_surface_format_table(WaylandResource* resource) {
-    printf("Compositor sending surface format table via shared memory\n");
 
-    FormatTable supported_formats[] = {
-        { DRM_FORMAT_RGBA8888, 0, DRM_FORMAT_MOD_LINEAR },
-    };
-
-    size_t num_formats = sizeof(supported_formats) / sizeof(supported_formats[0]);
-    size_t table_size = num_formats * sizeof(FormatTable);
-
-    int fd = create_anon_file(table_size);
-    if (fd < 0) {
-        fprintf(stderr, "Failed to create shared memory file\n");
-        return;
-    }
-
-  void *map = mmap(NULL, table_size, PROT_WRITE, MAP_SHARED, fd, 0);
-    if (map == MAP_FAILED) {
-        close(fd);
-        fprintf(stderr, "Failed to mmap shared memory\n");
-        return;
-    }
-    memcpy(map, supported_formats, table_size);
-    munmap(map, table_size);
-
-    zwp_linux_dmabuf_feedback_v1_send_format_table(resource, fd, table_size);
-
-
-}
 
 void send_format_table(WaylandResource* resource) {
     printf("Compositor sending format table via shared memory\n");
@@ -105,20 +77,21 @@ const struct zwp_linux_dmabuf_feedback_v1_interface feedback_implementation = {
 };
 
 void send_supported_formats(struct wl_resource *resource) {
-    printf("sending supported format\n");
+    printf("sending supported format indices for tranche\n");
     
-    struct wl_array formats_array;
-    wl_array_init(&formats_array);
+    struct wl_array indices_array;
+    wl_array_init(&indices_array);
 
-    uint32_t format = DRM_FORMAT_XRGB8888;
-    uint64_t modifier = DRM_FORMAT_MOD_LINEAR;
+    // We assume DRM_FORMAT_XRGB8888 is at index 0 in your main format table
+    uint16_t format_index_0 = 0; 
+    
+    // Add the index to the array
+    *(uint16_t *)wl_array_add(&indices_array, sizeof(uint16_t)) = format_index_0;
 
-    *(uint32_t *)wl_array_add(&formats_array, sizeof(uint32_t)) = format;
-    *(uint64_t *)wl_array_add(&formats_array, sizeof(uint64_t)) = modifier;
+    // Send the array of indices
+    zwp_linux_dmabuf_feedback_v1_send_tranche_formats(resource, &indices_array);
 
-    zwp_linux_dmabuf_feedback_v1_send_tranche_formats(resource, &formats_array);
-
-    wl_array_release(&formats_array);
+    wl_array_release(&indices_array);
 }
 
 void send_main_device(WaylandResource* resource){
@@ -151,7 +124,7 @@ void send_surface_feedback(WaylandResource *resource){
 
   zwp_linux_dmabuf_feedback_v1_send_main_device(resource, &device_array);
 
-  send_surface_format_table(resource);
+  send_format_table(resource);
 
   zwp_linux_dmabuf_feedback_v1_send_tranche_target_device(resource,
                                                           &device_array);
@@ -184,7 +157,7 @@ void send_dmabuf_feedback(struct wl_resource *resource) {
 
 
   send_format_table(resource);
-  send_supported_formats(resource);
+  //send_supported_formats(resource);
 
   zwp_linux_dmabuf_feedback_v1_send_tranche_target_device(resource,
                                                           &device_array);
@@ -205,6 +178,7 @@ void get_feedback(WaylandClient *client, WaylandResource *resource,
 
   printf("Sending feed back\n");
 
+  
   WaylandResource *feedback =
       wl_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface,
                          wl_resource_get_version(resource), id);

@@ -55,6 +55,17 @@ struct gbm_device *create_gbm_device(int drm_file_descriptor) {
 
 
 
+void get_drm_support_format(){
+  int gpu_fd = open("/dev/dri/card0", O_RDWR | O_CLOEXEC);
+  drmModePlaneResPtr plane_res = drmModeGetPlaneResources(gpu_fd);
+  if (!plane_res) {
+    fprintf(stderr, "Failed to get plane resources\n");
+    return;
+  }
+
+  printf("Got Supported format\n");
+}
+
 void get_drm_info() {
 
   int connector_number;

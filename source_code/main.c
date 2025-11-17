@@ -40,7 +40,8 @@ bool is_opengl = true;
 
 void close_swordfish() {
   printf("Closing Swordfish\n");
-  pe_vk_end();
+  if(!is_opengl)
+    pe_vk_end();
   swordfish_running = false;
   if(is_drm_rendering){
     finish_input();
@@ -67,16 +68,19 @@ int main(){
     init_seat();
   }
 
-  pthread_t compositor_thread_id;
-  pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
 
   if(is_opengl){
+    
+    get_drm_support_format();
+
     init_egl();
   }
 
   if(is_drm_rendering)
     init_direct_render();
 
+  pthread_t compositor_thread_id;
+  pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
   
   pe_init_memory();
 
@@ -84,8 +88,10 @@ int main(){
   pthread_create(&input_thread_id, NULL, handle_input, NULL);
 
 
-  if(is_opengl)
+  if(is_opengl){
     draw_with_egl();
+    goto finish; 
+  }
 
   //graphics stuff
   
@@ -127,7 +133,7 @@ int main(){
     //delay_render_time();
   }
 
-
+finish:
   if(!is_drm_rendering)
     close_window();  
 

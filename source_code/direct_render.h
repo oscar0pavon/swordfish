@@ -21,4 +21,6 @@ struct gbm_bo *create_gbm_buffer(struct gbm_device *gbm_dev, int width, int heig
 
 void create_framebuffer(struct gbm_bo* in_buffer);
 
+void get_drm_support_format();
+
 #endif

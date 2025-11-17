@@ -170,6 +170,8 @@ void draw_with_egl() {
     printf("Can't make current context\n");
 
   while (1) {
+    if(!swordfish_running)
+      break;
     glClearColor(0.3f, 0.3f, 0.9f, 1.0f); // Clear to a blue color
     glClear(GL_COLOR_BUFFER_BIT);
 
