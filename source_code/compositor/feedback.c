@@ -13,6 +13,7 @@
 #include <fcntl.h>
 #include <drm/drm_fourcc.h>
 #include <string.h>
+#include "linux-dmabuf.h"
 
 typedef struct FormatTable {
   uint32_t format;
@@ -26,21 +27,21 @@ size_t table_size;
 FormatTable supported_formats[] = {
         // 8-bit UNORM formats (most commonly used)
         { 0x34324152, 0, DRM_FORMAT_MOD_LINEAR }, // RA24 (likely RGBA8888)
-        // // 8-bit BGR variants
+        // // // 8-bit BGR variants
         { 0x34324258, 0, DRM_FORMAT_MOD_LINEAR }, // XB24 (likely XBGR8888)
         { 0x34324241, 0, DRM_FORMAT_MOD_LINEAR }, // AB24 (likely ABGR8888/BGRA8888)
-        { DRM_FORMAT_RGBA8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_R8G8B8A8_UNORM
-        { DRM_FORMAT_BGRA8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_B8G8R8A8_UNORM
-        { DRM_FORMAT_XRGB8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_R8G8B8X8_UNORM
-        { DRM_FORMAT_BGR888, 0, DRM_FORMAT_MOD_LINEAR },   // PIPE_FORMAT_B8G8R8_UNORM
-        { DRM_FORMAT_RGBX8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_R8G8B8X8_UNORM
-        { DRM_FORMAT_RGB888, 0, DRM_FORMAT_MOD_LINEAR },   // PIPE_FORMAT_R8G8B8_UNORM
-
-        // // 8-bit (XR24/AR24 are likely XRGB8888/ARGB8888 variants)
-        // { 0x34325258, 0, DRM_FORMAT_MOD_LINEAR }, // XR24
-        // { 0x34325241, 0, DRM_FORMAT_MOD_LINEAR }, // AR24
+        // { DRM_FORMAT_RGBA8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_R8G8B8A8_UNORM
+        // { DRM_FORMAT_BGRA8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_B8G8R8A8_UNORM
+        // { DRM_FORMAT_XRGB8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_R8G8B8X8_UNORM
+        // { DRM_FORMAT_BGR888, 0, DRM_FORMAT_MOD_LINEAR },   // PIPE_FORMAT_B8G8R8_UNORM
+        // { DRM_FORMAT_RGBX8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_R8G8B8X8_UNORM
+        // { DRM_FORMAT_RGB888, 0, DRM_FORMAT_MOD_LINEAR },   // PIPE_FORMAT_R8G8B8_UNORM
         //
-        { DRM_FORMAT_XRGB8888, 0, DRM_FORMAT_MOD_LINEAR },
+        // // // 8-bit (XR24/AR24 are likely XRGB8888/ARGB8888 variants)
+        // // { 0x34325258, 0, DRM_FORMAT_MOD_LINEAR }, // XR24
+        // // { 0x34325241, 0, DRM_FORMAT_MOD_LINEAR }, // AR24
+        // //
+        // { DRM_FORMAT_XRGB8888, 0, DRM_FORMAT_MOD_LINEAR },
         // // 16-bit float/half-float (XR4H, AR4H, etc. are likely R16G16B16A16F variants)
         // { 0x48345258, 0, DRM_FORMAT_MOD_LINEAR }, // XR4H
         // { 0x48345241, 0, DRM_FORMAT_MOD_LINEAR }, // AR4H
@@ -61,8 +62,8 @@ FormatTable supported_formats[] = {
         // { DRM_FORMAT_RGB565, 0, DRM_FORMAT_MOD_LINEAR },   // PIPE_FORMAT_B5G6R5_UNORM
         // { DRM_FORMAT_BGR5A1, 0, DRM_FORMAT_MOD_LINEAR },   // PIPE_FORMAT_B5G5R5A1_UNORM
         // { DRM_FORMAT_BGRX555, 0, DRM_FORMAT_MOD_LINEAR },  // PIPE_FORMAT_B5G5R5X1_UNORM
-        { DRM_FORMAT_BGRA4444, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_B4G4R4A4_UNORM
-        { DRM_FORMAT_BGRX4444, 0, DRM_FORMAT_MOD_LINEAR },
+        // { DRM_FORMAT_BGRA4444, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_B4G4R4A4_UNORM
+        // { DRM_FORMAT_BGRX4444, 0, DRM_FORMAT_MOD_LINEAR },
     };
 
 
@@ -129,20 +130,22 @@ void send_format_table(WaylandResource* resource) {
 
 }
 
+void destroy_feedback(WaylandClient *client, WaylandResource *resource) {
 
+  printf("Destroy feedback\n");
+}
 
-void destroy_feedback_handler(WaylandClient* client, WaylandResource *resource) {
-    // Free any user data attached to the feedback resource
-    // wl_resource_get_user_data(...)
-  printf("Destroy feed back\n");
+void destroy_surface_feedback(WaylandClient *client,
+                              WaylandResource *resource) {
+
+  printf("Destroy surface feedback\n");
 }
 
 const struct zwp_linux_dmabuf_feedback_v1_interface feedback_implementation = {
-    .destroy = destroy_feedback_handler
-};
+    .destroy = destroy_feedback};
 
-
-
+const struct zwp_linux_dmabuf_feedback_v1_interface
+    surface_feedback_implementation = {.destroy = destroy_surface_feedback};
 
 void send_feedback(WaylandResource *resource){
   struct wl_array device_array;
@@ -201,16 +204,18 @@ void get_feedback(WaylandClient *client, WaylandResource *resource,
 
 }
 
-
-void get_surface_feedback(WaylandClient *client,
-				     WaylandResource *resource,
-				     uint32_t id,
-             WaylandResource *surface){
+void get_surface_feedback(WaylandClient *client, WaylandResource *resource,
+                          uint32_t id, WaylandResource *surface) {
 
   printf("Get surface feedback\n");
 
-  if(!surface){
-    printf("ERROR surface is NULL\n");
+  if (!surface) {
+    fprintf(stderr, "ERROR: Client sent get_surface_feedback with NULL surface "
+                    "resource. Terminating client connection.\n");
+
+    wl_resource_post_error(resource, 7,
+                           "Cannot get feedback for a NULL surface.");
+    return;
   }
 
   WaylandResource *feedback =
@@ -223,14 +228,10 @@ void get_surface_feedback(WaylandClient *client,
 
   wl_resource_set_user_data(feedback, surface);
 
+  wl_resource_set_implementation(feedback, &surface_feedback_implementation, surface,
+                                 NULL);
 
-  wl_resource_set_implementation(feedback, &feedback_implementation,
-                                 surface, NULL);
-  
   send_feedback(feedback);
 
   printf("Sent surface feedback\n");
-
-
 }
-
