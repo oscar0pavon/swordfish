@@ -106,8 +106,7 @@ uint64_t get_formats_blob_id(int gpu_fd, uint32_t plane_id) {
     return 0;
 }
 
-void parse_format_blob(int gpu_fd, uint64_t formats_blob_id) {
-  // 1. Retrieve the property blob data from the kernel
+void parse_format_blob_detailed(int gpu_fd, uint64_t formats_blob_id) {
   drmModePropertyBlobPtr formats_blob =
       drmModeGetPropertyBlob(gpu_fd, formats_blob_id);
 
@@ -116,12 +115,67 @@ void parse_format_blob(int gpu_fd, uint64_t formats_blob_id) {
     return;
   }
 
-  // 2. Cast the blob data to the correct struct type defined in
-  // <drm/drm_fourcc.h>
   const struct drm_format_modifier_blob *fmt_blob =
       (const struct drm_format_modifier_blob *)formats_blob->data;
 
-  // The blob contains offsets to the start of the formats and modifiers lists
+  const uint32_t count_formats = fmt_blob->count_formats;
+  const uint32_t count_modifiers = fmt_blob->count_modifiers;
+
+  const uint32_t *formats_ptr =
+      (const uint32_t *)((char *)fmt_blob + fmt_blob->formats_offset);
+
+  const struct drm_format_modifier *modifiers_ptr =
+      (const struct drm_format_modifier *)((char *)fmt_blob +
+                                           fmt_blob->modifiers_offset);
+
+
+  printf("Found %u formats and %u modifiers in blob:\n", count_formats,
+         count_modifiers);
+
+  // Iterate over every single modifier available
+  for (uint32_t j = 0; j < count_modifiers; j++) {
+    const struct drm_format_modifier *mod_entry = &modifiers_ptr[j];
+    uint64_t modifier_value = mod_entry->modifier;
+
+    printf("  Modifier 0x%llx supports formats: ",
+           (unsigned long long)modifier_value);
+
+    // Iterate over the bitmask to find which formats this modifier applies to
+    for (uint32_t i = 0; i < count_formats; i++) {
+      // The logic: Check if the 'i-th' bit is set in the 64-bit 'formats' field
+      // of the modifier entry
+      if ((mod_entry->formats >> i) & 1) {
+        uint32_t format = formats_ptr[i];
+        char format_str[5] = {0};
+        memcpy(format_str, &format, 4);
+
+        printf("%s ", format_str);
+
+        // --- Store this format/modifier pair globally here ---
+        // global_formats_list[global_format_count].format = format;
+        // global_formats_list[global_format_count].modifier = modifier_value;
+        // global_format_count++;
+      }
+    }
+    printf("\n");
+  }
+
+  drmModeFreePropertyBlob(formats_blob);
+}
+
+void parse_format_blob(int gpu_fd, uint64_t formats_blob_id) {
+
+  drmModePropertyBlobPtr formats_blob =
+      drmModeGetPropertyBlob(gpu_fd, formats_blob_id);
+
+  if (!formats_blob) {
+    fprintf(stderr, "Failed to get format modifier blob data\n");
+    return;
+  }
+
+  const struct drm_format_modifier_blob *fmt_blob =
+      (const struct drm_format_modifier_blob *)formats_blob->data;
+
   const uint32_t *formats_ptr =
       (const uint32_t *)((char *)fmt_blob + fmt_blob->formats_offset);
   const struct drm_format_modifier *modifiers_ptr =
@@ -129,10 +183,10 @@ void parse_format_blob(int gpu_fd, uint64_t formats_blob_id) {
                                            fmt_blob->modifiers_offset);
 
   uint32_t format_count = fmt_blob->count_formats;
+  uint32_t modifier_count = fmt_blob->count_modifiers; 
 
   printf("Found %u supported formats:\n", format_count);
 
-  // 3. Iterate through the formats and modifiers
   for (uint32_t i = 0; i < format_count; i++) {
     uint32_t format = formats_ptr[i];
 
@@ -143,11 +197,21 @@ void parse_format_blob(int gpu_fd, uint64_t formats_blob_id) {
 
     printf("  Format %d: %s (0x%08x)\n", i, format_str, format);
 
-    // You can check associated modifiers here if needed, linking back by index
-    // ... logic for modifiers ...
+    for (uint32_t j = 0; j < modifier_count; j++) {
+      // Check if the current format index is within the valid range for this
+      // modifier entry
+      if (modifiers_ptr[j].formats >= i && modifiers_ptr[j].formats < (i + 1)) {
+        // The 'formats' field in struct drm_format_modifier is an offset
+        // relative to formats_offset This part of the logic is complex and
+        // usually requires a helper library to correctly map indices.
+
+        // The easiest approach is to simply use the 'DRM_FORMAT_MOD_LINEAR'
+        // first and rely on the EGL client logs to tell you which specific
+        // modifier value to add.
+      }
+    }
   }
 
-  // 4. Free the blob data when finished
   drmModeFreePropertyBlob(formats_blob);
 }
 
@@ -168,7 +232,8 @@ void get_drm_support_format() {
     if (blob_id != 0) {
         printf("Successfully retrieved formats blob ID: %llu\n", blob_id);
         // You can now call drmModeGetPropertyBlob(gpu_fd, blob_id) to get the data
-        parse_format_blob(gpu_fd, blob_id);
+        //parse_format_blob(gpu_fd, blob_id);
+        parse_format_blob_detailed(gpu_fd, blob_id);
     }
     close(gpu_fd);
 

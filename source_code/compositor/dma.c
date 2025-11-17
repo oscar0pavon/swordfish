@@ -1,20 +1,22 @@
 #include "dma.h"
-#include "compositor/feedback.h"
-#include "linux-dmabuf.h"
-#include "compositor.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <wayland-server-core.h>
 #include <unistd.h>
-#include "direct_render.h"
 #include <sys/stat.h>
 #include "feedback.h"
+#include "swordfish.h"
+#include "direct_render.h"
+
+#include "compositor.h"
 
 uint64_t main_device_id;
 
 #define MAX_DMA_PLANES 4
 
+struct zwp_linux_dmabuf_v1_interface dmabuf_data;
+      
 typedef struct DMABuffer{
     WaylandClient *client;
     int32_t fds[MAX_DMA_PLANES];
@@ -35,8 +37,6 @@ uint64_t get_drm_device_id(const char *device_path) {
     return (uint64_t)st.st_rdev; 
 }
 
-void bind_dma(WaylandClient *client, void *data, uint32_t version,
-                       uint32_t id);
 
 
 void params_add(WaylandClient *client,
@@ -91,6 +91,7 @@ void params_create(struct wl_client *client,
 
 static void params_destroy(struct wl_client *client, struct wl_resource *resource) {
     wl_resource_destroy(resource); // Client is done with temporary params object
+    printf("destroy params\n");
 }
 
 void linux_dmabuf_create_immed(WaylandClient *client,
@@ -126,13 +127,16 @@ void destroy_params_handler(struct wl_resource *resource) {
     }
     printf("Destroy params\n");
 }
-static void create_params(WaylandClient *client, WaylandResource *resource,
-    uint32_t id) {
 
-  printf("Creating params\n");
+void swordfish_create_params(struct wl_client *client, 
+                          struct wl_resource *resource, 
+                          uint32_t id) {
+
+  printf("Received create_params request. Creating new buffer_params resource ID: %u\n", id);
 
   WaylandResource *params_resource =
-      wl_resource_create(client, &zwp_linux_buffer_params_v1_interface, 3, id);
+      wl_resource_create(client, &zwp_linux_buffer_params_v1_interface,
+                         wl_resource_get_version(resource), id);
 
 
   DMABuffer *params = calloc(1, sizeof(DMABuffer));
@@ -154,19 +158,27 @@ static void create_params(WaylandClient *client, WaylandResource *resource,
 }
 
 
-static const struct zwp_linux_dmabuf_v1_interface dmabuf_implementation = {
-    .create_params = create_params,
-    .get_default_feedback = get_feedback,
-    .get_surface_feedback = get_surface_feedback
-};
 
+static void destroy_dmabuf_resource(struct wl_resource *resource) {
+    // You can retrieve and free any user data attached to this resource if necessary
+    // void *data = wl_resource_get_user_data(resource);
+    // free(data); // If you allocated data specifically for this resource
+
+    printf("Destroying zwp_linux_dmabuf_v1 resource: ID %u\n", wl_resource_get_id(resource));
+    // The resource itself is managed by the Wayland library, no need to free 'resource'
+}
+
+void destry_dma(struct wl_client *client,
+    struct wl_resource *resource){
+
+  printf("destry dma");
+}
 
 void bind_dma(WaylandClient *client, void *data, uint32_t version,
                        uint32_t id) {
   
   printf("## Implementing DMA buffers\n");
 
-  SwordfishCompositor* compositor = (SwordfishCompositor*)data;
   WaylandResource *resource;
 
   resource = wl_resource_create(client, &zwp_linux_dmabuf_v1_interface, version, id);
@@ -176,9 +188,15 @@ void bind_dma(WaylandClient *client, void *data, uint32_t version,
     return;
   }
   
-  wl_resource_set_implementation(resource, &dmabuf_implementation, data, NULL);
+  dmabuf_data.create_params = swordfish_create_params;
+  dmabuf_data.get_default_feedback = get_feedback;
+  dmabuf_data.get_surface_feedback = get_surface_feedback;
+  dmabuf_data.destroy = destry_dma;
 
-  printf("DMA buffers implemented\n");
+
+  wl_resource_set_implementation(resource, &dmabuf_data, NULL, destroy_dmabuf_resource);
+
+  printf("Bound zwp_linux_dmabuf_v1 global for client (ID %u, Version %u)\n", id, version);
 }
 
 
@@ -187,6 +205,8 @@ void init_dma(){
   printf("Added DMA global\n");
 
   main_device_id = get_drm_device_id("/dev/dri/card0");
+
   wl_global_create(compositor.display, &zwp_linux_dmabuf_v1_interface, 4,
                    &compositor, bind_dma);
+
 }

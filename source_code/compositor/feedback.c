@@ -24,12 +24,23 @@ typedef struct FormatTable {
 size_t num_formats;
 size_t table_size;
 
+#define AMD_MOD_XR24_SCANOUT 0x200000018733b03 
+/* or */
+#define AMD_MOD_AR24_SCANOUT 0x200000018763b03
+
 FormatTable supported_formats[] = {
         // 8-bit UNORM formats (most commonly used)
-        { 0x34324152, 0, DRM_FORMAT_MOD_LINEAR }, // RA24 (likely RGBA8888)
-        // // // 8-bit BGR variants
-        { 0x34324258, 0, DRM_FORMAT_MOD_LINEAR }, // XB24 (likely XBGR8888)
-        { 0x34324241, 0, DRM_FORMAT_MOD_LINEAR }, // AB24 (likely ABGR8888/BGRA8888)
+        // { 0x34324152, 0, DRM_FORMAT_MOD_LINEAR }, // RA24 (likely RGBA8888)
+        // // // // 8-bit BGR variants
+        // { 0x34324258, 0, DRM_FORMAT_MOD_LINEAR }, // XB24 (likely XBGR8888)
+        // { 0x34324241, 0, DRM_FORMAT_MOD_LINEAR }, // AB24 (likely ABGR8888/BGRA8888)
+        // { DRM_FORMAT_XRGB8888, 0, DRM_FORMAT_MOD_LINEAR }, 
+        // { DRM_FORMAT_BGRA8888, 0, DRM_FORMAT_MOD_LINEAR },
+        //{ DRM_FORMAT_BGRA8888, 0, AMD_FMT_MOD_DCC_MASK},
+        //{ 0x34325258, 0, 0x0 }, // XR24 (XRGB8888) - Works with 0x0
+        { DRM_FORMAT_XRGB8888, 0, 0x0}, // Try linear first (0x0)
+        { DRM_FORMAT_BGRA8888, 0, 0x0},
+       // { 0x34325241, 0, AMD_MOD_AR24_SCANOUT}, // AR24 (ARGB8888) - Works with 0x0
         // { DRM_FORMAT_RGBA8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_R8G8B8A8_UNORM
         // { DRM_FORMAT_BGRA8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_B8G8R8A8_UNORM
         // { DRM_FORMAT_XRGB8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_R8G8B8X8_UNORM
@@ -191,11 +202,11 @@ void get_feedback(WaylandClient *client, WaylandResource *resource,
                          wl_resource_get_version(resource), id);
 
 
-  wl_resource_set_user_data(feedback, &compositor);
+  //wl_resource_set_user_data(feedback, &compositor);
 
 
   wl_resource_set_implementation(feedback, &feedback_implementation,
-                                 &compositor, NULL);
+                                 NULL, NULL);
 
   send_feedback(feedback);
 

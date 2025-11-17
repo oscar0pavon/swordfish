@@ -60,6 +60,8 @@ int main(){
   pe_vk_validation_layer_enable = false;
 
 
+  run_compositor(NULL);
+
   if(!create_window()){
     is_drm_rendering = true;
 
@@ -79,8 +81,8 @@ int main(){
   if(is_drm_rendering)
     init_direct_render();
 
-  pthread_t compositor_thread_id;
-  pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
+  // pthread_t compositor_thread_id;
+  // pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
   
   pe_init_memory();
 

@@ -50,6 +50,7 @@ clean:
 	rm -f *.o
 	rm -f ./engine/*.o
 	rm -f ./renderer/*.o
+	rm -f ./compositor/*.o
 	rm -f ../shaders/*.spv
 
 .PHONY: shaders

@@ -78,9 +78,9 @@ void init_seat() {
     compositor.seat_active = 1;
   }
 
-  // if (drmSetMaster(compositor.gpu_fd) < 0) {
-  //   printf("Can't be DRM master\n");
-  // }
+  if (drmSetMaster(compositor.gpu_fd) < 0) {
+    printf("Can't be DRM master\n");
+  }
 
   // tty_save_state();
 
