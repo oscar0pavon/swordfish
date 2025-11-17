@@ -53,15 +53,130 @@ struct gbm_device *create_gbm_device(int drm_file_descriptor) {
     return gbm_dev;
 }
 
+/**
+ * Helper function to find the ID of a property given its name.
+ */
+static uint32_t get_property_id_by_name(int fd, drmModeObjectPropertiesPtr props, const char *prop_name) {
+    for (uint32_t i = 0; i < props->count_props; i++) {
+        drmModePropertyPtr property = drmModeGetProperty(fd, props->props[i]);
+        if (property && strcmp(property->name, prop_name) == 0) {
+            uint32_t id = property->prop_id;
+            drmModeFreeProperty(property);
+            return id;
+        }
+        if (property) {
+            drmModeFreeProperty(property);
+        }
+    }
+    return 0; // Return 0 if not found
+}
+
+/**
+ * Retrieves the blob ID that contains the format information for a plane.
+ */
+uint64_t get_formats_blob_id(int gpu_fd, uint32_t plane_id) {
+    drmModeObjectPropertiesPtr props = drmModeObjectGetProperties(gpu_fd, plane_id, DRM_MODE_OBJECT_PLANE);
+    if (!props) {
+        fprintf(stderr, "Failed to get properties for plane %u\n", plane_id);
+        return 0;
+    }
+
+    // Find the property ID for "IN_FORMATS" or "FB_FORMATS"
+    // "IN_FORMATS" is used for primary/cursor planes with format modifiers
+    uint32_t formats_prop_id = get_property_id_by_name(gpu_fd, props, "IN_FORMATS");
+    
+    if (formats_prop_id == 0) {
+       // Fallback for older drivers/different properties if "IN_FORMATS" is missing
+       formats_prop_id = get_property_id_by_name(gpu_fd, props, "FB_FORMATS");
+    }
+
+    if (formats_prop_id != 0) {
+        // Find the index of that property ID in the values array
+        for (uint32_t i = 0; i < props->count_props; i++) {
+            if (props->props[i] == formats_prop_id) {
+                // Return the actual value associated with that property index
+                uint64_t formats_blob_id = props->prop_values[i];
+                drmModeFreeObjectProperties(props);
+                return formats_blob_id;
+            }
+        }
+    }
+
+    drmModeFreeObjectProperties(props);
+    return 0;
+}
+
+void parse_format_blob(int gpu_fd, uint64_t formats_blob_id) {
+  // 1. Retrieve the property blob data from the kernel
+  drmModePropertyBlobPtr formats_blob =
+      drmModeGetPropertyBlob(gpu_fd, formats_blob_id);
+
+  if (!formats_blob) {
+    fprintf(stderr, "Failed to get format modifier blob data\n");
+    return;
+  }
+
+  // 2. Cast the blob data to the correct struct type defined in
+  // <drm/drm_fourcc.h>
+  const struct drm_format_modifier_blob *fmt_blob =
+      (const struct drm_format_modifier_blob *)formats_blob->data;
+
+  // The blob contains offsets to the start of the formats and modifiers lists
+  const uint32_t *formats_ptr =
+      (const uint32_t *)((char *)fmt_blob + fmt_blob->formats_offset);
+  const struct drm_format_modifier *modifiers_ptr =
+      (const struct drm_format_modifier *)((char *)fmt_blob +
+                                           fmt_blob->modifiers_offset);
+
+  uint32_t format_count = fmt_blob->count_formats;
+
+  printf("Found %u supported formats:\n", format_count);
+
+  // 3. Iterate through the formats and modifiers
+  for (uint32_t i = 0; i < format_count; i++) {
+    uint32_t format = formats_ptr[i];
+
+    // Convert the 4-char code to a readable string for logging
+    char format_str[5];
+    memcpy(format_str, &format, 4);
+    format_str[4] = '\0';
+
+    printf("  Format %d: %s (0x%08x)\n", i, format_str, format);
+
+    // You can check associated modifiers here if needed, linking back by index
+    // ... logic for modifiers ...
+  }
+
+  // 4. Free the blob data when finished
+  drmModeFreePropertyBlob(formats_blob);
+}
 
 
-void get_drm_support_format(){
+void get_drm_support_format() {
   int gpu_fd = open("/dev/dri/card0", O_RDWR | O_CLOEXEC);
   drmModePlaneResPtr plane_res = drmModeGetPlaneResources(gpu_fd);
   if (!plane_res) {
     fprintf(stderr, "Failed to get plane resources\n");
     return;
   }
+
+  for (uint32_t i = 0; i < plane_res->count_planes; i++) {
+    uint32_t plane_id = plane_res->planes[i];
+    
+    
+    int64_t blob_id = get_formats_blob_id(gpu_fd, plane_id);
+    if (blob_id != 0) {
+        printf("Successfully retrieved formats blob ID: %llu\n", blob_id);
+        // You can now call drmModeGetPropertyBlob(gpu_fd, blob_id) to get the data
+        parse_format_blob(gpu_fd, blob_id);
+    }
+    close(gpu_fd);
+
+   
+
+  }
+
+  close(gpu_fd);
 
   printf("Got Supported format\n");
 }

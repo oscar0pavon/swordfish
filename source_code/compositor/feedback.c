@@ -18,7 +18,7 @@
 typedef struct FormatTable {
   uint32_t format;
   uint32_t padding;
-  uint32_t modifer;
+  uint64_t modifer;
 }FormatTable;
 
 static int create_anon_file(size_t size) {
@@ -32,19 +32,54 @@ static int create_anon_file(size_t size) {
 }
 
 
+void send_supported_formats2(struct wl_resource *resource) {
+    printf("sending supported format\n");
+    
+    struct wl_array formats_array;
+    wl_array_init(&formats_array);
+
+    uint32_t format = DRM_FORMAT_XRGB8888;
+    uint64_t modifier = DRM_FORMAT_MOD_LINEAR;
+
+    *(uint32_t *)wl_array_add(&formats_array, sizeof(uint32_t)) = format;
+    *(uint64_t *)wl_array_add(&formats_array, sizeof(uint64_t)) = modifier;
+
+    zwp_linux_dmabuf_feedback_v1_send_tranche_formats(resource, &formats_array);
+
+    wl_array_release(&formats_array);
+}
+
 
 void send_format_table(WaylandResource* resource) {
     printf("Compositor sending format table via shared memory\n");
 
-  FormatTable supported_formats[] = {
-        // Essential formats for Radeonsi driver compatibility:
-        { DRM_FORMAT_XRGB8888, 0, DRM_FORMAT_MOD_LINEAR }, // Very standard opaque format
-        { DRM_FORMAT_BGRA8888, 0, DRM_FORMAT_MOD_LINEAR }, // Standard format with alpha
-        { DRM_FORMAT_RGBX8888, 0, DRM_FORMAT_MOD_LINEAR },
-        { DRM_FORMAT_RGBA8888, 0, DRM_FORMAT_MOD_LINEAR }, 
-    };
+  
+    FormatTable supported_formats[] = {
+        // 8-bit (XR24/AR24 are likely XRGB8888/ARGB8888 variants)
+        { 0x34325258, 0, DRM_FORMAT_MOD_LINEAR }, // XR24
+        { 0x34325241, 0, DRM_FORMAT_MOD_LINEAR }, // AR24
+        { 0x34324152, 0, DRM_FORMAT_MOD_LINEAR }, // RA24 (likely RGBA8888)
+        
+        // // 10-bit (XR30/AR30 are likely XRGB2101010/ARGB2101010 variants)
+        // { 0x30335258, 0, DRM_FORMAT_MOD_LINEAR }, // XR30
+        // { 0x30334258, 0, DRM_FORMAT_MOD_LINEAR }, // XB30
+        // { 0x30335241, 0, DRM_FORMAT_MOD_LINEAR }, // AR30
+        // { 0x30334241, 0, DRM_FORMAT_MOD_LINEAR }, // AB30
 
-    size_t num_formats = sizeof(supported_formats) / sizeof(supported_formats[0]);
+        // 8-bit BGR variants
+        { 0x34324258, 0, DRM_FORMAT_MOD_LINEAR }, // XB24 (likely XBGR8888)
+        { 0x34324241, 0, DRM_FORMAT_MOD_LINEAR }, // AB24 (likely ABGR8888/BGRA8888)
+
+        // // 16-bit float/half-float (XR4H, AR4H, etc. are likely R16G16B16A16F variants)
+        // { 0x48345258, 0, DRM_FORMAT_MOD_LINEAR }, // XR4H
+        // { 0x48345241, 0, DRM_FORMAT_MOD_LINEAR }, // AR4H
+        // { 0x48344258, 0, DRM_FORMAT_MOD_LINEAR }, // XB4H
+        // { 0x48344241, 0, DRM_FORMAT_MOD_LINEAR }, // AB4H
+        { DRM_FORMAT_RGB565, 0, DRM_FORMAT_MOD_LINEAR },
+    };
+ 
+
+    size_t num_formats = sizeof(supported_formats) / sizeof(FormatTable);
     size_t table_size = num_formats * sizeof(FormatTable);
 
     int fd = create_anon_file(table_size);

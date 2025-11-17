@@ -71,7 +71,7 @@ int main(){
 
   if(is_opengl){
     
-    get_drm_support_format();
+    //get_drm_support_format();
 
     init_egl();
   }
