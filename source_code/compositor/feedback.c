@@ -18,7 +18,7 @@
 typedef struct FormatTable {
   uint32_t format;
   uint32_t padding;
-  uint64_t modifer;
+  uint64_t modifier;
 }FormatTable;
 
 static int create_anon_file(size_t size) {
@@ -32,23 +32,29 @@ static int create_anon_file(size_t size) {
 }
 
 
-void send_supported_formats2(struct wl_resource *resource) {
-    printf("sending supported format\n");
-    
-    struct wl_array formats_array;
-    wl_array_init(&formats_array);
+void send_supported_formats_indices(WaylandResource *resource) {
+  printf("Sending format indices for the current tranche\n");
 
-    uint32_t format = DRM_FORMAT_XRGB8888;
-    uint64_t modifier = DRM_FORMAT_MOD_LINEAR;
+  struct wl_array indices_array;
+  wl_array_init(&indices_array);
 
-    *(uint32_t *)wl_array_add(&formats_array, sizeof(uint32_t)) = format;
-    *(uint64_t *)wl_array_add(&formats_array, sizeof(uint64_t)) = modifier;
+  const uint32_t num_formats_in_table = 5; // TODO
 
-    zwp_linux_dmabuf_feedback_v1_send_tranche_formats(resource, &formats_array);
+  for (uint32_t i = 0; i < num_formats_in_table; i++) {
+    uint16_t *index_ptr =
+        (uint16_t *)wl_array_add(&indices_array, sizeof(uint16_t));
+    if (!index_ptr) {
+      fprintf(stderr,
+              "Failed to allocate memory for format index in wl_array.\n");
+      break;
+    }
+    *index_ptr = (uint16_t)i;
+  }
 
-    wl_array_release(&formats_array);
+  zwp_linux_dmabuf_feedback_v1_send_tranche_formats(resource, &indices_array);
+
+  wl_array_release(&indices_array);
 }
-
 
 void send_format_table(WaylandResource* resource) {
     printf("Compositor sending format table via shared memory\n");
@@ -59,12 +65,6 @@ void send_format_table(WaylandResource* resource) {
         { 0x34325258, 0, DRM_FORMAT_MOD_LINEAR }, // XR24
         { 0x34325241, 0, DRM_FORMAT_MOD_LINEAR }, // AR24
         { 0x34324152, 0, DRM_FORMAT_MOD_LINEAR }, // RA24 (likely RGBA8888)
-        
-        // // 10-bit (XR30/AR30 are likely XRGB2101010/ARGB2101010 variants)
-        // { 0x30335258, 0, DRM_FORMAT_MOD_LINEAR }, // XR30
-        // { 0x30334258, 0, DRM_FORMAT_MOD_LINEAR }, // XB30
-        // { 0x30335241, 0, DRM_FORMAT_MOD_LINEAR }, // AR30
-        // { 0x30334241, 0, DRM_FORMAT_MOD_LINEAR }, // AB30
 
         // 8-bit BGR variants
         { 0x34324258, 0, DRM_FORMAT_MOD_LINEAR }, // XB24 (likely XBGR8888)
@@ -75,7 +75,11 @@ void send_format_table(WaylandResource* resource) {
         // { 0x48345241, 0, DRM_FORMAT_MOD_LINEAR }, // AR4H
         // { 0x48344258, 0, DRM_FORMAT_MOD_LINEAR }, // XB4H
         // { 0x48344241, 0, DRM_FORMAT_MOD_LINEAR }, // AB4H
-        { DRM_FORMAT_RGB565, 0, DRM_FORMAT_MOD_LINEAR },
+        // // 10-bit (XR30/AR30 are likely XRGB2101010/ARGB2101010 variants)
+        // { 0x30335258, 0, DRM_FORMAT_MOD_LINEAR }, // XR30
+        // { 0x30334258, 0, DRM_FORMAT_MOD_LINEAR }, // XB30
+        // { 0x30335241, 0, DRM_FORMAT_MOD_LINEAR }, // AR30
+        // { 0x30334241, 0, DRM_FORMAT_MOD_LINEAR }, // AB30
     };
  
 
@@ -115,23 +119,6 @@ const struct zwp_linux_dmabuf_feedback_v1_interface feedback_implementation = {
     .destroy = destroy_feedback_handler
 };
 
-void send_supported_formats(struct wl_resource *resource) {
-    printf("sending supported format indices for tranche\n");
-    
-    struct wl_array indices_array;
-    wl_array_init(&indices_array);
-
-    // We assume DRM_FORMAT_XRGB8888 is at index 0 in your main format table
-    uint16_t format_index_0 = 0; 
-    
-    // Add the index to the array
-    *(uint16_t *)wl_array_add(&indices_array, sizeof(uint16_t)) = format_index_0;
-
-    // Send the array of indices
-    zwp_linux_dmabuf_feedback_v1_send_tranche_formats(resource, &indices_array);
-
-    wl_array_release(&indices_array);
-}
 
 void send_main_device(WaylandResource* resource){
 
@@ -170,9 +157,9 @@ void send_surface_feedback(WaylandResource *resource){
 
   wl_array_release(&device_array);
 
-  zwp_linux_dmabuf_feedback_v1_send_tranche_flags(
-      resource, 0); // No specific flags needed usually
+  zwp_linux_dmabuf_feedback_v1_send_tranche_flags(resource, 0);
 
+  send_supported_formats_indices(resource);
 
   zwp_linux_dmabuf_feedback_v1_send_tranche_done(resource);
 
@@ -185,7 +172,6 @@ void send_dmabuf_feedback(struct wl_resource *resource) {
   struct wl_array device_array;
   wl_array_init(&device_array);
   
-  //uint64_t main_device_id = dup(compositor.gpu_fd);
   uint64_t *device_id_ptr = wl_array_add(&device_array, sizeof(uint64_t));
  
   *device_id_ptr = (uint64_t)main_device_id;
@@ -194,9 +180,7 @@ void send_dmabuf_feedback(struct wl_resource *resource) {
   zwp_linux_dmabuf_feedback_v1_send_main_device(resource, &device_array);
 
 
-
   send_format_table(resource);
-  //send_supported_formats(resource);
 
   zwp_linux_dmabuf_feedback_v1_send_tranche_target_device(resource,
                                                           &device_array);
@@ -205,6 +189,8 @@ void send_dmabuf_feedback(struct wl_resource *resource) {
 
   zwp_linux_dmabuf_feedback_v1_send_tranche_flags(
       resource, 0);
+
+  send_supported_formats_indices(resource);
 
   zwp_linux_dmabuf_feedback_v1_send_tranche_done(resource);
 
@@ -225,12 +211,11 @@ void get_feedback(WaylandClient *client, WaylandResource *resource,
 
   wl_resource_set_user_data(feedback, &compositor);
 
-  send_dmabuf_feedback(feedback);
 
   wl_resource_set_implementation(feedback, &feedback_implementation,
                                  &compositor, NULL);
 
-
+  send_dmabuf_feedback(feedback);
 
   printf("Sent feed back\n");
 
