@@ -78,16 +78,16 @@ void* run_compositor(void* none) {
   wl_list_init(&compositor.surfaces);
 
 
-  init_dma();
 
-  //init_shared_memory();
-
-  wl_global_create(compositor.display, &xdg_wm_base_interface, 3, &compositor,
-                   bind_desktop);
-
-  wl_global_create(compositor.display, &wl_compositor_interface, 3, &compositor,
+  wl_global_create(compositor.display, &wl_compositor_interface, 1, &compositor,
                    bind_compositor);
 
+  wl_global_create(compositor.display, &xdg_wm_base_interface, 1, &compositor,
+                   bind_desktop);
+  
+  init_shared_memory();
+
+  init_dma();
 
 
 
@@ -110,6 +110,7 @@ void* run_compositor(void* none) {
 
   printf("Wayland socket available at %s\n", socket);
   printf("Compositor running. Use a Wayland client to connect.\n");
+
 
 
   wl_display_run(compositor.display);

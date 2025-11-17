@@ -14,12 +14,58 @@
 #include <drm/drm_fourcc.h>
 #include <string.h>
 
-
 typedef struct FormatTable {
   uint32_t format;
   uint32_t padding;
   uint64_t modifier;
 }FormatTable;
+
+size_t num_formats;
+size_t table_size;
+
+FormatTable supported_formats[] = {
+        // 8-bit UNORM formats (most commonly used)
+        { 0x34324152, 0, DRM_FORMAT_MOD_LINEAR }, // RA24 (likely RGBA8888)
+        // // 8-bit BGR variants
+        { 0x34324258, 0, DRM_FORMAT_MOD_LINEAR }, // XB24 (likely XBGR8888)
+        { 0x34324241, 0, DRM_FORMAT_MOD_LINEAR }, // AB24 (likely ABGR8888/BGRA8888)
+        { DRM_FORMAT_RGBA8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_R8G8B8A8_UNORM
+        { DRM_FORMAT_BGRA8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_B8G8R8A8_UNORM
+        { DRM_FORMAT_XRGB8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_R8G8B8X8_UNORM
+        { DRM_FORMAT_BGR888, 0, DRM_FORMAT_MOD_LINEAR },   // PIPE_FORMAT_B8G8R8_UNORM
+        { DRM_FORMAT_RGBX8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_R8G8B8X8_UNORM
+        { DRM_FORMAT_RGB888, 0, DRM_FORMAT_MOD_LINEAR },   // PIPE_FORMAT_R8G8B8_UNORM
+
+        // // 8-bit (XR24/AR24 are likely XRGB8888/ARGB8888 variants)
+        // { 0x34325258, 0, DRM_FORMAT_MOD_LINEAR }, // XR24
+        // { 0x34325241, 0, DRM_FORMAT_MOD_LINEAR }, // AR24
+        //
+        { DRM_FORMAT_XRGB8888, 0, DRM_FORMAT_MOD_LINEAR },
+        // // 16-bit float/half-float (XR4H, AR4H, etc. are likely R16G16B16A16F variants)
+        // { 0x48345258, 0, DRM_FORMAT_MOD_LINEAR }, // XR4H
+        // { 0x48345241, 0, DRM_FORMAT_MOD_LINEAR }, // AR4H
+        // { 0x48344258, 0, DRM_FORMAT_MOD_LINEAR }, // XB4H
+        // { 0x48344241, 0, DRM_FORMAT_MOD_LINEAR }, // AB4H
+        // // 10-bit (XR30/AR30 are likely XRGB2101010/ARGB2101010 variants)
+        // { 0x30335258, 0, DRM_FORMAT_MOD_LINEAR }, // XR30
+        // { 0x30334258, 0, DRM_FORMAT_MOD_LINEAR }, // XB30
+        // { 0x30335241, 0, DRM_FORMAT_MOD_LINEAR }, // AR30
+        // { 0x30334241, 0, DRM_FORMAT_MOD_LINEAR }, // AB30
+      // 10-bit UNORM formats
+        // { DRM_FORMAT_B2G10R10X2A_UNORM, 0, DRM_FORMAT_MOD_LINEAR }, // B10G10R10X2A
+        // { DRM_FORMAT_B2G10R10A10_UNORM, 0, DRM_FORMAT_MOD_LINEAR }, // B10G10R10A2
+        // { DRM_FORMAT_R10G10B10X2A_UNORM, 0, DRM_FORMAT_MOD_LINEAR }, // R10G10B10X2A
+        // { DRM_FORMAT_R10G10B10A2_UNORM, 0, DRM_FORMAT_MOD_LINEAR }, // R10G10B10A2
+
+        // 16-bit packed UNORM formats
+        // { DRM_FORMAT_RGB565, 0, DRM_FORMAT_MOD_LINEAR },   // PIPE_FORMAT_B5G6R5_UNORM
+        // { DRM_FORMAT_BGR5A1, 0, DRM_FORMAT_MOD_LINEAR },   // PIPE_FORMAT_B5G5R5A1_UNORM
+        // { DRM_FORMAT_BGRX555, 0, DRM_FORMAT_MOD_LINEAR },  // PIPE_FORMAT_B5G5R5X1_UNORM
+        { DRM_FORMAT_BGRA4444, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_B4G4R4A4_UNORM
+        { DRM_FORMAT_BGRX4444, 0, DRM_FORMAT_MOD_LINEAR },
+    };
+
+
 
 static int create_anon_file(size_t size) {
     int fd = memfd_create("dmabuf-feedback", MFD_CLOEXEC);
@@ -38,9 +84,7 @@ void send_supported_formats_indices(WaylandResource *resource) {
   struct wl_array indices_array;
   wl_array_init(&indices_array);
 
-  const uint32_t num_formats_in_table = 5; // TODO
-
-  for (uint32_t i = 0; i < num_formats_in_table; i++) {
+  for (uint32_t i = 0; i < num_formats; i++) {
     uint16_t *index_ptr =
         (uint16_t *)wl_array_add(&indices_array, sizeof(uint16_t));
     if (!index_ptr) {
@@ -56,35 +100,13 @@ void send_supported_formats_indices(WaylandResource *resource) {
   wl_array_release(&indices_array);
 }
 
+void init_format_table() {
+  num_formats = sizeof(supported_formats) / sizeof(FormatTable);
+  table_size = num_formats * sizeof(FormatTable);
+}
+
 void send_format_table(WaylandResource* resource) {
     printf("Compositor sending format table via shared memory\n");
-
-  
-    FormatTable supported_formats[] = {
-        // 8-bit (XR24/AR24 are likely XRGB8888/ARGB8888 variants)
-        { 0x34325258, 0, DRM_FORMAT_MOD_LINEAR }, // XR24
-        { 0x34325241, 0, DRM_FORMAT_MOD_LINEAR }, // AR24
-        { 0x34324152, 0, DRM_FORMAT_MOD_LINEAR }, // RA24 (likely RGBA8888)
-
-        // 8-bit BGR variants
-        { 0x34324258, 0, DRM_FORMAT_MOD_LINEAR }, // XB24 (likely XBGR8888)
-        { 0x34324241, 0, DRM_FORMAT_MOD_LINEAR }, // AB24 (likely ABGR8888/BGRA8888)
-
-        // // 16-bit float/half-float (XR4H, AR4H, etc. are likely R16G16B16A16F variants)
-        // { 0x48345258, 0, DRM_FORMAT_MOD_LINEAR }, // XR4H
-        // { 0x48345241, 0, DRM_FORMAT_MOD_LINEAR }, // AR4H
-        // { 0x48344258, 0, DRM_FORMAT_MOD_LINEAR }, // XB4H
-        // { 0x48344241, 0, DRM_FORMAT_MOD_LINEAR }, // AB4H
-        // // 10-bit (XR30/AR30 are likely XRGB2101010/ARGB2101010 variants)
-        // { 0x30335258, 0, DRM_FORMAT_MOD_LINEAR }, // XR30
-        // { 0x30334258, 0, DRM_FORMAT_MOD_LINEAR }, // XB30
-        // { 0x30335241, 0, DRM_FORMAT_MOD_LINEAR }, // AR30
-        // { 0x30334241, 0, DRM_FORMAT_MOD_LINEAR }, // AB30
-    };
- 
-
-    size_t num_formats = sizeof(supported_formats) / sizeof(FormatTable);
-    size_t table_size = num_formats * sizeof(FormatTable);
 
     int fd = create_anon_file(table_size);
     if (fd < 0) {
@@ -120,55 +142,9 @@ const struct zwp_linux_dmabuf_feedback_v1_interface feedback_implementation = {
 };
 
 
-void send_main_device(WaylandResource* resource){
-
-  struct wl_array device_array;
-  wl_array_init(&device_array);
-  
-  //uint64_t main_device_id = dup(compositor.gpu_fd);
-  uint64_t *device_id_ptr = wl_array_add(&device_array, sizeof(uint64_t));
- 
-  *device_id_ptr = (uint64_t)main_device_id;
 
 
-  zwp_linux_dmabuf_feedback_v1_send_main_device(resource, &device_array);
-
-  
-  wl_array_release(&device_array);
-
-}
-
-void send_surface_feedback(WaylandResource *resource){
-
-  struct wl_array device_array;
-  wl_array_init(&device_array);
-  
-  //uint64_t main_device_id = dup(compositor.gpu_fd);
-  uint64_t *device_id_ptr = wl_array_add(&device_array, sizeof(uint64_t));
- 
-  *device_id_ptr = (uint64_t)main_device_id;
-
-  zwp_linux_dmabuf_feedback_v1_send_main_device(resource, &device_array);
-
-  send_format_table(resource);
-
-  zwp_linux_dmabuf_feedback_v1_send_tranche_target_device(resource,
-                                                          &device_array);
-
-  wl_array_release(&device_array);
-
-  zwp_linux_dmabuf_feedback_v1_send_tranche_flags(resource, 0);
-
-  send_supported_formats_indices(resource);
-
-  zwp_linux_dmabuf_feedback_v1_send_tranche_done(resource);
-
-
-  zwp_linux_dmabuf_feedback_v1_send_done(resource);
-
-}
-
-void send_dmabuf_feedback(struct wl_resource *resource) {
+void send_feedback(WaylandResource *resource){
   struct wl_array device_array;
   wl_array_init(&device_array);
   
@@ -198,12 +174,15 @@ void send_dmabuf_feedback(struct wl_resource *resource) {
 
 }
 
+
 void get_feedback(WaylandClient *client, WaylandResource *resource,
     uint32_t id) {
 
   printf("Sending feed back\n");
 
-  
+
+  init_format_table();
+
   WaylandResource *feedback =
       wl_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface,
                          wl_resource_get_version(resource), id);
@@ -215,7 +194,7 @@ void get_feedback(WaylandClient *client, WaylandResource *resource,
   wl_resource_set_implementation(feedback, &feedback_implementation,
                                  &compositor, NULL);
 
-  send_dmabuf_feedback(feedback);
+  send_feedback(feedback);
 
   printf("Sent feed back\n");
 
@@ -248,7 +227,7 @@ void get_surface_feedback(WaylandClient *client,
   wl_resource_set_implementation(feedback, &feedback_implementation,
                                  surface, NULL);
   
-  send_surface_feedback(feedback);
+  send_feedback(feedback);
 
   printf("Sent surface feedback\n");
 

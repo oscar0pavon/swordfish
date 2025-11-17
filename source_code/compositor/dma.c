@@ -109,8 +109,9 @@ const struct zwp_linux_buffer_params_v1_interface params_implementation = {
     .destroy = params_destroy,
     .add = params_add,
     .create = params_create,
-    .create_immed = linux_dmabuf_create_immed, // <-- The critical function
+    .create_immed = linux_dmabuf_create_immed
 };
+
 void destroy_params_handler(struct wl_resource *resource) {
     DMABuffer *params = wl_resource_get_user_data(resource);
     
