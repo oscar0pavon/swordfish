@@ -7,7 +7,7 @@ CLINKS += -lseat -lEGL -lGLESv2
 CFLAGS := -g
 
 CFLAGS_ENGINE := $(CFLAGS) -I/root/swordfish/source_code -I/usr/include/libdrm -I/usr/include
-CFLAGS_ENGINE += -DCGLM_FORCE_DEPTH_ZERO_TO_ONE -DCGLM_FORCE_LEFT_HANDED
+CFLAGS_RENDERER += -DCGLM_FORCE_DEPTH_ZERO_TO_ONE -DCGLM_FORCE_LEFT_HANDED
 
 compositor_src := $(wildcard ./compositor/*.c)
 compositor_objs := $(compositor_src:%.c=%.o)
@@ -34,10 +34,10 @@ swordfish: $(OBJS) shaders
 	cc $(CFLAGS_ENGINE) -o $@ -c $<
 
 ./engine/%.o: ./engine/%.c
-	cc $(CFLAGS_ENGINE) -o $@ -c $<
+	cc $(CFLAGS_ENGINE)  $(CFLAGS_RENDERER) -o $@ -c $<
 
 ./renderer/%.o: ./renderer/%.c
-	cc $(CFLAGS_ENGINE) -o $@ -c $<
+	cc $(CFLAGS_ENGINE) $(CFLAGS_RENDERER) -o $@ -c $<
 
 shaders: shaders/red.frag shaders/model_view_projection.vert
 	glslc shaders/red.frag -o ../shaders/red_frag.spv
