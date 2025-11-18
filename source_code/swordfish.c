@@ -28,7 +28,7 @@ PModel main_cube;
 PModel secondary_cube;
 PModel background;
 
-PModel quad_model;
+PModel text_model;
 
 Camera main_camera;
 
@@ -90,6 +90,31 @@ void draw_textured_model(PModel* model, VkCommandBuffer* cmd_buffer, u32 index){
   pe_vk_draw_model(&draw);
 }
 
+
+void draw_surface(SwordfishSurface* surface, VkCommandBuffer *cmd_buffer, uint32_t index){
+
+  pe_2d_draw(&surface->model, index, VEC2(0,0), VEC2(surface->image->width,surface->image->heigth));
+
+  pe_vk_descriptor_update(&surface->model);
+  //TODO draw images
+
+  PDrawModelCommand draw = {
+    .model = &surface->model,
+    .command_buffer = *cmd_buffer,
+    .image_index = index,
+    .layout = pe_vk_pipeline_layout3
+  };
+  pe_vk_draw_model(&draw);
+
+}
+
+void draw_surfaces(VkCommandBuffer* command, uint32_t index){
+  for (int i = 0; i < surface_to_draw.count; i++){
+    SwordfishSurface* surface = array_get_pointer(&surface_to_draw, i);
+    draw_surface(surface, command, index);
+  }
+}
+
 void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
 
   //main cube
@@ -112,19 +137,21 @@ void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
   draw_textured_model(&background, cmd_buffer, index);
 
   //quad
-  pe_2d_draw(&quad_model, index, VEC2(0,0), VEC2(1,1));
+  pe_2d_draw(&text_model, index, VEC2(0,0), VEC2(1,1));
 
-  pe_vk_descriptor_update(&quad_model);
+  pe_vk_descriptor_update(&text_model);
+
+  pe_vk_descriptor_with_image_update(&text_model);
 
   PDrawModelCommand draw_quad = {
-    .model = &quad_model,
+    .model = &text_model,
     .command_buffer = *cmd_buffer,
     .image_index = index,
     .layout = pe_vk_pipeline_layout3
   };
   pe_vk_draw_model(&draw_quad);
 
-  draw_surfaces();
+  draw_surfaces(cmd_buffer, index);
 }
 
 
@@ -161,7 +188,7 @@ void swordfish_init(){
 
 
   pe_vk_create_texture(&secondary_cube.texture, "/usr/libexec/swordfish/images/bits.png");
-  pe_vk_create_texture(&quad_model.texture, "/usr/libexec/swordfish/images/font.png");
+  pe_vk_create_texture(&text_model.texture, "/usr/libexec/swordfish/images/font.png");
   pe_vk_create_texture(&background.texture, "/usr/libexec/swordfish/images/background1.png");
 
   pe_vk_model_load(&main_cube, "/usr/libexec/swordfish/models/wireframe_cube.glb");
@@ -200,11 +227,11 @@ void swordfish_init(){
 
   pe_2d_init();
   //pe_2d_create_quad_geometry(&quad_model);
-  pe_2d_create_text_geometry(&quad_model,"main.o input.o window.o", 24);
+  pe_2d_create_text_geometry(&text_model,"main.o input.o window.o", 24);
 
   PCreateShaderInfo quad_shader = {
       .transparency = true,
-      .out_pipeline = &quad_model.pipeline,
+      .out_pipeline = &text_model.pipeline,
       .vertex_path = "/usr/libexec/swordfish/shaders/dimention_2d_vert.spv",
       .fragment_path = "/usr/libexec/swordfish/shaders/texture_frag.spv",
       .layout = pe_vk_pipeline_layout3

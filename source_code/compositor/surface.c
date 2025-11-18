@@ -12,6 +12,9 @@
 #include "dma.h"
 #include "engine/array.h"
 #include "engine/images.h"
+#include "engine/engine2d.h"
+#include "renderer/pipeline.h"
+#include "renderer/descriptor_set.h"
 
 Array surface_to_draw;
 
@@ -52,13 +55,6 @@ void surface_attach(WaylandClient *client, WaylandResource *resource,
   printf("Surface attach\n");
 }
 
-void draw_surfaces(void){
-  for (int i = 0; i < surface_to_draw.count; i++){
-    SwordfishSurface* surface = array_get_pointer(&surface_to_draw, i);
-    
-    //printf("Go image with %i %i\n", surface->image->width, surface->image->heigth);
-  }
-}
 
 
 void surface_commit(WaylandClient *client, WaylandResource *resource) {
@@ -114,6 +110,19 @@ void create_surface(WaylandClient *client, WaylandResource *resource,
 
   SwordfishCompositor *compositor = wl_resource_get_user_data(resource);
   SwordfishSurface *surface = calloc(1, sizeof(SwordfishSurface));
+
+
+  pe_2d_create_quad_geometry(&surface->model);
+
+  PCreateShaderInfo quad_shader = {
+      .transparency = true,
+      .out_pipeline = &surface->model.pipeline,
+      .vertex_path = "/usr/libexec/swordfish/shaders/dimention_2d_vert.spv",
+      .fragment_path = "/usr/libexec/swordfish/shaders/texture_frag.spv",
+      .layout = pe_vk_pipeline_layout3
+  };
+  pe_vk_create_shader(&quad_shader);
+
 
   if (!surface) {
     printf("Can't create wayland surface\n");

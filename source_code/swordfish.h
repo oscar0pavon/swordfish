@@ -5,7 +5,7 @@
 #include "renderer/vulkan.h"
 
 extern PModel main_cube;
-extern PModel quad_model;
+extern PModel text_model;
 extern PModel secondary_cube;
 
 extern Camera main_camera;

@@ -178,7 +178,7 @@ void pe_2d_init_vulkan_buffers(PModel* model){
   pe_vk_descriptor_pool_create(model);
 
   pe_vk_create_descriptor_sets(model, pe_vk_descriptor_set_layout_with_texture);
-  pe_vk_descriptor_with_image_update(model);
+  //pe_vk_descriptor_with_image_update(model);//TODO
 }
 
 void pe_2d_create_quad_geometry(PModel* model){

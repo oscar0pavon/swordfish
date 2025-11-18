@@ -8,6 +8,7 @@
 #include <libseat.h>
 #include "dma.h"
 #include "engine/images.h"
+#include "engine/model.h"
 
 typedef struct wl_resource WaylandResource;
 typedef struct wl_client WaylandClient;
@@ -32,6 +33,7 @@ typedef struct SwordfishSurface{
     SwordfishCompositor *compositor;
     WaylandResource * frame_call_resource;
     PTexture *image;
+    PModel model;//quad vertices
     struct wl_list link;
     int32_t x,y;
 }SwordfishSurface;

@@ -11,6 +11,5 @@ void create_surface(WaylandClient *client, WaylandResource *resource,
                    uint32_t id);
 
 
-void draw_surfaces(void);
 
 #endif
