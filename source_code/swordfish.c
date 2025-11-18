@@ -143,13 +143,13 @@ void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
 
   pe_vk_descriptor_with_image_update(&text_model);
 
-  PDrawModelCommand draw_quad = {
-    .model = &text_model,
-    .command_buffer = *cmd_buffer,
-    .image_index = index,
-    .layout = pe_vk_pipeline_layout3
-  };
-  pe_vk_draw_model(&draw_quad);
+  // PDrawModelCommand draw_quad = {
+  //   .model = &text_model,
+  //   .command_buffer = *cmd_buffer,
+  //   .image_index = index,
+  //   .layout = pe_vk_pipeline_layout3
+  // };
+  // pe_vk_draw_model(&draw_quad);
 
   draw_surfaces(cmd_buffer, index);
 }
