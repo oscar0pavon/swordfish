@@ -6,6 +6,10 @@
 #include <stdint.h>
 #include <vulkan/vulkan_core.h>
 
+typedef struct PImportImageInfo{
+  VkImportMemoryFdInfoKHR info; 
+  uint32_t file_descriptor;
+}PImportImageInfo;
 
 typedef struct PImageCreateInfo {
   uint32_t width;
@@ -18,11 +22,15 @@ typedef struct PImageCreateInfo {
   PTexture* texture;
   VkSampleCountFlagBits number_of_samples;
   bool is_exportable;
+  bool is_importable;
+  PImportImageInfo import;
 } PImageCreateInfo;
 
 
 extern VkImageView pe_vk_depth_image_view;
 
+void pe_vk_import_image(PTexture *new_texture, uint32_t witdh, uint32_t height,
+                        uint32_t file_descriptor);
 
 void pe_vk_create_texture(PTexture* new_texture, const char* path);
 

@@ -229,6 +229,12 @@ void pe_vk_create_image(PImageCreateInfo *info) {
       external_info.pNext = NULL;
       external_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
   }
+  if(info->is_importable){
+    info->import.info.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR;
+    info->import.info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+    info->import.info.fd = info->import.file_descriptor;
+    info->import.info.pNext = NULL;
+  }
 
   VkImageCreateInfo image_info = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
                                   .imageType = VK_IMAGE_TYPE_2D,
@@ -270,6 +276,9 @@ void pe_vk_create_image(PImageCreateInfo *info) {
 
   if(info->is_exportable){
     info_alloc.pNext = &export_memory_info;
+  }
+  if(info->is_importable){
+    info_alloc.pNext = &info->import.info;
   }
 
   VKVALID(
@@ -434,6 +443,28 @@ void pe_vk_create_exportable_images(){
     pe_vk_create_image(&image_create_info);
 
   }
+}
+
+void pe_vk_import_image(PTexture *new_texture, uint32_t witdh, uint32_t height,
+                        uint32_t file_descriptor) {
+  VkFormat format = VK_FORMAT_B8G8R8A8_SNORM;
+
+  PImageCreateInfo image_create_info = {
+      .is_exportable = false,
+      .width = witdh,
+      .height = height,
+      .texture = new_texture,
+      .format = format, 
+      .tiling = VK_IMAGE_TILING_OPTIMAL,
+      .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+      .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+      .number_of_samples = VK_SAMPLE_COUNT_1_BIT};
+
+  pe_vk_create_image(&image_create_info);
+
+  new_texture->image_view = pe_vk_create_image_view(new_texture->image, format,
+                                                    VK_IMAGE_ASPECT_COLOR_BIT,
+                                                    new_texture->mip_level);
 }
 
 void pe_vk_create_texture(PTexture* new_texture, const char* path) {

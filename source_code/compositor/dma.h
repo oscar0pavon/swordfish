@@ -3,7 +3,24 @@
 
 #include <stdint.h>
 
-#include "linux-dmabuf.h"
+#include "renderer/vk_images.h"
+
+
+typedef struct wl_client WaylandClient;
+
+#define MAX_DMA_PLANES 4
+typedef struct DMABuffer{
+    WaylandClient *client;
+    PTexture image;
+    int32_t fds[MAX_DMA_PLANES];
+    uint32_t offsets[MAX_DMA_PLANES];
+    uint32_t strides[MAX_DMA_PLANES];
+    uint64_t modifiers[MAX_DMA_PLANES];
+    uint32_t width;
+    uint32_t height;
+    uint32_t format;
+    int num_planes;
+}DMABuffer;
 
 extern uint64_t main_device_id;
 

@@ -6,29 +6,18 @@
 #include <wayland-server-core.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include "engine/images.h"
 #include "feedback.h"
 #include "swordfish.h"
 #include "direct_render.h"
-
+#include "linux-dmabuf.h"
 #include "compositor.h"
 
 uint64_t main_device_id;
 
-#define MAX_DMA_PLANES 4
 
 static struct zwp_linux_dmabuf_v1_interface dmabuf_data;
       
-typedef struct DMABuffer{
-    WaylandClient *client;
-    int32_t fds[MAX_DMA_PLANES];
-    uint32_t offsets[MAX_DMA_PLANES];
-    uint32_t strides[MAX_DMA_PLANES];
-    uint64_t modifiers[MAX_DMA_PLANES];
-    uint32_t width;
-    uint32_t height;
-    uint32_t format;
-    int num_planes;
-}DMABuffer;
 
 uint64_t get_drm_device_id(const char *device_path) {
     struct stat st;
@@ -105,6 +94,8 @@ struct wl_buffer_interface buffer_implementation = {
   .destroy = destroy_buffer_immd
 };
 
+PTexture image;
+
 void linux_dmabuf_create_immed(WaylandClient *client,
                                WaylandResource *resource,
                                uint32_t buffer_id, 
@@ -117,8 +108,8 @@ void linux_dmabuf_create_immed(WaylandClient *client,
   buffer->height = height;
   buffer->format = format;
 
- 
-  printf("TODO use files descriptor in Vulkan\n");
+  image.width = width;
+  image.heigth = height;
 
 
   WaylandResource* buffer_resource = 
@@ -127,6 +118,11 @@ void linux_dmabuf_create_immed(WaylandClient *client,
 
   wl_resource_set_implementation(buffer_resource, &buffer_implementation, NULL,
                                  NULL);
+
+  printf("Creatig buffer with %i %i\n", width, height);
+  pe_vk_import_image(&image, width, height, buffer->fds[0]);
+
+  wl_resource_set_user_data(buffer_resource, &image);
 
   //finish
   for (int i = 0; i < buffer->num_planes; i++) {
@@ -158,9 +154,8 @@ void destroy_params_handler(struct wl_resource *resource) {
     printf("Destroy params\n");
 }
 
-void swordfish_create_params(struct wl_client *client, 
-                          struct wl_resource *resource, 
-                          uint32_t id) {
+void swordfish_create_params(WaylandClient *client, WaylandResource *resource,
+                             uint32_t id) {
 
   printf("Received create_params request. Creating new buffer_params resource ID: %u\n", id);
 
@@ -186,8 +181,6 @@ void swordfish_create_params(struct wl_client *client,
 
   printf("Created params\n");
 }
-
-
 
 static void destroy_dmabuf_resource(struct wl_resource *resource) {
     // You can retrieve and free any user data attached to this resource if necessary

@@ -1,4 +1,6 @@
 #include "swordfish.h"
+#include "compositor/compositor.h"
+#include "compositor/surface.h"
 #include "engine/array.h"
 #include <engine/model.h>
 
@@ -122,6 +124,7 @@ void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
   };
   pe_vk_draw_model(&draw_quad);
 
+  draw_surfaces();
 }
 
 
@@ -155,7 +158,8 @@ void load_textured_model(PModel* model, const char* path){
 }
 
 void swordfish_init(){
- 
+
+
   pe_vk_create_texture(&secondary_cube.texture, "/usr/libexec/swordfish/images/bits.png");
   pe_vk_create_texture(&quad_model.texture, "/usr/libexec/swordfish/images/font.png");
   pe_vk_create_texture(&background.texture, "/usr/libexec/swordfish/images/background1.png");

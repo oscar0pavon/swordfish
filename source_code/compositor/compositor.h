@@ -6,6 +6,8 @@
 #include <wayland-server.h>
 #include "desktop-server.h"
 #include <libseat.h>
+#include "dma.h"
+#include "engine/images.h"
 
 typedef struct wl_resource WaylandResource;
 typedef struct wl_client WaylandClient;
@@ -29,7 +31,7 @@ typedef struct SwordfishSurface{
     WaylandResource *resource;
     SwordfishCompositor *compositor;
     WaylandResource * frame_call_resource;
-    struct wl_buffer *buffer;
+    PTexture *image;
     struct wl_list link;
     int32_t x,y;
 }SwordfishSurface;

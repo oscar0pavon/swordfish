@@ -4,6 +4,7 @@
 
 #include "numbers.h"
 #include <stdbool.h>
+#include <stdint.h>
 #include "renderer/vulkan.h"
 
 typedef struct PImage{
@@ -22,6 +23,8 @@ typedef struct PTexture{
     VkSampler sampler;
     VkImageView image_view;
     int memory_file_descriptor;
+    uint32_t width;
+    uint32_t heigth;
 }PTexture;
 
 int pe_load_image(const char* path, PImage* image);

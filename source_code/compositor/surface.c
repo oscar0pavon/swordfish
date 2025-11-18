@@ -9,6 +9,11 @@
 #include <wayland-server-core.h>
 #include <wayland-server-protocol.h>
 #include <wayland-util.h>
+#include "dma.h"
+#include "engine/array.h"
+#include "engine/images.h"
+
+Array surface_to_draw;
 
 static void surface_damage(WaylandClient *client, WaylandResource *resource,
                            int32_t x, int32_t y, int32_t width,
@@ -30,27 +35,41 @@ void send_frame_callback_done(SwordfishSurface *surface){
   surface->frame_call_resource = NULL;
 }
 
-static void surface_attach(WaylandClient *client, WaylandResource *resource,
+void surface_attach(WaylandClient *client, WaylandResource *resource,
                            WaylandResource *buffer_resource, int32_t x,
                            int32_t y) {
+
   SwordfishSurface *surface = wl_resource_get_user_data(resource);
-  // Store the pending buffer and offsets. This is not the "live" buffer yet.
-  surface->buffer = wl_resource_get_user_data(buffer_resource);
+
+  PTexture *image_buffer = wl_resource_get_user_data(buffer_resource);
+
+  printf("Go image with %i %i\n", image_buffer->width, image_buffer->heigth);
+  surface->image = image_buffer;
+
   surface->x = x;
   surface->y = y;
-  // Note: If buffer_resource is NULL, the client wants to detach the buffer.
+
   printf("Surface attach\n");
 }
 
+void draw_surfaces(void){
+  for (int i = 0; i < surface_to_draw.count; i++){
+    SwordfishSurface* surface = array_get_pointer(&surface_to_draw, i);
+    
+    //printf("Go image with %i %i\n", surface->image->width, surface->image->heigth);
+  }
+}
 
-static void surface_commit(WaylandClient *client, WaylandResource *resource) {
+
+void surface_commit(WaylandClient *client, WaylandResource *resource) {
+
   SwordfishSurface *surface = wl_resource_get_user_data(resource);
 
 
+  array_add_pointer(&surface_to_draw, surface);
 
 
   printf("Surface committed! Ready to draw.\n");
-  send_frame_callback_done(surface);
 }
 
 
@@ -63,6 +82,7 @@ void handle_frame(WaylandClient *client, WaylandResource *resource, uint32_t cal
 
   if (!callback_resource) {
     wl_client_post_no_memory(client);
+    printf("Can't creat frame callback resource\n");
     return;
   }
 

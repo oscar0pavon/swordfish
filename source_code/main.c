@@ -10,6 +10,8 @@
 
 #include "compositor/egl.h"
 #include "compositor/seat.h"
+#include "compositor/surface.h"
+#include "engine/array.h"
 #include "swordfish.h"
 
 #include "buffers.h"
@@ -59,7 +61,11 @@ void handle_signal(int sig_num) {
 int main(){
   signal(SIGINT, handle_signal);
 
-  pe_vk_validation_layer_enable = false;
+  pe_init_memory();
+  
+  array_init(&surface_to_draw, 50, sizeof(void*)); 
+
+  pe_vk_validation_layer_enable = true;
 
 
 
@@ -102,7 +108,7 @@ int main(){
 
   //graphics stuff
   // For pengine - Vulkan Rendering
-  pe_init_memory();
+
 
   camera_init(&main_camera);
 
@@ -125,12 +131,14 @@ int main(){
 
     //start_render_time();
 
+
     pe_vk_draw_frame();
 
     usleep(16667);//16.6ms
     update_delta_time();
     
     //delay_render_time();
+    //array_clean(&surface_to_draw);
   }
 
 finish:
