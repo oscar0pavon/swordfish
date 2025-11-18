@@ -139,6 +139,7 @@ int main(){
     
     //delay_render_time();
     //array_clean(&surface_to_draw);
+    sleep(2);
   }
 
 finish:

@@ -3,6 +3,7 @@
 #include "commands.h"
 #include "engine/images.h"
 #include "images_view.h"
+#include "renderer/direct_memory_access.h"
 #include "swap_chain.h"
 #include "vk_buffer.h"
 #include "vk_memory.h"
@@ -14,7 +15,9 @@
 #include <stdalign.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
+#include <unistd.h>
 #include <vulkan/vulkan_core.h>
 #include <wchar.h>
 #include <wctype.h>
@@ -198,6 +201,18 @@ void pe_vk_copy_image(VkImage source, VkImage destination) {
   pe_vk_end_single_time_cmd(command);
 }
 
+void pe_vk_handle_error(VkResult result) {
+
+  if (result == VK_ERROR_OUT_OF_HOST_MEMORY) {
+    fprintf(stderr, "Error: Host memory exhausted.\n");
+  } else if (result == VK_ERROR_OUT_OF_DEVICE_MEMORY) {
+    fprintf(stderr, "Error: GPU memory exhausted.\n");
+  } else if (result == VK_ERROR_INVALID_EXTERNAL_HANDLE_KHR) {
+    fprintf(stderr,
+            "Error: Invalid FD provided by client, handle is invalid.\n");
+  }
+}
+
 void pe_vk_image_copy_buffer(VkBuffer buffer, VkImage image, uint32_t width,
                              uint32_t height) {
   VkCommandBuffer command = pe_vk_begin_single_time_cmd();
@@ -225,19 +240,14 @@ void pe_vk_create_image(PImageCreateInfo *info) {
   }
 
   VkExternalMemoryImageCreateInfo external_info = {};
-  if(info->is_exportable){
+  VkMemoryDedicatedAllocateInfo dedicate_info = {};
+  if(info->is_exportable || info->is_importable){
       external_info.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
-      external_info.pNext = NULL;
+      external_info.pNext = info->pNext;
       external_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+
   }
   
-  if(info->is_importable){
-    info->import.info.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR;
-    info->import.info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
-    info->import.info.fd = info->import.file_descriptor;
-    info->import.info.pNext = NULL;
-  }
-
   VkImageCreateInfo image_info = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
                                   .imageType = VK_IMAGE_TYPE_2D,
                                   .extent.width = info->width,
@@ -252,7 +262,7 @@ void pe_vk_create_image(PImageCreateInfo *info) {
                                   .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
                                   .samples = info->number_of_samples};
 
-  if(info->is_exportable){
+  if(info->is_exportable || info->is_importable){
     image_info.pNext = &external_info;
   }
 
@@ -268,6 +278,7 @@ void pe_vk_create_image(PImageCreateInfo *info) {
     export_memory_info.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
     export_memory_info.pNext = NULL;
     export_memory_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+
   }
 
   printf("Memory rquirement size %li \n",memory_requirements.size);
@@ -282,18 +293,30 @@ void pe_vk_create_image(PImageCreateInfo *info) {
   }
 
   if(info->is_importable){
-
+    printf("File descriptr %i\n", info->import.file_descriptor);
     info->import.info.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR;
     info->import.info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
     info->import.info.fd = info->import.file_descriptor;
     info->import.info.pNext = NULL;
 
-    info_alloc.pNext = &info->import.info;
+    
+    dedicate_info.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
+    dedicate_info.pNext = &info->import.info;
+    dedicate_info.image = info->texture->image;
+    dedicate_info.buffer = NULL;
+    
+    info_alloc.pNext = &dedicate_info;
   }
 
-  VKVALID(
-      vkAllocateMemory(vk_device, &info_alloc, NULL, &info->texture->memory),
-      "Can't allocate memory for image");
+  VkResult memory_allocation_result;
+
+   memory_allocation_result = vkAllocateMemory(vk_device, &info_alloc, NULL, &info->texture->memory);
+   if(memory_allocation_result != VK_SUCCESS){
+      printf("Can't allocate memory for image\n");
+      pe_vk_handle_error(memory_allocation_result);
+      sleep(2);
+      exit(-1);   
+   }
 
   vkBindImageMemory(vk_device, info->texture->image, info->texture->memory, 0);
 
@@ -456,22 +479,33 @@ void pe_vk_create_exportable_images(){
 }
 
 void pe_vk_import_image(PTexture *new_texture, uint32_t witdh, uint32_t height,
-                        uint32_t file_descriptor) {
-  VkFormat format = VK_FORMAT_B8G8R8A8_SNORM;
+                        uint32_t file_descriptor, uint64_t modifier) {
+
+  VkFormat format = VK_FORMAT_B8G8R8A8_UNORM;
+
+  //format = find_compatible_external_format(vk_physical_device);
 
   new_texture->mip_level = 1;
+  VkImageDrmFormatModifierListCreateInfoEXT modifier_list_info = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT,
+      .pNext = NULL,
+      .drmFormatModifierCount = 1,
+      .pDrmFormatModifiers = &modifier,
+  };
 
   PImageCreateInfo image_create_info = {
       .is_exportable = false,
-      .is_importable= true,
+      .is_importable = true,
       .width = witdh,
       .height = height,
       .texture = new_texture,
-      .format = format, 
-      .tiling = VK_IMAGE_TILING_OPTIMAL,
+      .format = format,
+      .tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT,
       .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
       .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-      .number_of_samples = VK_SAMPLE_COUNT_1_BIT};
+      .number_of_samples = VK_SAMPLE_COUNT_1_BIT,
+      .import.file_descriptor = file_descriptor, 
+      .pNext = &modifier_list_info};
 
   pe_vk_create_image(&image_create_info);
 

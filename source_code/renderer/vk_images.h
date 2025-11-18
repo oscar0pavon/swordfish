@@ -24,13 +24,13 @@ typedef struct PImageCreateInfo {
   bool is_exportable;
   bool is_importable;
   PImportImageInfo import;
+  const void *pNext;
 } PImageCreateInfo;
-
 
 extern VkImageView pe_vk_depth_image_view;
 
 void pe_vk_import_image(PTexture *new_texture, uint32_t witdh, uint32_t height,
-                        uint32_t file_descriptor);
+                        uint32_t file_descriptor, uint64_t modifier);
 
 void pe_vk_create_texture(PTexture* new_texture, const char* path);
 

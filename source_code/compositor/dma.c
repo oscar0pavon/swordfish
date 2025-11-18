@@ -6,6 +6,7 @@
 #include <wayland-server-core.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 #include "engine/images.h"
 #include "feedback.h"
 #include "swordfish.h"
@@ -60,7 +61,13 @@ void params_add(WaylandClient *client,
                            "Plane already added");
     return;
   }
-
+  if (fd == -1 || fcntl(fd, F_GETFL) == -1) {
+    perror("Received an invalid or closed FD from client");
+    wl_resource_post_error(resource,
+                           ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT,
+                           "Received invalid FD");
+    return;
+  }
   params->fds[plane_idx] = fd;
   params->offsets[plane_idx] = offset;
   params->strides[plane_idx] = stride;
@@ -120,7 +127,8 @@ void linux_dmabuf_create_immed(WaylandClient *client,
                                  NULL);
 
   printf("Creatig buffer with %i %i\n", width, height);
-  pe_vk_import_image(&image, width, height, buffer->fds[0]);
+  printf("Buffer fd[0]=%i\n",buffer->fds[0]);
+  pe_vk_import_image(&image, width, height, buffer->fds[0], buffer->modifiers[0]);
 
   wl_resource_set_user_data(buffer_resource, &image);
 
