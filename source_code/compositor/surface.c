@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <wayland-server-core.h>
+#include <wayland-server-protocol.h>
 #include <wayland-util.h>
 
 static void surface_damage(WaylandClient *client, WaylandResource *resource,
@@ -44,11 +45,34 @@ static void surface_commit(WaylandClient *client, WaylandResource *resource) {
   printf("Surface committed! Ready to draw.\n");
 }
 
+void send_frame_callback_done(SwordfishSurface *surface){
+  wl_callback_send_done(surface->frame_call_resource, 1);
+  wl_resource_destroy(surface->frame_call_resource);
+  surface->frame_call_resource = NULL;
+}
+
+void handle_frame(WaylandClient *client, WaylandResource *resource, uint32_t callback_id){
+
+  printf("Client requested frame callback with ID %u\n", callback_id);
+
+  WaylandResource *callback_resource = 
+    wl_resource_create(client, &wl_callback_interface, 1, callback_id);
+
+  if (!callback_resource) {
+    wl_client_post_no_memory(client);
+    return;
+  }
+
+  SwordfishSurface *surface = wl_resource_get_user_data(resource);
+  surface->frame_call_resource = callback_resource;
+
+}
+
 const struct wl_surface_interface surface_implementation = {
     .destroy = surface_destroy,
     .attach = surface_attach,
     .damage = surface_damage,
-    .frame = NULL, // Implement wl_surface.frame for VSync callbacks
+    .frame = handle_frame, 
     .set_opaque_region = NULL,
     .set_input_region = NULL,
     .commit = surface_commit,

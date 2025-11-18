@@ -28,6 +28,7 @@ typedef struct SwordfishCompositor{
 typedef struct SwordfishSurface{
     WaylandResource *resource;
     SwordfishCompositor *compositor;
+    WaylandResource * frame_call_resource;
     struct wl_buffer *buffer;
     struct wl_list link;
     int32_t x,y;

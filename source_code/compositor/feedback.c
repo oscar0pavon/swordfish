@@ -13,6 +13,7 @@
 #include <fcntl.h>
 #include <drm/drm_fourcc.h>
 #include <string.h>
+#include <wayland-server-protocol.h>
 #include "linux-dmabuf.h"
 
 typedef struct FormatTable {
@@ -216,18 +217,19 @@ void get_feedback(WaylandClient *client, WaylandResource *resource,
 }
 
 void get_surface_feedback(WaylandClient *client, WaylandResource *resource,
-                          uint32_t id, WaylandResource *surface) {
+                          uint32_t id, WaylandResource *surface_resource) {
 
   printf("Get surface feedback\n");
 
-  if (!surface) {
-    fprintf(stderr, "ERROR: Client sent get_surface_feedback with NULL surface "
-                    "resource. Terminating client connection.\n");
 
-    wl_resource_post_error(resource, 7,
-                           "Cannot get feedback for a NULL surface.");
-    return;
-  }
+  // if (!surface) {
+  //   fprintf(stderr, "ERROR: Client sent get_surface_feedback with NULL surface "
+  //                   "resource. Terminating client connection.\n");
+  //
+  //   wl_resource_post_error(resource, 7,
+  //                          "Cannot get feedback for a NULL surface.");
+  //   return;
+  // }
 
   WaylandResource *feedback =
       wl_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface,
@@ -237,9 +239,9 @@ void get_surface_feedback(WaylandClient *client, WaylandResource *resource,
     return;
   }
 
-  wl_resource_set_user_data(feedback, surface);
+  wl_resource_set_user_data(feedback, surface_resource);
 
-  wl_resource_set_implementation(feedback, &surface_feedback_implementation, surface,
+  wl_resource_set_implementation(feedback, &surface_feedback_implementation, &compositor,
                                  NULL);
 
   send_feedback(feedback);

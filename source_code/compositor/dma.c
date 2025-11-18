@@ -15,7 +15,7 @@ uint64_t main_device_id;
 
 #define MAX_DMA_PLANES 4
 
-struct zwp_linux_dmabuf_v1_interface dmabuf_data;
+static struct zwp_linux_dmabuf_v1_interface dmabuf_data;
       
 typedef struct DMABuffer{
     WaylandClient *client;
@@ -188,10 +188,10 @@ void bind_dma(WaylandClient *client, void *data, uint32_t version,
     return;
   }
   
+  dmabuf_data.destroy = destry_dma;
   dmabuf_data.create_params = swordfish_create_params;
   dmabuf_data.get_default_feedback = get_feedback;
   dmabuf_data.get_surface_feedback = get_surface_feedback;
-  dmabuf_data.destroy = destry_dma;
 
 
   wl_resource_set_implementation(resource, &dmabuf_data, NULL, destroy_dmabuf_resource);
