@@ -67,26 +67,27 @@ int main(){
     is_drm_rendering = true;
 
     compositor.gpu_path = "/dev/dri/card0";
-
-    init_seat();
+    
+    //we can use seat but with vulkan not for now
+    //init_seat();
   }
 
-  init_buffers();
 
   if(is_opengl){
-    
+    //only for get gpu supported format just like an one time util app 
     //get_drm_support_format();
 
-    init_egl();
-  }
+    init_buffers();
 
-  if(is_drm_rendering)
-    init_direct_render();
+    init_egl();
+    //we use drm to draw with EGL
+    if(is_drm_rendering)
+      init_direct_render();
+  }
 
   pthread_t compositor_thread_id;
   pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
   
-  pe_init_memory();
 
   pthread_t input_thread_id;
   pthread_create(&input_thread_id, NULL, handle_input, NULL);
@@ -94,11 +95,15 @@ int main(){
 
   if(is_opengl){
     draw_with_egl();
+    //we finish otherwise vulkan will be initialized
     goto finish; 
   }
 
+
   //graphics stuff
-  
+  // For pengine - Vulkan Rendering
+  pe_init_memory();
+
   camera_init(&main_camera);
 
   //camera_set_position(&main_camera, VEC3(-10,0,0));
@@ -107,12 +112,6 @@ int main(){
 
   pe_vk_init();
   
-  if(is_drm_rendering){
-    // getchar();
-    // clean_drm(); 
-    // return EXIT_SUCCESS;
-  }
-
   swordfish_init();
 
   pthread_t make_thread_id;
@@ -124,10 +123,7 @@ int main(){
     if(compositor.gpu_fd < 0)
       continue;
 
-    //if(is_drm_rendering)
-      //check_libseat();
     //start_render_time();
-    
 
     pe_vk_draw_frame();
 
