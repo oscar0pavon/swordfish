@@ -13,6 +13,7 @@
 #include <math.h>
 #include <stdalign.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <time.h>
 #include <vulkan/vulkan_core.h>
 #include <wchar.h>
@@ -229,6 +230,7 @@ void pe_vk_create_image(PImageCreateInfo *info) {
       external_info.pNext = NULL;
       external_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
   }
+  
   if(info->is_importable){
     info->import.info.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR;
     info->import.info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
@@ -268,6 +270,7 @@ void pe_vk_create_image(PImageCreateInfo *info) {
     export_memory_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
   }
 
+  printf("Memory rquirement size %li \n",memory_requirements.size);
   VkMemoryAllocateInfo info_alloc = {
       .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
       .allocationSize = memory_requirements.size,
@@ -277,7 +280,14 @@ void pe_vk_create_image(PImageCreateInfo *info) {
   if(info->is_exportable){
     info_alloc.pNext = &export_memory_info;
   }
+
   if(info->is_importable){
+
+    info->import.info.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR;
+    info->import.info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+    info->import.info.fd = info->import.file_descriptor;
+    info->import.info.pNext = NULL;
+
     info_alloc.pNext = &info->import.info;
   }
 
@@ -449,8 +459,11 @@ void pe_vk_import_image(PTexture *new_texture, uint32_t witdh, uint32_t height,
                         uint32_t file_descriptor) {
   VkFormat format = VK_FORMAT_B8G8R8A8_SNORM;
 
+  new_texture->mip_level = 1;
+
   PImageCreateInfo image_create_info = {
       .is_exportable = false,
+      .is_importable= true,
       .width = witdh,
       .height = height,
       .texture = new_texture,
@@ -461,6 +474,8 @@ void pe_vk_import_image(PTexture *new_texture, uint32_t witdh, uint32_t height,
       .number_of_samples = VK_SAMPLE_COUNT_1_BIT};
 
   pe_vk_create_image(&image_create_info);
+
+  pe_vk_create_texture_sampler(new_texture);
 
   new_texture->image_view = pe_vk_create_image_view(new_texture->image, format,
                                                     VK_IMAGE_ASPECT_COLOR_BIT,

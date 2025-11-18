@@ -96,7 +96,7 @@ void draw_surface(SwordfishSurface* surface, VkCommandBuffer *cmd_buffer, uint32
   pe_2d_draw(&surface->model, index, VEC2(0,0), VEC2(surface->image->width,surface->image->heigth));
 
   pe_vk_descriptor_update(&surface->model);
-  //TODO draw images
+  pe_vk_descriptor_with_image_update(&surface->model);//TODO
 
   PDrawModelCommand draw = {
     .model = &surface->model,

@@ -48,6 +48,7 @@ void surface_attach(WaylandClient *client, WaylandResource *resource,
 
   printf("Go image with %i %i\n", image_buffer->width, image_buffer->heigth);
   surface->image = image_buffer;
+  memcpy(&surface->model.texture, image_buffer, sizeof(PTexture));
 
   surface->x = x;
   surface->y = y;
