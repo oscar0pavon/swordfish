@@ -12,6 +12,8 @@
 #include "compositor/seat.h"
 #include "swordfish.h"
 
+#include "buffers.h"
+
 #include "engine/camera.h"
 #include "engine/engine2d.h"
 #include "engine/model.h"
@@ -36,7 +38,7 @@
 
 #include "build.h"
 
-bool is_opengl = true;
+bool is_opengl = false;
 
 void close_swordfish() {
   printf("Closing Swordfish\n");
@@ -60,8 +62,6 @@ int main(){
   pe_vk_validation_layer_enable = false;
 
 
-  run_compositor(NULL);
-  return EXIT_SUCCESS;
 
   if(!create_window()){
     is_drm_rendering = true;
@@ -71,6 +71,7 @@ int main(){
     init_seat();
   }
 
+  init_buffers();
 
   if(is_opengl){
     
@@ -82,8 +83,8 @@ int main(){
   if(is_drm_rendering)
     init_direct_render();
 
-  // pthread_t compositor_thread_id;
-  // pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
+  pthread_t compositor_thread_id;
+  pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
   
   pe_init_memory();
 

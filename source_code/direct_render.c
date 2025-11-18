@@ -5,10 +5,13 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
-#include "compositor/compositor.h"
 #include "tty.h"
+#include "buffers.h"
+#include "compositor/compositor.h"
 
 #include <engine/numbers.h>
+#include "swordfish.h"
+#include "window.h"
 
 #define DRM_DEVICE_PATH "/dev/dri/card0"
 
@@ -27,31 +30,13 @@ typedef struct PMonitor{
 KernelModeSettingDevice drm_device;
 
 drmModeCrtcPtr original_crtc;
-struct gbm_device* buffer_device;
+
 
 
 #define MAX_MONITOR 8
 PMonitor monitors[MAX_MONITOR] = {};
 u8 monitors_number = 0;
 
-struct gbm_bo *create_gbm_buffer(struct gbm_device *gbm_dev, int width, int height) {
-    uint32_t format = GBM_FORMAT_XRGB8888;
-    uint32_t usage = GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING;
-
-    struct gbm_bo *bo = gbm_bo_create(gbm_dev, width, height, format, usage);
-    if (!bo) {
-        fprintf(stderr, "Error creating GBM buffer object\n");
-    }
-    return bo;
-}
-
-struct gbm_device *create_gbm_device(int drm_file_descriptor) {
-    struct gbm_device *gbm_dev = gbm_create_device(drm_file_descriptor);
-    if (!gbm_dev) {
-        fprintf(stderr, "Error creating GBM device\n");
-    }
-    return gbm_dev;
-}
 
 /**
  * Helper function to find the ID of a property given its name.
@@ -342,21 +327,6 @@ void init_direct_render(void) {
   original_crtc = drmModeGetCrtc(drm_device.file_descriptor, original_crtc_id);
 
   
-  //buffer_device = create_gbm_device(drm_device.file_descriptor);
-
-  // struct gbm_bo* buffer;
-  // buffer = create_gbm_buffer(buffer_device, 1920, 1080);
-
-
-
-
-  
-
-
-  //drmModeRmFB(drm_device.file_descriptor, framebuffer_id);
-
-  //gbm_bo_destroy(buffer);
-
 
 }
 

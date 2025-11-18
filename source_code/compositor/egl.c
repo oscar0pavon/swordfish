@@ -24,6 +24,7 @@
 #include "direct_render.h"
 #include "swordfish.h"
 #include "window.h"
+#include "buffers.h"
 
 EGLDisplay egl_display;
 EGLContext egl_context;
@@ -31,27 +32,7 @@ EGLSurface egl_surface;
 EGLConfig config;
 EGLint num_config;
 
-struct gbm_surface *display_surface;
 
-void create_display_buffer(){
-
-  int width = 1920;
-  int height = 1080;
-  if(!is_drm_rendering){
-   width = WINDOW_WIDTH;
-   height = WINDOW_HEIGHT;
-  }
-
-  display_surface = gbm_surface_create(buffer_device,
-      width, 
-      height,
-      DRM_FORMAT_XRGB8888, 
-      GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
- 
-  if(display_surface == NULL){
-    printf("Can't create gbm surface\n");
-  }
-}
 
 
 void init_egl() {
@@ -59,23 +40,6 @@ void init_egl() {
   printf("Initializing EGL\n");
   const char *egl_extensions;
 
-  if(!is_drm_rendering){
-     const char *drm_device_path = "/dev/dri/renderD128";
-     int fd;
-     fd = open(drm_device_path, O_RDWR);
-     if (fd < 0) {
-       perror("Failed to open DRM device");
-     }else{
-       compositor.gpu_fd = fd;
-     }
-  }
-
-  buffer_device = create_gbm_device(compositor.gpu_fd);
-  if(!buffer_device){
-    printf("Can't create GBM device\n");
-  }
-
-  create_display_buffer();
 
   EGLint major, minor;
 
