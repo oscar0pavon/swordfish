@@ -1,4 +1,5 @@
 #include "dma.h"
+#include <complex.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -23,8 +24,10 @@ typedef struct DMABuffer{
     uint32_t offsets[MAX_DMA_PLANES];
     uint32_t strides[MAX_DMA_PLANES];
     uint64_t modifiers[MAX_DMA_PLANES];
+    uint32_t width;
+    uint32_t height;
+    uint32_t format;
     int num_planes;
-    // ... other parameters like width, height, format will be set in create_immed
 }DMABuffer;
 
 uint64_t get_drm_device_id(const char *device_path) {
@@ -94,15 +97,42 @@ static void params_destroy(struct wl_client *client, struct wl_resource *resourc
     printf("destroy params\n");
 }
 
+void destroy_buffer_immd(WaylandClient *client, WaylandResource *resource){
+  printf("destroy buffer\n");
+}
+
+struct wl_buffer_interface buffer_implementation = {
+  .destroy = destroy_buffer_immd
+};
+
 void linux_dmabuf_create_immed(WaylandClient *client,
                                WaylandResource *resource,
-                               uint32_t id, 
+                               uint32_t buffer_id, 
                                int32_t width, int32_t height,
                                uint32_t format, uint32_t flags) {
 
 
-  
-  printf("TODO: Create DMA-Buffer\n");
+  DMABuffer *buffer = wl_resource_get_user_data(resource);
+  buffer->width = width;
+  buffer->height = height;
+  buffer->format = format;
+
+ 
+  printf("TODO use files descriptor in Vulkan\n");
+
+
+  WaylandResource* buffer_resource = 
+    wl_resource_create(client, &wl_buffer_interface, 1, buffer_id);
+
+
+  wl_resource_set_implementation(buffer_resource, &buffer_implementation, NULL,
+                                 NULL);
+
+  //finish
+  for (int i = 0; i < buffer->num_planes; i++) {
+    if (buffer->fds[i] != -1)
+      close(buffer->fds[i]);
+  }
 
 }
 

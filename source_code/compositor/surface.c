@@ -24,6 +24,12 @@ static void surface_destroy(WaylandClient *client, WaylandResource *resource) {
   printf("Surface destroy\n");
 }
 
+void send_frame_callback_done(SwordfishSurface *surface){
+  wl_callback_send_done(surface->frame_call_resource, 1);
+  wl_resource_destroy(surface->frame_call_resource);
+  surface->frame_call_resource = NULL;
+}
+
 static void surface_attach(WaylandClient *client, WaylandResource *resource,
                            WaylandResource *buffer_resource, int32_t x,
                            int32_t y) {
@@ -42,14 +48,11 @@ static void surface_commit(WaylandClient *client, WaylandResource *resource) {
 
 
 
+
   printf("Surface committed! Ready to draw.\n");
+  send_frame_callback_done(surface);
 }
 
-void send_frame_callback_done(SwordfishSurface *surface){
-  wl_callback_send_done(surface->frame_call_resource, 1);
-  wl_resource_destroy(surface->frame_call_resource);
-  surface->frame_call_resource = NULL;
-}
 
 void handle_frame(WaylandClient *client, WaylandResource *resource, uint32_t callback_id){
 

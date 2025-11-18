@@ -61,6 +61,7 @@ int main(){
 
 
   run_compositor(NULL);
+  return EXIT_SUCCESS;
 
   if(!create_window()){
     is_drm_rendering = true;
