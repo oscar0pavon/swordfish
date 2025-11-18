@@ -23,3 +23,9 @@ void pe_vk_semaphores_create(){
   vkCreateSemaphore(vk_device, &info, NULL, &pe_vk_semaphore_render_finished);
   vkCreateFence(vk_device,&fence_info,NULL,&pe_vk_fence_in_flight);
 }
+
+void pe_vk_end_sync(){
+  vkDestroySemaphore(vk_device, pe_vk_semaphore_images_available, NULL);
+  vkDestroySemaphore(vk_device, pe_vk_semaphore_render_finished, NULL);
+  vkDestroyFence(vk_device, pe_vk_fence_in_flight, NULL);
+}

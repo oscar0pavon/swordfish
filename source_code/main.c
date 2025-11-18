@@ -44,8 +44,10 @@ bool is_opengl = false;
 
 void close_swordfish() {
   printf("Closing Swordfish\n");
-  if(!is_opengl)
+  if(!is_opengl){
+    clean_swordfish();
     pe_vk_end();
+  }
   swordfish_running = false;
   if(is_drm_rendering){
     finish_input();

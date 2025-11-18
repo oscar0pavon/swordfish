@@ -1,8 +1,10 @@
 #include "commands.h"
 #include <engine/macros.h>
+#include "engine/camera.h"
 #include "framebuffer.h"
 #include <vulkan/vulkan_core.h>
 #include "render_pass.h"
+#include "renderer/vulkan.h"
 
 VkCommandPool pe_vk_commands_pool;
 
@@ -93,6 +95,12 @@ void pe_vk_command_init() {
   bufferinfo.commandBufferCount = pe_vk_command_buffers.count;
 
   vkAllocateCommandBuffers(vk_device, &bufferinfo, pe_vk_command_buffers.data);
+
+}
+
+void pe_vk_clean_commands(){
+
+  vkDestroyCommandPool(vk_device, pe_vk_commands_pool, NULL);
 
 }
 

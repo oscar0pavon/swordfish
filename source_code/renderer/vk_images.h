@@ -29,11 +29,14 @@ typedef struct PImageCreateInfo {
 
 extern VkImageView pe_vk_depth_image_view;
 
+extern PTexture vk_depth_image;
+
 void pe_vk_import_image(PTexture *new_texture, uint32_t witdh, uint32_t height,
                         uint32_t file_descriptor, uint64_t modifier);
 
 void pe_vk_create_texture(PTexture* new_texture, const char* path);
 
+void pe_vk_clean_image(PTexture* image);
 void pe_vk_create_image(PImageCreateInfo *info);
 void pe_vk_create_depth_resources();
 

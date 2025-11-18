@@ -14,6 +14,8 @@ extern bool finished_build;
 
 extern bool is_drm_rendering;
 
+void clean_swordfish();
+
 void swordfish_init();
 
 void swordfish_update_main_cube(PModel *model, uint32_t image_index);

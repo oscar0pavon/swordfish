@@ -22,6 +22,7 @@
 #include <wchar.h>
 #include <wctype.h>
 
+PTexture vk_depth_image;
 
 VkImageView pe_vk_depth_image_view;
 
@@ -441,11 +442,10 @@ void pe_vk_image_generate_mipmaps(VkImage image, uint32_t width,
 void pe_vk_create_depth_resources() {
   VkFormat format = VK_FORMAT_D32_SFLOAT;
 
-  PTexture depth;
   PImageCreateInfo image_create_info = {
       .width = pe_vk_swch_extent.width,
       .height = pe_vk_swch_extent.height,
-      .texture = &depth,
+      .texture = &vk_depth_image,
       .format = format,
       .tiling = VK_IMAGE_TILING_OPTIMAL,
       .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
@@ -456,8 +456,15 @@ void pe_vk_create_depth_resources() {
   pe_vk_create_image(&image_create_info);
 
   pe_vk_depth_image_view = pe_vk_create_image_view(
-      depth.image, format, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+      vk_depth_image.image, format, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
 
+}
+
+void pe_vk_clean_image(PTexture* image){
+  
+  vkDestroyImage(vk_device, image->image, NULL);
+
+  vkFreeMemory(vk_device, image->memory, NULL);
 }
 
 void pe_vk_create_exportable_images(){

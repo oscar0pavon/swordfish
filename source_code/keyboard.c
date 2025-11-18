@@ -39,7 +39,8 @@ void handle_xkb_keyboard_event(InputEvent *event) {
       //printf("Key pressed: %c (U+%04x)\n", (char)unicode, unicode);
       if(unicode == 'd'){
         printf("Calling program\n");
-        call_program("/root/pterminal/test_terminal");
+        //call_program("/root/pterminal/test_terminal");
+        call_program("firefox");
       }
       if(unicode == 'q'){
         printf("Calling program\n");

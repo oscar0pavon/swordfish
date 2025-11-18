@@ -34,6 +34,8 @@ VkInstance vk_instance;
 VkDevice vk_device;
 VkQueue vk_queue;
 
+PTexture vk_color_image;
+
 VkSurfaceKHR vk_surface;
 
 VkRenderPass pe_vk_render_pass;
@@ -245,12 +247,11 @@ void pe_vk_create_surface() {
 void pe_vk_create_color_resources() {
   VkFormat color_format = pe_vk_swch_format;
 
-  PTexture color;
-  color.mip_level = 1;
+  vk_color_image.mip_level = 1;
   PImageCreateInfo image_create_info = {
       .width = pe_vk_swch_extent.width,
       .height = pe_vk_swch_extent.height,
-      .texture = &color,
+      .texture = &vk_color_image,
       .format = color_format,
       .tiling = VK_IMAGE_TILING_OPTIMAL,
       .usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
@@ -262,7 +263,7 @@ void pe_vk_create_color_resources() {
   pe_vk_create_image(&image_create_info);
 
   pe_vk_color_image_view = pe_vk_create_image_view(
-      color.image, color_format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+      vk_color_image.image, color_format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 }
 
 void pe_vk_set_viewport_and_sccisor(){
@@ -359,7 +360,18 @@ int pe_vk_init() {
   return 0;
 }
 
+
 void pe_vk_end() {
+
+  pe_vk_clean_commands();
+
+  vkDestroySwapchainKHR(vk_device, pe_vk_swap_chain, NULL);
+
+  pe_vk_end_sync();
+
+  pe_vk_clean_image(&vk_depth_image);
+  pe_vk_clean_image(&vk_color_image);
+
   for(int i = 0; i < buffers.count; i++){
     VkBuffer* buffer = array_get(&buffers, i);
     vkDestroyBuffer(vk_device,*buffer,NULL);

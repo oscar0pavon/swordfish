@@ -18,6 +18,7 @@
 #include "renderer/descriptor_set.h"
 #include "renderer/draw.h"
 #include "renderer/vk_images.h"
+#include "renderer/vulkan.h"
 
 #include <engine/time.h>
 
@@ -182,6 +183,14 @@ void load_textured_model(PModel* model, const char* path){
   pe_vk_model_load(model, path);
   pe_vk_create_descriptor_sets(model,pe_vk_descriptor_set_layout_with_texture);
   //pe_vk_descriptor_with_image_update(model);
+}
+
+void clean_swordfish(){
+
+  pe_vk_clean_image(&secondary_cube.texture);
+  pe_vk_clean_image(&text_model.texture);
+  pe_vk_clean_image(&background.texture);
+
 }
 
 void swordfish_init(){
