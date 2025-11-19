@@ -90,7 +90,7 @@ void* run_compositor(void* none) {
 
   init_dma();
 
-  init_input();
+  init_compositor_input();
 
 
   const char *socket = wl_display_add_socket_auto(compositor.display);

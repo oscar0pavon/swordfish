@@ -13,6 +13,19 @@ static void get_pointer(WClient *client, WResource *resource, uint32_t id) {
 static void get_keyboard(WClient *client, WResource *resource, uint32_t id) {
 
   printf("Get keyboard\n");
+
+  WResource *keyboard_resource;
+
+  keyboard_resource =
+      wl_resource_create(client, &wl_compositor_interface, 1, id);
+  if (!keyboard_resource) {
+    wl_client_post_no_memory(client);
+    printf("Can't create keyboard resource\n");
+  }
+ 
+
+
+
 }
 
 static void get_touch(WClient *client, WResource *resource, uint32_t id) {
@@ -40,6 +53,10 @@ static void bind_input_handler(WClient *client, void* data,
       version, id);
 
   wl_resource_set_implementation(resource, &input_interface, data, NULL);
+
+  uint32_t key_board_cap = 0;
+  key_board_cap |= WL_SEAT_CAPABILITY_KEYBOARD;
+  wl_seat_send_capabilities(resource, key_board_cap);
 
   printf("Bound input\n");
 
