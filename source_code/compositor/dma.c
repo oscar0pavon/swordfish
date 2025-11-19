@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <wayland-server-core.h>
+#include <wayland-server.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -43,7 +44,7 @@ void params_add(WClient *client,
 
   printf("Adding params\n");
 
-  DMABuffer *params = wl_resource_get_user_data(resource);
+  DMAParams *params = wl_resource_get_user_data(resource);
 
   if (!params) {
     close(fd);
@@ -88,10 +89,6 @@ void params_create(struct wl_client *client,
   printf("params create\n");
 }
 
-static void params_destroy(struct wl_client *client, struct wl_resource *resource) {
-    wl_resource_destroy(resource); // Client is done with temporary params object
-    printf("destroy params\n");
-}
 
 void destroy_buffer_immd(WClient *client, WResource *resource){
   printf("destroy buffer\n");
@@ -110,7 +107,7 @@ void linux_dmabuf_create_immed(WClient *client,
                                uint32_t format, uint32_t flags) {
 
 
-  DMABuffer *buffer = wl_resource_get_user_data(resource);
+  DMAParams *buffer = wl_resource_get_user_data(resource);
   buffer->width = width;
   buffer->height = height;
   buffer->format = format;
@@ -140,15 +137,20 @@ void linux_dmabuf_create_immed(WClient *client,
 
 }
 
-const struct zwp_linux_buffer_params_v1_interface params_implementation = {
-    .destroy = params_destroy,
+static void destroy_params_resource(WClient *client, WResource *resource) {
+    wl_resource_destroy(resource);
+    printf("Destroyed params resource\n");
+}
+
+static const struct zwp_linux_buffer_params_v1_interface params_implementation = {
+    .destroy = destroy_params_resource,
     .add = params_add,
     .create = params_create,
     .create_immed = linux_dmabuf_create_immed
 };
 
-void destroy_params_handler(struct wl_resource *resource) {
-    DMABuffer *params = wl_resource_get_user_data(resource);
+void destroy_params(WResource *resource) {
+    DMAParams *params = wl_resource_get_user_data(resource);
     
     if (params) {
         // Close any FDs that might not have been consumed yet (e.g., if creation failed)
@@ -159,11 +161,10 @@ void destroy_params_handler(struct wl_resource *resource) {
         }
         free(params);
     }
-    printf("Destroy params\n");
+    printf("Destroyed params\n");
 }
 
-void swordfish_create_params(WClient *client, WResource *resource,
-                             uint32_t id) {
+static void create_params(WClient *client, WResource *resource, uint32_t id) {
 
   printf("Received create_params request. Creating new buffer_params resource ID: %u\n", id);
 
@@ -172,7 +173,7 @@ void swordfish_create_params(WClient *client, WResource *resource,
                          wl_resource_get_version(resource), id);
 
 
-  DMABuffer *params = calloc(1, sizeof(DMABuffer));
+  DMAParams *params = calloc(1, sizeof(DMAParams));
 
   for (int i = 0; i < MAX_DMA_PLANES; i++) {
       params->fds[i] = -1;
@@ -182,10 +183,11 @@ void swordfish_create_params(WClient *client, WResource *resource,
 
   wl_resource_set_user_data(params_resource, params);
 
+  wl_resource_set_destructor(params_resource, destroy_params);
 
 
   wl_resource_set_implementation(params_resource, &params_implementation,
-                                 params, destroy_params_handler);
+                                 params, destroy_params);
 
   printf("Created params\n");
 }
@@ -220,7 +222,7 @@ void bind_dma(WClient *client, void *data, uint32_t version,
   }
   
   dmabuf_data.destroy = destry_dma;
-  dmabuf_data.create_params = swordfish_create_params;
+  dmabuf_data.create_params = create_params;
   dmabuf_data.get_default_feedback = get_feedback;
   dmabuf_data.get_surface_feedback = get_surface_feedback;
 

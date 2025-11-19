@@ -9,7 +9,8 @@
 typedef struct wl_client WClient;
 
 #define MAX_DMA_PLANES 4
-typedef struct DMABuffer{
+
+typedef struct DMAParams{
     WClient *client;
     PTexture image;
     int32_t fds[MAX_DMA_PLANES];
@@ -20,7 +21,7 @@ typedef struct DMABuffer{
     uint32_t height;
     uint32_t format;
     int num_planes;
-}DMABuffer;
+}DMAParams;
 
 extern uint64_t main_device_id;
 
