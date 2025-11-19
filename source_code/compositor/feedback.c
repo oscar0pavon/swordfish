@@ -91,7 +91,7 @@ static int create_anon_file(size_t size) {
 }
 
 
-void send_supported_formats_indices(WaylandResource *resource) {
+void send_supported_formats_indices(WResource *resource) {
   printf("Sending format indices for the current tranche\n");
 
   struct wl_array indices_array;
@@ -118,7 +118,7 @@ void init_format_table() {
   table_size = num_formats * sizeof(FormatTable);
 }
 
-void send_format_table(WaylandResource* resource) {
+void send_format_table(WResource* resource) {
     printf("Compositor sending format table via shared memory\n");
 
     int fd = create_anon_file(table_size);
@@ -142,13 +142,13 @@ void send_format_table(WaylandResource* resource) {
 
 }
 
-void destroy_feedback(WaylandClient *client, WaylandResource *resource) {
+void destroy_feedback(WClient *client, WResource *resource) {
 
   printf("Destroy feedback\n");
 }
 
-void destroy_surface_feedback(WaylandClient *client,
-                              WaylandResource *resource) {
+void destroy_surface_feedback(WClient *client,
+                              WResource *resource) {
 
   printf("Destroy surface feedback\n");
 }
@@ -159,7 +159,7 @@ const struct zwp_linux_dmabuf_feedback_v1_interface feedback_implementation = {
 const struct zwp_linux_dmabuf_feedback_v1_interface
     surface_feedback_implementation = {.destroy = destroy_surface_feedback};
 
-void send_feedback(WaylandResource *resource){
+void send_feedback(WResource *resource){
   struct wl_array device_array;
   wl_array_init(&device_array);
   
@@ -190,7 +190,7 @@ void send_feedback(WaylandResource *resource){
 }
 
 
-void get_feedback(WaylandClient *client, WaylandResource *resource,
+void get_feedback(WClient *client, WResource *resource,
     uint32_t id) {
 
   printf("Sending feed back\n");
@@ -198,7 +198,7 @@ void get_feedback(WaylandClient *client, WaylandResource *resource,
 
   init_format_table();
 
-  WaylandResource *feedback =
+  WResource *feedback =
       wl_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface,
                          wl_resource_get_version(resource), id);
 
@@ -216,8 +216,8 @@ void get_feedback(WaylandClient *client, WaylandResource *resource,
 
 }
 
-void get_surface_feedback(WaylandClient *client, WaylandResource *resource,
-                          uint32_t id, WaylandResource *surface_resource) {
+void get_surface_feedback(WClient *client, WResource *resource,
+                          uint32_t id, WResource *surface_resource) {
 
   printf("Get surface feedback\n");
 
@@ -231,7 +231,7 @@ void get_surface_feedback(WaylandClient *client, WaylandResource *resource,
   //   return;
   // }
 
-  WaylandResource *feedback =
+  WResource *feedback =
       wl_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface,
                          wl_resource_get_version(resource), id);
   if (!feedback) {

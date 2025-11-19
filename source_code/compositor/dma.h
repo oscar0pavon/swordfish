@@ -6,11 +6,11 @@
 #include "renderer/vk_images.h"
 
 
-typedef struct wl_client WaylandClient;
+typedef struct wl_client WClient;
 
 #define MAX_DMA_PLANES 4
 typedef struct DMABuffer{
-    WaylandClient *client;
+    WClient *client;
     PTexture image;
     int32_t fds[MAX_DMA_PLANES];
     uint32_t offsets[MAX_DMA_PLANES];

@@ -10,8 +10,8 @@
 #include "engine/images.h"
 #include "engine/model.h"
 
-typedef struct wl_resource WaylandResource;
-typedef struct wl_client WaylandClient;
+typedef struct wl_resource WResource;
+typedef struct wl_client WClient;
 typedef struct wl_compositor_interface WaylanCompositorInterface;
 typedef struct xdg_wm_base DesktopBase;
 
@@ -28,15 +28,15 @@ typedef struct SwordfishCompositor{
     // libinput components
 }SwordfishCompositor;
 
-typedef struct SwordfishSurface{
-    WaylandResource *resource;
+typedef struct Task{
+    WResource *resource;
     SwordfishCompositor *compositor;
-    WaylandResource * frame_call_resource;
+    WResource * frame_call_resource;
     PTexture *image;
     PModel model;//quad vertices
     struct wl_list link;
     int32_t x,y;
-}SwordfishSurface;
+}Task;
 
 void* run_compositor(void* none);
 

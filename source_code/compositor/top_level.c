@@ -10,17 +10,17 @@
 
 typedef struct TopLevel{
   DesktopSurface *surface;
-  WaylandResource *resource;
+  WResource *resource;
   char *title;
 }TopLevel;
 
 
-void destroy_top_level(WaylandClient *client, WaylandResource *resource){
+void destroy_top_level(WClient *client, WResource *resource){
   printf("Destroy top level");
   wl_resource_destroy(resource);
 }
 
-void set_title(WaylandClient *client, WaylandResource *resource, const char *title){
+void set_title(WClient *client, WResource *resource, const char *title){
   TopLevel *top_level = wl_resource_get_user_data(resource);
   top_level->title = strdup(title);
   printf("new title\n");
@@ -48,8 +48,8 @@ void send_top_level_configure(TopLevel* toplevel, int width, int height){
 
 }
 
-void get_top_level_implementation(WaylandClient *client,
-                                  WaylandResource *resource, uint32_t id) {
+void get_top_level_implementation(WClient *client,
+                                  WResource *resource, uint32_t id) {
 
   DesktopSurface *surface = wl_resource_get_user_data(resource);
 

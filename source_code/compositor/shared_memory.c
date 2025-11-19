@@ -10,13 +10,13 @@
 #include <wayland-server-protocol.h>
 
 typedef struct SharedMemory{
-  WaylandResource *resource;
+  WResource *resource;
   void *data;
   uint32_t size;
 }SharedMemory;
 
 typedef struct MemoryBuffer{
-    WaylandResource*resource;
+    WResource*resource;
     SharedMemory *pool;
     void *data; // Pointer to the start of pixel data for this specific buffer
     int32_t width;
@@ -25,15 +25,15 @@ typedef struct MemoryBuffer{
     uint32_t format;
 }MemoryBuffer;
 
-void destroy_buffer(WaylandClient *client, WaylandResource *resource){
+void destroy_buffer(WClient *client, WResource *resource){
   wl_resource_destroy(resource);
 }
 
-void destroy_pool(WaylandResource *resource){
+void destroy_pool(WResource *resource){
   wl_resource_destroy(resource);
 }
 
-void destroy_buffer_function(WaylandResource *resource){
+void destroy_buffer_function(WResource *resource){
   MemoryBuffer *buffer = wl_resource_get_user_data(resource);
   if(buffer){
     free(buffer);
@@ -47,7 +47,7 @@ const struct wl_buffer_interface buffer_interface = {
 
 const struct wl_shm_pool_interface pool_interface;
 
-void destroy_pool_function(WaylandClient * client, WaylandResource *resource){
+void destroy_pool_function(WClient * client, WResource *resource){
   SharedMemory* pool = wl_resource_get_user_data(resource);
   if(pool){
     munmap(pool->data, pool->size);
@@ -55,7 +55,7 @@ void destroy_pool_function(WaylandClient * client, WaylandResource *resource){
   }
 }
 
-void create_shared_memory_pool(WaylandClient *client, WaylandResource *resource,
+void create_shared_memory_pool(WClient *client, WResource *resource,
                      uint32_t id, int32_t fd, int32_t size) {
 
 
@@ -76,7 +76,7 @@ void create_shared_memory_pool(WaylandClient *client, WaylandResource *resource,
     return;
   }
 
-  WaylandResource *pool_resource = wl_resource_create(
+  WResource *pool_resource = wl_resource_create(
       client, &wl_shm_pool_interface, wl_resource_get_version(resource), id);
 
   if (!pool_resource) {
@@ -104,8 +104,8 @@ void create_shared_memory_pool(WaylandClient *client, WaylandResource *resource,
   printf("Created Memory pool\n");
 }
 
-void create_shared_memory_buffer(WaylandClient *client, 
-    WaylandResource *resource, 
+void create_shared_memory_buffer(WClient *client, 
+    WResource *resource, 
     uint32_t id, int32_t offset, int32_t width, 
     int32_t height, int32_t stride, uint32_t format){
 
@@ -113,7 +113,7 @@ void create_shared_memory_buffer(WaylandClient *client,
 
   void *buffer_data = (uint8_t *)pool->data + offset;
 
-  WaylandResource *buffer_resource = wl_resource_create(
+  WResource *buffer_resource = wl_resource_create(
       client, &wl_buffer_interface, wl_resource_get_version(resource), id);
 
 
@@ -150,10 +150,10 @@ const struct wl_shm_interface shared_memory_implementation = {
     .create_pool = create_shared_memory_pool,
 };
 
-void bind_shared_memory(WaylandClient *client, void *data, uint32_t version,
+void bind_shared_memory(WClient *client, void *data, uint32_t version,
               uint32_t id) {
 
-  WaylandResource *resource =
+  WResource *resource =
       wl_resource_create(client, &wl_shm_interface, version, id);
 
   if (!resource) {

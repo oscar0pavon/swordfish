@@ -35,14 +35,14 @@ void finish_compositor(){
 
 
 
-void bind_compositor(WaylandClient *client, void *data, uint32_t version,
+void bind_compositor(WClient *client, void *data, uint32_t version,
                             uint32_t id) {
 
   SwordfishCompositor* compositor = (SwordfishCompositor*)data;
   if(!compositor)
     printf("Compositor is NULL\n");
 
-  WaylandResource* resource;
+  WResource* resource;
 
   resource = wl_resource_create(client, &wl_compositor_interface, version, id);
   if(!resource){

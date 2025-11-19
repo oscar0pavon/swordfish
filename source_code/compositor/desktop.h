@@ -7,12 +7,12 @@
 #include <stdint.h>
 
 typedef struct DesktopSurface{
-  SwordfishSurface* surface;
-  WaylandResource* resource;
+  Task* surface;
+  WResource* resource;
   uint32_t pending_serial;
 }DesktopSurface;
 
 
-void bind_desktop(WaylandClient *client, void *data, uint32_t version,
+void bind_desktop(WClient *client, void *data, uint32_t version,
                        uint32_t id);
 #endif

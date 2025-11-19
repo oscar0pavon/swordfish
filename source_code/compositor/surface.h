@@ -7,7 +7,7 @@
 
 extern Array surface_to_draw;
 
-void create_surface(WaylandClient *client, WaylandResource *resource,
+void create_surface(WClient *client, WResource *resource,
                    uint32_t id);
 
 

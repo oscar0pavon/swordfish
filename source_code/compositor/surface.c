@@ -18,7 +18,7 @@
 
 Array surface_to_draw;
 
-static void surface_damage(WaylandClient *client, WaylandResource *resource,
+static void surface_damage(WClient *client, WResource *resource,
                            int32_t x, int32_t y, int32_t width,
                            int32_t height) {
   // Store the damaged region information.
@@ -26,23 +26,23 @@ static void surface_damage(WaylandClient *client, WaylandResource *resource,
   printf("Surface damage\n");
 }
 
-static void surface_destroy(WaylandClient *client, WaylandResource *resource) {
+static void surface_destroy(WClient *client, WResource *resource) {
   // The client asked to destroy the surface resource. The general resource
   // destroy function (below) will be called after this.
   printf("Surface destroy\n");
 }
 
-void send_frame_callback_done(SwordfishSurface *surface){
+void send_frame_callback_done(Task *surface){
   wl_callback_send_done(surface->frame_call_resource, 1);
   wl_resource_destroy(surface->frame_call_resource);
   surface->frame_call_resource = NULL;
 }
 
-void surface_attach(WaylandClient *client, WaylandResource *resource,
-                           WaylandResource *buffer_resource, int32_t x,
+void surface_attach(WClient *client, WResource *resource,
+                           WResource *buffer_resource, int32_t x,
                            int32_t y) {
 
-  SwordfishSurface *surface = wl_resource_get_user_data(resource);
+  Task *surface = wl_resource_get_user_data(resource);
 
   PTexture *image_buffer = wl_resource_get_user_data(buffer_resource);
 
@@ -58,9 +58,9 @@ void surface_attach(WaylandClient *client, WaylandResource *resource,
 
 
 
-void surface_commit(WaylandClient *client, WaylandResource *resource) {
+void surface_commit(WClient *client, WResource *resource) {
 
-  SwordfishSurface *surface = wl_resource_get_user_data(resource);
+  Task *surface = wl_resource_get_user_data(resource);
 
 
   array_add_pointer(&surface_to_draw, surface);
@@ -70,11 +70,11 @@ void surface_commit(WaylandClient *client, WaylandResource *resource) {
 }
 
 
-void handle_frame(WaylandClient *client, WaylandResource *resource, uint32_t callback_id){
+void handle_frame(WClient *client, WResource *resource, uint32_t callback_id){
 
   printf("Client requested frame callback with ID %u\n", callback_id);
 
-  WaylandResource *callback_resource = 
+  WResource *callback_resource = 
     wl_resource_create(client, &wl_callback_interface, 1, callback_id);
 
   if (!callback_resource) {
@@ -83,7 +83,7 @@ void handle_frame(WaylandClient *client, WaylandResource *resource, uint32_t cal
     return;
   }
 
-  SwordfishSurface *surface = wl_resource_get_user_data(resource);
+  Task *surface = wl_resource_get_user_data(resource);
   surface->frame_call_resource = callback_resource;
 
 }
@@ -98,19 +98,19 @@ const struct wl_surface_interface surface_implementation = {
     .commit = surface_commit,
 };
 
-static void destroy_surface(WaylandResource *resource) {
-  SwordfishSurface *surface = wl_resource_get_user_data(resource);
+static void destroy_surface(WResource *resource) {
+  Task *surface = wl_resource_get_user_data(resource);
   wl_list_remove(&surface->link);
 
   free(surface);
   printf("Destroyed surface\n");
 }
 
-void create_surface(WaylandClient *client, WaylandResource *resource,
+void create_surface(WClient *client, WResource *resource,
                     uint32_t id) {
 
   SwordfishCompositor *compositor = wl_resource_get_user_data(resource);
-  SwordfishSurface *surface = calloc(1, sizeof(SwordfishSurface));
+  Task *surface = calloc(1, sizeof(Task));
 
 
   pe_2d_create_quad_geometry(&surface->model);

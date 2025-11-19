@@ -92,7 +92,7 @@ void draw_textured_model(PModel* model, VkCommandBuffer* cmd_buffer, u32 index){
 }
 
 
-void draw_surface(SwordfishSurface* surface, VkCommandBuffer *cmd_buffer, uint32_t index){
+void draw_surface(Task* surface, VkCommandBuffer *cmd_buffer, uint32_t index){
 
   pe_2d_draw(&surface->model, index, VEC2(0,0), VEC2(surface->image->width,surface->image->heigth));
 
@@ -111,7 +111,7 @@ void draw_surface(SwordfishSurface* surface, VkCommandBuffer *cmd_buffer, uint32
 
 void draw_surfaces(VkCommandBuffer* command, uint32_t index){
   for (int i = 0; i < surface_to_draw.count; i++){
-    SwordfishSurface* surface = array_get_pointer(&surface_to_draw, i);
+    Task* surface = array_get_pointer(&surface_to_draw, i);
     draw_surface(surface, command, index);
   }
 }

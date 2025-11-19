@@ -8,10 +8,10 @@
 #include "top_level.h"
 
 //recieve from client
-void do_desktop_ack(WaylandClient* client, WaylandResource* resource, uint32_t serial){
+void do_desktop_ack(WClient* client, WResource* resource, uint32_t serial){
 
   DesktopSurface * desktop_surface = wl_resource_get_user_data(resource);
-  SwordfishSurface *surface = desktop_surface->surface;
+  Task *surface = desktop_surface->surface;
 
   
    
@@ -19,7 +19,7 @@ void do_desktop_ack(WaylandClient* client, WaylandResource* resource, uint32_t s
   printf("ack\n");
 }
 
-void do_desktop_pong(WaylandClient* client, WaylandResource* resource, uint32_t serial){
+void do_desktop_pong(WClient* client, WResource* resource, uint32_t serial){
   //TODO respond to client
   printf("pong\n");
 }
@@ -32,11 +32,11 @@ const struct xdg_surface_interface desktop_surface_implementation = {
     .ack_configure = do_desktop_ack,
 };
 
-void get_desktop_surface(WaylandClient *client, WaylandResource *resource,
-    uint32_t id, WaylandResource *surface_resource) {
+void get_desktop_surface(WClient *client, WResource *resource,
+    uint32_t id, WResource *surface_resource) {
 
   SwordfishCompositor* compositor = wl_resource_get_user_data(resource);
-  SwordfishSurface* surface = wl_resource_get_user_data(surface_resource);
+  Task* surface = wl_resource_get_user_data(surface_resource);
 
   DesktopSurface *desktop_surface = calloc(1, sizeof(DesktopSurface));
 
@@ -59,11 +59,11 @@ const struct xdg_wm_base_interface desktop_implementation = {
 
 
 
-void bind_desktop(WaylandClient *client, void *data, uint32_t version,
+void bind_desktop(WClient *client, void *data, uint32_t version,
                        uint32_t id) {
   
   SwordfishCompositor* compositor = (SwordfishCompositor*)data;
-  WaylandResource *resource;
+  WResource *resource;
 
   resource = wl_resource_create(client, &xdg_wm_base_interface, version, id);
   if (!resource) {

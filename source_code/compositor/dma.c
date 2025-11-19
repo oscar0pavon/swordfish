@@ -32,8 +32,8 @@ uint64_t get_drm_device_id(const char *device_path) {
 
 
 
-void params_add(WaylandClient *client,
-		    WaylandResource *resource,
+void params_add(WClient *client,
+		    WResource *resource,
 		    int32_t fd,
 		    uint32_t plane_idx,
 		    uint32_t offset,
@@ -93,7 +93,7 @@ static void params_destroy(struct wl_client *client, struct wl_resource *resourc
     printf("destroy params\n");
 }
 
-void destroy_buffer_immd(WaylandClient *client, WaylandResource *resource){
+void destroy_buffer_immd(WClient *client, WResource *resource){
   printf("destroy buffer\n");
 }
 
@@ -103,8 +103,8 @@ struct wl_buffer_interface buffer_implementation = {
 
 PTexture image;
 
-void linux_dmabuf_create_immed(WaylandClient *client,
-                               WaylandResource *resource,
+void linux_dmabuf_create_immed(WClient *client,
+                               WResource *resource,
                                uint32_t buffer_id, 
                                int32_t width, int32_t height,
                                uint32_t format, uint32_t flags) {
@@ -119,7 +119,7 @@ void linux_dmabuf_create_immed(WaylandClient *client,
   image.heigth = height;
 
 
-  WaylandResource* buffer_resource = 
+  WResource* buffer_resource = 
     wl_resource_create(client, &wl_buffer_interface, 1, buffer_id);
 
 
@@ -162,12 +162,12 @@ void destroy_params_handler(struct wl_resource *resource) {
     printf("Destroy params\n");
 }
 
-void swordfish_create_params(WaylandClient *client, WaylandResource *resource,
+void swordfish_create_params(WClient *client, WResource *resource,
                              uint32_t id) {
 
   printf("Received create_params request. Creating new buffer_params resource ID: %u\n", id);
 
-  WaylandResource *params_resource =
+  WResource *params_resource =
       wl_resource_create(client, &zwp_linux_buffer_params_v1_interface,
                          wl_resource_get_version(resource), id);
 
@@ -205,12 +205,12 @@ void destry_dma(struct wl_client *client,
   printf("destry dma");
 }
 
-void bind_dma(WaylandClient *client, void *data, uint32_t version,
+void bind_dma(WClient *client, void *data, uint32_t version,
                        uint32_t id) {
   
   printf("## Implementing DMA buffers\n");
 
-  WaylandResource *resource;
+  WResource *resource;
 
   resource = wl_resource_create(client, &zwp_linux_dmabuf_v1_interface, version, id);
   if (!resource) {
