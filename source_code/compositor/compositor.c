@@ -12,6 +12,7 @@
 #include <wayland-util.h>
 #include "compositor/desktop-server.h"
 #include "compositor/desktop.h"
+#include "compositor/input.h"
 #include "compositor/seat.h"
 #include "surface.h"
 #include "dma.h"
@@ -89,6 +90,7 @@ void* run_compositor(void* none) {
 
   init_dma();
 
+  init_input();
 
 
   const char *socket = wl_display_add_socket_auto(compositor.display);
