@@ -3,6 +3,7 @@
 #include "log.h"
 #include "memory.h"
 #include <engine/macros.h>
+#include <stdio.h>
 #include <string.h>
 
 int array_init(Array *array, u32 element_bytes_size, int count) {
@@ -44,6 +45,8 @@ void array_remove_element(Array *array, void *pointer) {
   char original_data[array->bytes_size];
   Array original_array;
   memcpy(&original_array, array, sizeof(Array));
+  memcpy(&original_data, array->data, sizeof(array->bytes_size));
+
   original_array.data = &original_data;
 
   array_clean(array);
@@ -53,6 +56,7 @@ void array_remove_element(Array *array, void *pointer) {
       array_add_pointer(array, temp_pointer);
     }
   }
+
 }
 
 void array_add(Array *array, const void *element) {

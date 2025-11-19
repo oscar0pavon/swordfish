@@ -14,6 +14,8 @@ extern bool finished_build;
 
 extern bool is_drm_rendering;
 
+extern bool can_draw_surfaces;
+
 void clean_swordfish();
 
 void swordfish_init();

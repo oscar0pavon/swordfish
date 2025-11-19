@@ -30,6 +30,8 @@ void *array_get(Array*,int index);
 
 void array_clean(Array* array);
 
+void array_remove_element(Array *array, void *pointer);
+
 void array_resize(Array* array, int count);
 
 void *array_get_last(Array* array);

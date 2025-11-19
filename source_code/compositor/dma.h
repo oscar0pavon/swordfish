@@ -3,8 +3,7 @@
 
 #include <stdint.h>
 
-#include "renderer/vk_images.h"
-
+#include "engine/images.h"
 
 typedef struct wl_client WClient;
 

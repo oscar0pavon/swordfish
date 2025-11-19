@@ -15,8 +15,9 @@
 #include "engine/engine2d.h"
 #include "renderer/pipeline.h"
 #include "renderer/descriptor_set.h"
+#include "swordfish.h"
 
-Array surface_to_draw;
+Array tasks_for_draw;
 
 static void surface_damage(WClient *client, WResource *resource,
                            int32_t x, int32_t y, int32_t width,
@@ -63,7 +64,7 @@ void surface_commit(WClient *client, WResource *resource) {
   Task *surface = wl_resource_get_user_data(resource);
 
 
-  array_add_pointer(&surface_to_draw, surface);
+  array_add_pointer(&tasks_for_draw, surface);
 
 
   printf("Surface committed! Ready to draw.\n");
@@ -102,7 +103,13 @@ static void destroy_surface(WResource *resource) {
   Task *surface = wl_resource_get_user_data(resource);
   wl_list_remove(&surface->link);
 
+  can_draw_surfaces = false;
+
+  array_remove_element(&tasks_for_draw, surface);
   free(surface);
+
+  can_draw_surfaces = true;
+
   printf("Destroyed surface\n");
 }
 

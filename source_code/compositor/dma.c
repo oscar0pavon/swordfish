@@ -15,6 +15,8 @@
 #include "linux-dmabuf.h"
 #include "compositor.h"
 
+#include "renderer/vk_images.h"
+
 uint64_t main_device_id;
 
 

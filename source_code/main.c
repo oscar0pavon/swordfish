@@ -65,7 +65,7 @@ int main(){
 
   pe_init_memory();
   
-  array_init(&surface_to_draw, 50, sizeof(void*)); 
+  array_init(&tasks_for_draw, 50, sizeof(void*)); 
 
   pe_vk_validation_layer_enable = true;
 

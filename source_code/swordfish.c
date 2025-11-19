@@ -23,7 +23,7 @@
 #include <engine/time.h>
 
 bool is_drm_rendering = false;
-
+bool can_draw_surfaces = true;
 
 PModel main_cube;
 PModel secondary_cube;
@@ -110,8 +110,8 @@ void draw_surface(Task* surface, VkCommandBuffer *cmd_buffer, uint32_t index){
 }
 
 void draw_surfaces(VkCommandBuffer* command, uint32_t index){
-  for (int i = 0; i < surface_to_draw.count; i++){
-    Task* surface = array_get_pointer(&surface_to_draw, i);
+  for (int i = 0; i < tasks_for_draw.count; i++){
+    Task* surface = array_get_pointer(&tasks_for_draw, i);
     draw_surface(surface, command, index);
   }
 }
@@ -152,7 +152,9 @@ void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
   // };
   // pe_vk_draw_model(&draw_quad);
 
-  draw_surfaces(cmd_buffer, index);
+  //we need to sync with compositor
+  if(can_draw_surfaces)
+    draw_surfaces(cmd_buffer, index);
 }
 
 
