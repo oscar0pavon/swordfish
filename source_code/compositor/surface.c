@@ -19,6 +19,8 @@
 
 Array tasks_for_draw;
 
+Task *focused_task;
+
 static void surface_damage(WClient *client, WResource *resource,
                            int32_t x, int32_t y, int32_t width,
                            int32_t height) {
@@ -117,7 +119,10 @@ void create_surface(WClient *client, WResource *resource,
                     uint32_t id) {
 
   SwordfishCompositor *compositor = wl_resource_get_user_data(resource);
+
   Task *surface = calloc(1, sizeof(Task));
+
+
 
 
   pe_2d_create_quad_geometry(&surface->model);
@@ -149,6 +154,9 @@ void create_surface(WClient *client, WResource *resource,
   wl_resource_set_implementation(surface->resource, &surface_implementation,
                                  surface,
                                  destroy_surface); // Set the destroy handler
+
+  focused_task = surface;
+  focused_task->input = NULL;
 
   surface->compositor = compositor;
   wl_list_insert(&compositor->surfaces, &surface->link);

@@ -21,6 +21,8 @@
 
 SwordfishCompositor compositor;
 
+bool is_focus_completed = false;
+
 const WaylanCompositorInterface compositor_interface = {
   .create_surface = create_surface,
   .create_region = NULL
@@ -59,6 +61,18 @@ static void your_error_handler_func(void *data, const char *msg) {
     fprintf(stderr, "Wayland Error: %s\n", msg);
 }
 
+void focus_task(Task *task){
+
+  TaskInput* temp_input;
+  wl_list_for_each(temp_input, &compositor.tasks_input, link){
+    if(temp_input->client == wl_resource_get_client(task->resource)){
+     wl_keyboard_send_enter(temp_input->keyboard_resource, 
+         32,
+         task->resource, NULL);
+    }
+  }
+}
+
 void* run_compositor(void* none) {
 
 
@@ -77,6 +91,7 @@ void* run_compositor(void* none) {
   }
 
   wl_list_init(&compositor.surfaces);
+  wl_list_init(&compositor.tasks_input);
 
 
 

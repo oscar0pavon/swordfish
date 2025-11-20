@@ -9,6 +9,7 @@
 #include <signal.h>
 
 #include "compositor/egl.h"
+#include "compositor/input.h"
 #include "compositor/seat.h"
 #include "compositor/surface.h"
 #include "engine/array.h"
@@ -129,6 +130,8 @@ int main(){
   while (swordfish_running) {
     if(compositor.gpu_fd < 0)
       continue;
+
+    handle_focus();
 
     //start_render_time();
 
