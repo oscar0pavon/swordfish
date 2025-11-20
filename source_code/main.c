@@ -93,13 +93,12 @@ int main(){
       init_direct_render();
   }
 
-  pthread_t compositor_thread_id;
-  pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
-  
-
   pthread_t input_thread_id;
   pthread_create(&input_thread_id, NULL, handle_input, NULL);
 
+  pthread_t compositor_thread_id;
+  pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
+  
 
   if(is_opengl){
     draw_with_egl();

@@ -2,8 +2,21 @@
 #include "compositor.h"
 #include <stdint.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <wayland-server-protocol.h>
 #include <wayland-server-core.h>
+#include "../keyboard.h"
+
+void send_keyboard_configuration(WResource *resource){
+  off_t size;
+  int fd = create_keymap_file_descriptor(&size);
+
+  wl_keyboard_send_keymap(resource, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, 
+      fd, size);
+
+  close(fd);
+
+}
 
 static void get_pointer(WClient *client, WResource *resource, uint32_t id) {
 
@@ -17,14 +30,14 @@ static void get_keyboard(WClient *client, WResource *resource, uint32_t id) {
   WResource *keyboard_resource;
 
   keyboard_resource =
-      wl_resource_create(client, &wl_compositor_interface, 1, id);
+      wl_resource_create(client, &wl_keyboard_interface, 1, id);
   if (!keyboard_resource) {
     wl_client_post_no_memory(client);
     printf("Can't create keyboard resource\n");
   }
+
+  send_keyboard_configuration(keyboard_resource);
  
-
-
 
 }
 

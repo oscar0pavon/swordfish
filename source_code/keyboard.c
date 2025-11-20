@@ -1,15 +1,65 @@
+#define _GNU_SOURCE
 #include "keyboard.h"
 #include "build.h"
 #include "compositor/compositor.h"
 #include "input.h"
+#include "swordfish.h"
+#include <complex.h>
 #include <stdio.h>
 #include <libinput.h>
 #include <xkbcommon/xkbcommon.h>
 #include <libseat.h>
+#include <fcntl.h>
+#include <mman.h>
+#include <string.h>
+#include <unistd.h>
 
 struct xkb_context *xkb_context;
 struct xkb_keymap *xkb_keymap;
 struct xkb_state *xkb_state;
+
+//return file descriptor of keymap
+int create_keymap_file_descriptor(off_t *size_out){
+  char *keymap_string = xkb_keymap_get_as_string(xkb_keymap, 
+      XKB_KEYMAP_FORMAT_TEXT_V1);
+  if(!keymap_string){
+    printf("Failed to get XKB keymap string\n");
+    return -1;
+  }
+
+  size_t size = strlen(keymap_string);
+
+  int fd = memfd_create("swordfish-keyboard", MFD_CLOEXEC);
+  if(fd < 0){
+    printf("Can't create file descriptor for keyboard\n");
+    free(keymap_string);
+    return -1;
+  }
+
+  if(ftruncate(fd, size) < 0){
+   printf("Can't truncate keyboard file descriptor\n");
+   close(fd);
+   free(keymap_string);
+  }
+
+  write(fd, keymap_string, size);
+
+  free(keymap_string);
+
+  *size_out = size;
+
+  return fd;
+
+}
+
+off_t get_keymap_file_size(int fd){
+  off_t size = lseek(fd, 0, SEEK_END);
+  lseek(fd,0, SEEK_SET);
+  return size;
+}
+
+
+
 
 void handle_xkb_keyboard_event(InputEvent *event) {
   InputEventKeyboard *key_event = libinput_event_get_keyboard_event(event);
@@ -35,19 +85,22 @@ void handle_xkb_keyboard_event(InputEvent *event) {
 
     uint32_t unicode = xkb_keysym_to_utf32(sym);
 
-    if (unicode) {
-      //printf("Key pressed: %c (U+%04x)\n", (char)unicode, unicode);
-      if(unicode == 'd'){
-        printf("Calling program\n");
-        //call_program("/root/pterminal/test_terminal");
-        call_program("firefox");
-      }
-      if(unicode == 'q'){
-        printf("Calling program\n");
-        exit(0);
-      }
-      if(unicode == 'w'){
-       libseat_switch_session(compositor.seat, 3);
+    if (is_drm_rendering) {
+
+      if (unicode) {
+        // printf("Key pressed: %c (U+%04x)\n", (char)unicode, unicode);
+        if (unicode == 'd') {
+          printf("Calling program\n");
+          // call_program("/root/pterminal/test_terminal");
+          call_program("firefox");
+        }
+        if (unicode == 'q') {
+          printf("Calling program\n");
+          exit(0);
+        }
+        if (unicode == 'w') {
+          libseat_switch_session(compositor.seat, 3);
+        }
       }
     }
 

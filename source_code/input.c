@@ -102,8 +102,8 @@ void finish_input() {
 }
 
 void *handle_input(void *none) {
-  if(!is_drm_rendering)
-    handle_input_xorg();
+  // if(!is_drm_rendering)
+  //   handle_input_xorg();
 
   printf("Input initialazing\n");
 
