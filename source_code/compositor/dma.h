@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+#include "compositor/types.h"
 #include "engine/images.h"
 
 typedef struct wl_client WClient;
@@ -11,6 +12,7 @@ typedef struct wl_client WClient;
 
 typedef struct DMAParams{
     WClient *client;
+    WResource* buffer_resource;
     PTexture image;
     int32_t fds[MAX_DMA_PLANES];
     uint32_t offsets[MAX_DMA_PLANES];

@@ -11,6 +11,7 @@ extern Array tasks_for_draw;
 void create_surface(WClient *client, WResource *resource,
                    uint32_t id);
 
+void send_frame_callback_done(Task *surface);
 
 
 #endif

@@ -21,6 +21,7 @@
 #include "renderer/vulkan.h"
 
 #include <engine/time.h>
+#include <wayland-server-core.h>
 
 bool is_drm_rendering = false;
 bool can_draw_surfaces = true;
@@ -96,7 +97,6 @@ void draw_surface(Task* surface, VkCommandBuffer *cmd_buffer, uint32_t index){
 
   pe_2d_draw(&surface->model, index, VEC2(0,0), VEC2(surface->image->width,surface->image->heigth));
 
-  pe_vk_descriptor_update(&surface->model);
   pe_vk_descriptor_with_image_update(&surface->model);//TODO
 
   PDrawModelCommand draw = {
@@ -109,14 +109,31 @@ void draw_surface(Task* surface, VkCommandBuffer *cmd_buffer, uint32_t index){
 
 }
 
-void draw_surfaces(VkCommandBuffer* command, uint32_t index){
+void end_frame(){
+
   for (int i = 0; i < tasks_for_draw.count; i++){
     Task* surface = array_get_pointer(&tasks_for_draw, i);
-    draw_surface(surface, command, index);
+    if(surface->frame_call_resource != NULL)
+        send_frame_callback_done(surface);
+    }
+      
+  wl_display_flush_clients(compositor.display);
+  array_clean(&tasks_for_draw);
+}
+
+void draw_surfaces(VkCommandBuffer* command, uint32_t index){
+  for (int i = 0; i < tasks_for_draw.count; i++){
+    Task* task = array_get_pointer(&tasks_for_draw, i);
+    if(task->can_draw){
+      draw_surface(task, command, index);
+      wl_buffer_send_release(task->buffer_resource);
+    }
+      
   }
 }
 
 void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
+
 
   //main cube
   swordfish_update_main_cube(&main_cube, index);
@@ -138,11 +155,11 @@ void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
   draw_textured_model(&background, cmd_buffer, index);
 
   //quad
-  pe_2d_draw(&text_model, index, VEC2(0,0), VEC2(1,1));
-
-  pe_vk_descriptor_update(&text_model);
-
-  pe_vk_descriptor_with_image_update(&text_model);
+  // pe_2d_draw(&text_model, index, VEC2(0,0), VEC2(1,1));
+  //
+  // pe_vk_descriptor_update(&text_model);
+  //
+  // pe_vk_descriptor_with_image_update(&text_model);
 
   // PDrawModelCommand draw_quad = {
   //   .model = &text_model,
@@ -153,8 +170,8 @@ void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
   // pe_vk_draw_model(&draw_quad);
 
   //we need to sync with compositor
-  if(can_draw_surfaces)
-    draw_surfaces(cmd_buffer, index);
+  //if(can_draw_surfaces)
+  draw_surfaces(cmd_buffer, index);
 }
 
 

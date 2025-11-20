@@ -46,17 +46,22 @@ void surface_attach(WClient *client, WResource *resource,
                            int32_t y) {
 
   Task *surface = wl_resource_get_user_data(resource);
+  surface->buffer_resource = buffer_resource;
 
   PTexture *image_buffer = wl_resource_get_user_data(buffer_resource);
 
-  printf("Go image with %i %i\n", image_buffer->width, image_buffer->heigth);
+  printf("Got image with %i %i\n", image_buffer->width, image_buffer->heigth);
   surface->image = image_buffer;
   memcpy(&surface->model.texture, image_buffer, sizeof(PTexture));
+
+  surface->can_draw = true;
+
+  array_add_pointer(&tasks_for_draw, surface);
 
   surface->x = x;
   surface->y = y;
 
-  printf("Surface attach\n");
+  printf("Surface attached\n");
 }
 
 
@@ -66,7 +71,6 @@ void surface_commit(WClient *client, WResource *resource) {
   Task *surface = wl_resource_get_user_data(resource);
 
 
-  array_add_pointer(&tasks_for_draw, surface);
 
 
   printf("Surface committed! Ready to draw.\n");

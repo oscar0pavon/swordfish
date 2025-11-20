@@ -31,10 +31,12 @@ typedef struct Task{
     TaskInput* input;
     SwordfishCompositor *compositor;
     WResource * frame_call_resource;
+    WResource* buffer_resource;
     PTexture *image;
     PModel model;//quad vertices
     struct wl_list link;
     int32_t x,y;
+    bool can_draw;
 }Task;
 
 void* run_compositor(void* none);

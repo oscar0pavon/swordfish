@@ -140,7 +140,9 @@ int main(){
 
     usleep(16667);//16.6ms
     update_delta_time();
-    
+  
+    end_frame();
+    sleep(1);
     //delay_render_time();
     //array_clean(&surface_to_draw);
   }
