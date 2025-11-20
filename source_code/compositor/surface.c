@@ -16,6 +16,7 @@
 #include "renderer/pipeline.h"
 #include "renderer/descriptor_set.h"
 #include "swordfish.h"
+#include <pthread.h>
 
 Array tasks_for_draw;
 
@@ -56,7 +57,10 @@ void surface_attach(WClient *client, WResource *resource,
 
   surface->can_draw = true;
 
+  pthread_mutex_lock(&draw_tasks_mutex);
   array_add_pointer(&tasks_for_draw, surface);
+
+  pthread_mutex_unlock(&draw_tasks_mutex);
 
   surface->x = x;
   surface->y = y;

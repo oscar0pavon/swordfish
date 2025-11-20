@@ -23,6 +23,10 @@
 #include <engine/time.h>
 #include <wayland-server-core.h>
 
+#include <pthread.h>
+
+pthread_mutex_t draw_tasks_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 bool is_drm_rendering = false;
 bool can_draw_surfaces = true;
 
@@ -109,27 +113,34 @@ void draw_surface(Task* surface, VkCommandBuffer *cmd_buffer, uint32_t index){
 
 }
 
-void end_frame(){
+void end_frame() {
 
-  for (int i = 0; i < tasks_for_draw.count; i++){
-    Task* surface = array_get_pointer(&tasks_for_draw, i);
-    if(surface->frame_call_resource != NULL)
-        send_frame_callback_done(surface);
-    }
-      
+  pthread_mutex_lock(&draw_tasks_mutex);
+  for (int i = 0; i < tasks_for_draw.count; i++) {
+    Task *surface = array_get_pointer(&tasks_for_draw, i);
+    if (surface->frame_call_resource != NULL)
+      send_frame_callback_done(surface);
+  }
+
+  pthread_mutex_unlock(&draw_tasks_mutex);
+
   wl_display_flush_clients(compositor.display);
   array_clean(&tasks_for_draw);
 }
 
-void draw_surfaces(VkCommandBuffer* command, uint32_t index){
-  for (int i = 0; i < tasks_for_draw.count; i++){
-    Task* task = array_get_pointer(&tasks_for_draw, i);
-    if(task->can_draw){
+void draw_surfaces(VkCommandBuffer *command, uint32_t index) {
+
+  pthread_mutex_lock(&draw_tasks_mutex);
+
+  for (int i = 0; i < tasks_for_draw.count; i++) {
+    Task *task = array_get_pointer(&tasks_for_draw, i);
+    if (task->can_draw) {
       draw_surface(task, command, index);
       wl_buffer_send_release(task->buffer_resource);
     }
-      
   }
+
+  pthread_mutex_unlock(&draw_tasks_mutex);
 }
 
 void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){

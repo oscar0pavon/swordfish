@@ -16,6 +16,8 @@ extern bool is_drm_rendering;
 
 extern bool can_draw_surfaces;
 
+extern pthread_mutex_t draw_tasks_mutex;
+
 void clean_swordfish();
 
 void swordfish_init();
