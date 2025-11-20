@@ -131,7 +131,7 @@ int main(){
     if(compositor.gpu_fd < 0)
       continue;
 
-    handle_focus();
+    //handle_focus();
 
     //start_render_time();
 

@@ -8,6 +8,8 @@ typedef struct libinput_event_keyboard InputEventKeyboard;
 
 void* handle_input(void* none);
 
+void send_wayland_key(uint32_t scancode, uint32_t event_state);
+
 void init_input();
 
 void finish_input();

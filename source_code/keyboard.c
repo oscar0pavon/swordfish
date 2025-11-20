@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#include <stdint.h>
 #include "keyboard.h"
 #include "build.h"
 #include "compositor/compositor.h"
@@ -7,7 +8,6 @@
 #include <complex.h>
 #include <stdio.h>
 #include <libinput.h>
-#include <xkbcommon/xkbcommon.h>
 #include <libseat.h>
 #include <fcntl.h>
 #include <mman.h>
@@ -64,10 +64,17 @@ off_t get_keymap_file_size(int fd){
 void handle_xkb_keyboard_event(InputEvent *event) {
   InputEventKeyboard *key_event = libinput_event_get_keyboard_event(event);
 
-  uint32_t key_code = libinput_event_keyboard_get_key(key_event);
+
+  uint32_t scancode = libinput_event_keyboard_get_seat_key_count(key_event);
 
   enum libinput_key_state key_state =
       libinput_event_keyboard_get_key_state(key_event);
+
+  uint32_t key_code = libinput_event_keyboard_get_key(key_event);
+ 
+  //send keys to clients
+  printf("keyboard event\n");
+  send_wayland_key(scancode, key_state);
 
   enum xkb_key_direction direction;
   

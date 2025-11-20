@@ -1,6 +1,12 @@
 #ifndef DEBUG_VULKAN
 #define DEBUG_VULKAN
+
 #include <vulkan/vulkan.h>
+#include <stdbool.h>
+
+extern bool pe_vk_validation_layer_enable;
+
+extern const char *validation_layers[];
 
 extern VkDebugUtilsMessengerCreateInfoEXT debug_message_info;
 

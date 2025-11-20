@@ -26,6 +26,7 @@
 #include <pthread.h>
 
 pthread_mutex_t draw_tasks_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t focus_task_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 bool is_drm_rendering = false;
 bool can_draw_surfaces = true;
@@ -121,6 +122,7 @@ void end_frame() {
     if (surface->frame_call_resource != NULL)
       send_frame_callback_done(surface);
   }
+
 
   pthread_mutex_unlock(&draw_tasks_mutex);
 

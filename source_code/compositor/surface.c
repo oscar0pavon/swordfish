@@ -61,6 +61,7 @@ void surface_attach(WClient *client, WResource *resource,
   array_add_pointer(&tasks_for_draw, surface);
 
   pthread_mutex_unlock(&draw_tasks_mutex);
+  
 
   surface->x = x;
   surface->y = y;
@@ -165,6 +166,10 @@ void create_surface(WClient *client, WResource *resource,
 
   focused_task = surface;
   focused_task->input = NULL;
+
+  pthread_mutex_lock(&focus_task_mutex);
+  is_focus_completed = false;
+  pthread_mutex_unlock(&focus_task_mutex);
 
   surface->compositor = compositor;
   wl_list_insert(&compositor->surfaces, &surface->link);

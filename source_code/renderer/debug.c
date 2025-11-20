@@ -3,6 +3,11 @@
 #include <engine/log.h>
 #include <vulkan/vulkan_core.h>
 
+
+const char *validation_layers[] = {"VK_LAYER_KHRONOS_validation"};
+
+bool pe_vk_validation_layer_enable;
+
 VkDebugUtilsMessengerEXT debug_messenger;
 VkDebugUtilsMessengerCreateInfoEXT debug_message_info;
 

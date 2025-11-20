@@ -1,5 +1,7 @@
 #include "input.h"
 #include "compositor.h"
+#include <complex.h>
+#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -7,6 +9,39 @@
 #include <wayland-server-core.h>
 #include "../keyboard.h"
 #include "surface.h"
+#include <libinput.h>
+#include <time.h>
+#include "swordfish.h"
+
+// Helper function to get current time in milliseconds
+uint32_t get_current_time_msec() {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+
+void send_wayland_key(uint32_t scancode, uint32_t event_state){
+
+  if(!focused_task)
+    return;
+
+  if(!focused_task->input)
+    return;
+
+  WResource *keyboard = focused_task->input->keyboard_resource;
+  uint32_t timestamp = get_current_time_msec();
+
+   uint32_t wl_state = (event_state == LIBINPUT_KEY_STATE_PRESSED) ? 
+                        WL_KEYBOARD_KEY_STATE_PRESSED : 
+                        WL_KEYBOARD_KEY_STATE_RELEASED;
+
+  wl_keyboard_send_key(keyboard,
+                         234,
+                         timestamp,
+                         scancode,
+                         wl_state);
+}
 
 void send_keyboard_configuration(WResource *resource){
   off_t size;
@@ -20,17 +55,23 @@ void send_keyboard_configuration(WResource *resource){
 }
 
 void handle_focus(){
+ pthread_mutex_lock(&focus_task_mutex); 
+ printf("testing focus\n");
   if(!is_focus_completed){
+
     if(!focused_task)
       return;
     if(focused_task->input == NULL)
       return;
-    else{
-      focus_task(focused_task);
-      is_focus_completed = true;
-      focused_task = NULL;
-    }
+    if(focused_task->input->keyboard_resource == NULL)
+      return;
+
+    focus_task(focused_task);
+    is_focus_completed = true;
+    focused_task = NULL;
   }
+ pthread_mutex_unlock(&focus_task_mutex); 
+ printf("end testing focus\n");
 }
 
 static void get_pointer(WClient *client, WResource *resource, uint32_t id) {
@@ -64,7 +105,12 @@ static void get_keyboard(WClient *client, WResource *resource, uint32_t id) {
 
   send_keyboard_configuration(keyboard_resource);
 
- 
+  // wl_keyboard_send_modifiers(keyboard_resource,
+  //                              234,
+  //                              xkb_state_get_mods_depressed(xkb_state),
+  //                              xkb_state_get_mods_latched(xkb_state),
+  //                              xkb_state_get_mods_locked(xkb_state),
+  //                              xkb_state_get_mods_group(xkb_state));
 
 }
 

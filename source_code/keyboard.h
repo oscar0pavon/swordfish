@@ -1,6 +1,8 @@
 #ifndef KEYBOARD_H
 #define KEYBOARD_H
 
+#include <xkbcommon/xkbcommon.h>
+
 #include "input.h"
 
 extern struct xkb_context *xkb_context;

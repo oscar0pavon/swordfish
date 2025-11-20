@@ -5,7 +5,6 @@
 #include <string.h>
 
 #include "commands.h"
-#include "debug.h"
 #include "descriptor_set.h"
 #include "direct_render.h"
 #include "engine/array.h"
@@ -29,10 +28,14 @@
 #include "../window.h"
 
 #include "display.h"
+#include "physical_devices.h"
+#include "logical_device.h"
+#include "instance.h"
+#include "debug.h"
+#include "queues.h"
 
 VkInstance vk_instance;
 VkDevice vk_device;
-VkQueue vk_queue;
 
 PTexture vk_color_image;
 
@@ -45,10 +48,6 @@ VkSampleCountFlagBits pe_vk_msaa_samples;
 VkViewport viewport;
 VkRect2D scissor;
 
-uint32_t q_graphic_family;
-uint32_t q_present_family;
-
-bool pe_vk_validation_layer_enable;
 
 bool pe_vk_initialized;
 
@@ -59,173 +58,15 @@ VkImageView pe_vk_color_image_view;
 
 PFN_vkGetMemoryFdKHR pe_vk_get_memory_file_descriptor;
 
-VkPhysicalDevice vk_physical_device;
 
-const char *validation_layers[] = {"VK_LAYER_KHRONOS_validation"};
 
-const char *instance_extensions_names[] = {
-    VK_KHR_DISPLAY_EXTENSION_NAME, 
-    VK_KHR_SURFACE_EXTENSION_NAME, 
-    VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
-    VK_EXT_DEBUG_UTILS_EXTENSION_NAME, 
-    VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME, 
-    };
 
-const char *devices_extensions[] = {
-    VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
-    VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME, // Core external memory functionality
-    VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME, // Specifics for dma-buf/GBM
-                                                   // import
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-    VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
-    VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
-};
-
-VkDeviceQueueCreateInfo queues_creates_infos[2];
-
-const float queue_priority = 1.f;
 
 Array buffers;
 
 
-void pe_vk_create_instance() {
 
-  uint32_t instance_layer_properties_count = 0;
-  vkEnumerateInstanceLayerProperties(&instance_layer_properties_count, NULL);
-  LOG("VK instance layer count: %i\n", instance_layer_properties_count);
 
-  VkLayerProperties layers_properties[instance_layer_properties_count];
-  vkEnumerateInstanceLayerProperties(&instance_layer_properties_count,
-                                     layers_properties);
-  for (int i = 0; i < instance_layer_properties_count; i++) {
-    //	LOG("%s\n",layers_properties[i].layerName);
-  }
-
-  VkApplicationInfo app_info = {
-      .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-      .pApplicationName = "swordfish",
-      .applicationVersion = VK_MAKE_VERSION(1, 1, 0),
-      .pEngineName = "swordfish_engine",
-      .engineVersion = VK_MAKE_VERSION(1, 0, 0),
-      .apiVersion = VK_API_VERSION_1_3,
-  };
-
-  VkInstanceCreateInfo instance_info = {
-      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-      .pApplicationInfo = &app_info,
-      .enabledExtensionCount = sizeof(instance_extensions_names) /
-                               sizeof(instance_extensions_names[0]),
-      .ppEnabledExtensionNames = instance_extensions_names,
-  };
-
-  if (pe_vk_validation_layer_enable == true) {
-
-    instance_info.enabledLayerCount = 1;
-    instance_info.ppEnabledLayerNames = validation_layers;
-
-    ZERO(debug_message_info);
-    pe_vk_populate_messenger_debug_info(&debug_message_info);
-    instance_info.pNext = &debug_message_info;
-
-  } else {
-    instance_info.enabledLayerCount = 0;
-  }
-
-  VKVALID(vkCreateInstance(&instance_info, NULL, &vk_instance),
-          "Can't create vk instance");
-
-  if (pe_vk_validation_layer_enable == true) {
-    pe_vk_setup_debug_messenger();
-  }
-}
-
-int pe_vk_create_logical_device() {
-
-  VkDeviceCreateInfo info;
-  ZERO(info);
-  info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-  info.enabledLayerCount = 1;
-  info.ppEnabledLayerNames = validation_layers;
-  info.queueCreateInfoCount = 1;
-  info.pQueueCreateInfos = queues_creates_infos;
-
-  info.enabledExtensionCount = sizeof(devices_extensions) /
-                               sizeof(devices_extensions[0]);
-  info.ppEnabledExtensionNames = devices_extensions;
-
-  VKVALID(vkCreateDevice(vk_physical_device, &info, NULL, &vk_device),
-          "Can't create vkphydevice")
-}
-
-void pe_vk_queue_families_support() {
-
-  uint32_t queue_family_count = 0;
-  vkGetPhysicalDeviceQueueFamilyProperties(vk_physical_device,
-                                           &queue_family_count, NULL);
-  LOG("Queue families count: %i\n", queue_family_count);
-
-  VkQueueFamilyProperties q_families[queue_family_count];
-  ZERO(q_families);
-  vkGetPhysicalDeviceQueueFamilyProperties(vk_physical_device,
-                                           &queue_family_count, q_families);
-  for (int i = 0; i < queue_family_count; i++) {
-    VkQueueFamilyProperties property = q_families[i];
-    // LOG("Family queue flag %x", property.queueFlags);
-    if (property.queueFlags == VK_QUEUE_GRAPHICS_BIT) {
-      q_graphic_family = i;
-
-      LOG("graphics queue found");
-    } else {
-
-      // LOG("[X] No graphics queue found\n");
-    }
-
-    // VkBool32 present_support = false;
-    // vkGetPhysicalDeviceSurfaceSupportKHR(vk_physical_device, i, vk_surface,
-    //                                      &present_support);
-    // if (present_support == true)
-    //   q_present_family = i;
-    // else {
-    //
-    //   // LOG("[X] NO present queue found");
-    // }
-  }
-
-  ZERO(queues_creates_infos);
-  uint32_t q_unique_falimiles[] = {q_graphic_family, q_present_family};
-  for (uint32_t i = 0; i < 2; i++) {
-    VkDeviceQueueCreateInfo *info = &queues_creates_infos[i];
-    info->sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    info->queueFamilyIndex = q_unique_falimiles[i];
-    info->queueCount = 1;
-    info->pQueuePriorities = &queue_priority;
-  }
-}
-
-void pe_vk_get_physical_device() {
-
-  uint32_t devices_count = 0;
-
-  vkEnumeratePhysicalDevices(vk_instance, &devices_count, NULL);
-
-  if (devices_count == 0)
-    LOG("Not devices compatibles\n");
-  else
-    printf("Devices count %i\n", devices_count);
-
-  VkPhysicalDevice devices[devices_count];
-  vkEnumeratePhysicalDevices(vk_instance, &devices_count, devices);
-
-  vk_physical_device = devices[0];
-  if (vk_physical_device == NULL) {
-    printf("Can't assing device\n");
-  }
-
-  VkPhysicalDeviceProperties properties;
-  vkGetPhysicalDeviceProperties(vk_physical_device,&properties);
-
-  printf("Device: %s\n", properties.deviceName);
-}
 
 void pe_vk_create_surface() {
 
