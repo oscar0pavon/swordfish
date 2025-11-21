@@ -33,13 +33,11 @@
 #include "instance.h"
 #include "debug.h"
 #include "queues.h"
+#include "surface.h"
 
 VkInstance vk_instance;
 VkDevice vk_device;
 
-PTexture vk_color_image;
-
-VkSurfaceKHR vk_surface;
 
 VkRenderPass pe_vk_render_pass;
 
@@ -51,77 +49,32 @@ VkRect2D scissor;
 
 bool pe_vk_initialized;
 
-VkImage pe_vk_color_image;
-VkDeviceMemory pe_vk_color_memory;
-VkImageView pe_vk_color_image_view;
 
 
 PFN_vkGetMemoryFdKHR pe_vk_get_memory_file_descriptor;
 
 
-
-
-
 Array buffers;
 
+void pe_vk_end() {
 
+  pe_vk_clean_commands();
 
+  vkDestroySwapchainKHR(vk_device, pe_vk_swap_chain, NULL);
 
+  pe_vk_end_sync();
 
-void pe_vk_create_surface() {
+  pe_vk_clean_image(&vk_depth_image);
+  pe_vk_clean_image(&vk_color_image);
 
-  if (!is_drm_rendering) {
-
-    VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
-        .dpy = display,
-        .window = swordfish_window,
-    };
-
-    if (vkCreateXlibSurfaceKHR(vk_instance, &surfaceCreateInfo, NULL,
-                               &vk_surface) != VK_SUCCESS) {
-      fprintf(stderr, "Failed to create Vulkan Xlib surface!\n");
-    }
+  for(int i = 0; i < buffers.count; i++){
+    VkBuffer* buffer = array_get(&buffers, i);
+    vkDestroyBuffer(vk_device,*buffer,NULL);
   }
-}
-
-void pe_vk_create_color_resources() {
-  VkFormat color_format = pe_vk_swch_format;
-
-  vk_color_image.mip_level = 1;
-  PImageCreateInfo image_create_info = {
-      .width = pe_vk_swch_extent.width,
-      .height = pe_vk_swch_extent.height,
-      .texture = &vk_color_image,
-      .format = color_format,
-      .tiling = VK_IMAGE_TILING_OPTIMAL,
-      .usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
-               VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-      .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-      .mip_level = 1,
-      .number_of_samples = pe_vk_msaa_samples};
-
-  pe_vk_create_image(&image_create_info);
-
-  pe_vk_color_image_view = pe_vk_create_image_view(
-      vk_color_image.image, color_format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
-}
-
-void pe_vk_set_viewport_and_sccisor(){
-  //TODO update when recreate swap chain for handling resizing window
-
-  VkOffset2D offset = {0, 0};
-
-  scissor.extent = pe_vk_swch_extent;
-  scissor.offset = offset;
-
-  viewport.x = 0.0f;
-  viewport.y = 0.0f;
-  viewport.width = (float)pe_vk_swch_extent.width;
-  viewport.height = (float)pe_vk_swch_extent.height;
-  viewport.minDepth = 0.0f;
-  viewport.maxDepth = 1.0f;
-
+  pe_vk_debug_end();
+  vkDestroySurfaceKHR(vk_instance, vk_surface, NULL);
+  vkDestroyDevice(vk_device, NULL);
+  vkDestroyInstance(vk_instance, NULL);
 }
 
 int pe_vk_init() {
@@ -199,26 +152,4 @@ int pe_vk_init() {
 
   LOG("Vulkan intialize [OK]\n");
   return 0;
-}
-
-
-void pe_vk_end() {
-
-  pe_vk_clean_commands();
-
-  vkDestroySwapchainKHR(vk_device, pe_vk_swap_chain, NULL);
-
-  pe_vk_end_sync();
-
-  pe_vk_clean_image(&vk_depth_image);
-  pe_vk_clean_image(&vk_color_image);
-
-  for(int i = 0; i < buffers.count; i++){
-    VkBuffer* buffer = array_get(&buffers, i);
-    vkDestroyBuffer(vk_device,*buffer,NULL);
-  }
-  pe_vk_debug_end();
-  vkDestroySurfaceKHR(vk_instance, vk_surface, NULL);
-  vkDestroyDevice(vk_device, NULL);
-  vkDestroyInstance(vk_instance, NULL);
 }
