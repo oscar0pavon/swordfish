@@ -468,6 +468,9 @@ void pe_vk_clean_image(PTexture* image){
   
   vkDestroyImage(vk_device, image->image, NULL);
   vkDestroyImageView(vk_device, image->image_view, NULL);
+  if(image->sampler != VK_NULL_HANDLE) {
+    vkDestroySampler(vk_device, image->sampler, NULL);
+  }
 
   vkFreeMemory(vk_device, image->memory, NULL);
 }

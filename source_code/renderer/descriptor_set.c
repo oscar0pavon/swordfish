@@ -1,6 +1,7 @@
 #include "descriptor_set.h"
 
 #include "renderer/swap_chain.h"
+#include "renderer/vulkan.h"
 #include "vk_images.h"
 #include <engine/array.h>
 
@@ -16,6 +17,11 @@ VkPipelineLayout pe_vk_pipeline_layout_skinned;
 VkDescriptorSetLayout pe_vk_descriptor_set_layout;
 VkDescriptorSetLayout pe_vk_descriptor_set_layout_with_texture;
 VkDescriptorSetLayout pe_vk_descriptor_set_layout_skinned;
+
+void pe_vk_clean_descriptors_set(){
+  vkDestroyDescriptorSetLayout(vk_device, pe_vk_descriptor_set_layout_with_texture, NULL);
+  vkDestroyDescriptorSetLayout(vk_device, pe_vk_descriptor_set_layout, NULL);
+}
 
 void pe_vk_descriptor_pool_create(PModel *model) {
   VkDescriptorPoolSize pool_size[3];

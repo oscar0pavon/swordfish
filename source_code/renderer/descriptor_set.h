@@ -17,6 +17,8 @@ extern VkDescriptorSetLayout pe_vk_descriptor_set_layout;
 extern VkDescriptorSetLayout pe_vk_descriptor_set_layout_with_texture;
 extern VkDescriptorSetLayout pe_vk_descriptor_set_layout_skinned;
 
+void pe_vk_clean_descriptors_set();
+
 void pe_vk_descriptor_pool_create(PModel *model);
 void pe_vk_descriptor_with_image_update(PModel *model);
 

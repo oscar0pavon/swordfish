@@ -66,6 +66,10 @@ void pe_vk_end() {
 
   pe_vk_end_sync();
 
+  pe_vk_clean_descriptors_set();
+
+  vkDestroyRenderPass(vk_device, pe_vk_render_pass, NULL);
+
   pe_vk_clean_image(&vk_depth_image);
   pe_vk_clean_image(&vk_color_image);
 
