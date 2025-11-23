@@ -93,16 +93,26 @@ void params_create(struct wl_client *client,
 
 
 void destroy_buffer_immd(WClient *client, WResource *resource){
-  printf("destroy buffer\n");
+  
+  PTexture* image = wl_resource_get_user_data(resource);
+  
+  printf("#### Destroying image size %i %i %p\n",image->width, image->heigth, image);
+
+  pe_vk_clean_image(image);
+
+  free(image);
+
+  wl_resource_destroy(resource);
+
+  printf("Destroyed buffer and image\n");
 }
 
 struct wl_buffer_interface buffer_implementation = {
   .destroy = destroy_buffer_immd
 };
 
-PTexture image;
 
-void linux_dmabuf_create_immed(WClient *client,
+static void create_immediate(WClient *client,
                                WResource *resource,
                                uint32_t buffer_id, 
                                int32_t width, int32_t height,
@@ -114,8 +124,13 @@ void linux_dmabuf_create_immed(WClient *client,
   buffer->height = height;
   buffer->format = format;
 
-  image.width = width;
-  image.heigth = height;
+
+  PTexture *new_image = calloc(1,sizeof(PTexture));
+
+  printf("########### Creating image!!! %p\n", new_image);
+
+  new_image->width = width;
+  new_image->heigth = height;
 
 
   WResource* buffer_resource = 
@@ -127,9 +142,9 @@ void linux_dmabuf_create_immed(WClient *client,
 
   printf("Creatig buffer with %i %i\n", width, height);
   printf("Buffer fd[0]=%i\n",buffer->fds[0]);
-  pe_vk_import_image(&image, width, height, buffer->fds[0], buffer->modifiers[0]);
+  pe_vk_import_image(new_image, width, height, buffer->fds[0], buffer->modifiers[0]);
 
-  wl_resource_set_user_data(buffer_resource, &image);
+  wl_resource_set_user_data(buffer_resource, new_image);
 
   //finish
   for (int i = 0; i < buffer->num_planes; i++) {
@@ -148,7 +163,7 @@ static const struct zwp_linux_buffer_params_v1_interface params_implementation =
     .destroy = destroy_params_resource,
     .add = params_add,
     .create = params_create,
-    .create_immed = linux_dmabuf_create_immed
+    .create_immed = create_immediate
 };
 
 void destroy_params(WResource *resource) {

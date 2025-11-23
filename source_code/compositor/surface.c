@@ -16,6 +16,7 @@
 #include "renderer/pipeline.h"
 #include "renderer/descriptor_set.h"
 #include "swordfish.h"
+#include "renderer/vk_images.h"
 #include <pthread.h>
 
 Array tasks_for_draw;
@@ -31,8 +32,13 @@ static void surface_damage(WClient *client, WResource *resource,
 }
 
 static void surface_destroy(WClient *client, WResource *resource) {
-  // The client asked to destroy the surface resource. The general resource
-  // destroy function (below) will be called after this.
+
+  Task *task = wl_resource_get_user_data(resource);
+
+  pe_vk_clean_image(task->image);
+
+  wl_resource_destroy(resource);
+
   printf("Surface destroy\n");
 }
 
