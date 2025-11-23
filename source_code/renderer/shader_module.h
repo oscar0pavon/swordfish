@@ -4,9 +4,9 @@
 #include "vulkan.h"
 #include "shaders.h"
 
-extern VkPipelineShaderStageCreateInfo pe_vk_shaders_stages_infos[2];
-
+#include <engine/file_loader.h>
 
 void pe_vk_shader_load(PCreateShaderInfo *info);
+VkShaderModule pe_vk_shader_module_create(File *file);
 
 #endif

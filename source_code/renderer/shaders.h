@@ -19,4 +19,6 @@ typedef struct PCreateShaderInfo{
     VkGraphicsPipelineCreateInfo* vk_create_info;
 }PCreateShaderInfo;
 
+extern VkPipelineShaderStageCreateInfo shader_create_info[2];
+
 #endif

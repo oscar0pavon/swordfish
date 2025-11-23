@@ -27,7 +27,6 @@ VkPipelineColorBlendStateCreateInfo color_blend_state;
 VkVertexInputBindingDescription input_binding_description;
 VkPipelineDepthStencilStateCreateInfo depth_stencil;
 
-VkPipelineShaderStageCreateInfo shader_create_info[2];
 
 VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT,
                                   VK_DYNAMIC_STATE_SCISSOR};
