@@ -50,7 +50,7 @@ void pe_vk_create_uniform_buffers(PModel *model) {
   array_init(&model->uniform_buffers_memory, sizeof(VkDeviceMemory),
              pe_vk_swapchain_image_count);
 
-  LOG("Creating uniform buffer\n");
+  //LOG("Creating uniform buffer\n");
   for (int i = 0; i < pe_vk_swapchain_image_count; i++) {
     // create buffer
     PBufferCreateInfo info =

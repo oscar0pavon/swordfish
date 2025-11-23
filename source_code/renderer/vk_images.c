@@ -282,7 +282,7 @@ void pe_vk_create_image(PImageCreateInfo *info) {
 
   }
 
-  printf("Memory rquirement size %li \n",memory_requirements.size);
+  //printf("Memory rquirement size %li \n",memory_requirements.size);
   VkMemoryAllocateInfo info_alloc = {
       .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
       .allocationSize = memory_requirements.size,
@@ -314,7 +314,7 @@ void pe_vk_create_image(PImageCreateInfo *info) {
   memory_allocation_result =
       vkAllocateMemory(vk_device, &info_alloc, NULL, &info->texture->memory);
 
-  printf("Vulkan memory allocated: %p\n",info->texture->memory);
+  //printf("Vulkan memory allocated: %p\n",info->texture->memory);
  
   if (memory_allocation_result != VK_SUCCESS) {
     printf("Can't allocate memory for image\n");
@@ -467,6 +467,7 @@ void pe_vk_create_depth_resources() {
 void pe_vk_clean_image(PTexture* image){
   
   vkDestroyImage(vk_device, image->image, NULL);
+  vkDestroyImageView(vk_device, image->image_view, NULL);
 
   vkFreeMemory(vk_device, image->memory, NULL);
 }
@@ -576,7 +577,7 @@ void pe_vk_create_texture(PTexture* new_texture, const char* path) {
 
   pe_vk_create_texture_sampler(new_texture);
 
-  vkFreeMemory(vk_device, image_buffer.memory, NULL);//Clean the stagin buffer
+  vkFreeMemory(vk_device, image_buffer.memory, NULL); // Clean the stagin buffer
 
   free_image(&texture);
 }

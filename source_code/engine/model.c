@@ -280,7 +280,7 @@ PModel *pe_vk_load_model(PModel* model, const char *path) {
 void pe_clean_model(PModel* model){
   for(int i = 0; i < model->uniform_buffers_memory.count; i++){
     VkDeviceMemory* memory = array_get(&model->uniform_buffers_memory, i);
-    printf("Freeying uniform buffermemory %p\n", *memory);
+    //printf("Freeying uniform buffermemory %p\n", *memory);
     vkFreeMemory(vk_device, *memory, NULL);
   }
 

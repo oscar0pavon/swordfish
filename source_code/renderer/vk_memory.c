@@ -32,6 +32,6 @@ VkDeviceMemory pe_vk_allocate_memory(VkMemoryRequirements requirements) {
 
   VkDeviceMemory memory;
   vkAllocateMemory(vk_device, &info, NULL, &memory);
-  printf("Allocated memory %p\n", memory);
+  //printf("Allocated memory %p\n", memory);
   return memory;
 }
