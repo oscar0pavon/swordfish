@@ -248,7 +248,7 @@ void swordfish_init(){
 
   PCreateShaderInfo main_cube_shader = {
       .transparency = false,
-      .out_pipeline = &main_cube.pipeline,
+      .out_shader = &main_cube.shader, 
       .vertex_path = "/usr/libexec/swordfish/shaders/model_view_projection_vert.spv",
       .fragment_path = "/usr/libexec/swordfish/shaders/red_frag.spv",
       .layout = pe_vk_pipeline_layout_with_descriptors
@@ -260,7 +260,7 @@ void swordfish_init(){
 
   PCreateShaderInfo secondary_cube_shader = {
       .transparency = false,
-      .out_pipeline = &secondary_cube.pipeline,
+      .out_shader = &secondary_cube.shader,
       .vertex_path = "/usr/libexec/swordfish/shaders/model_view_projection_vert.spv",
       .fragment_path = "/usr/libexec/swordfish/shaders/texture_frag.spv",
       .layout = pe_vk_pipeline_layout3
@@ -268,7 +268,7 @@ void swordfish_init(){
   
   pe_vk_create_shader(&secondary_cube_shader);
 
-  background.pipeline = secondary_cube.pipeline;
+  background.shader.pipeline = secondary_cube.shader.pipeline;
 
   init_secodary_cube(&secondary_cube);
 
@@ -278,7 +278,7 @@ void swordfish_init(){
 
   PCreateShaderInfo quad_shader = {
       .transparency = true,
-      .out_pipeline = &text_model.pipeline,
+      .out_shader = &text_model.shader,
       .vertex_path = "/usr/libexec/swordfish/shaders/dimention_2d_vert.spv",
       .fragment_path = "/usr/libexec/swordfish/shaders/texture_frag.spv",
       .layout = pe_vk_pipeline_layout3

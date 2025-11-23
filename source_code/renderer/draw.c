@@ -30,7 +30,7 @@ void pe_vk_draw_model(PDrawModelCommand *draw_model) {
   vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           draw_model->layout, 0, 1, descriptor_set, 0, NULL);
   vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    draw_model->model->pipeline);
+                    draw_model->model->shader.pipeline);
 
   vkCmdBindVertexBuffers(command, 0, 1, &draw_model->model->vertex_buffer.buffer, offsets);
   vkCmdBindIndexBuffer(command, draw_model->model->index_buffer.buffer, 0,

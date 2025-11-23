@@ -8,6 +8,7 @@
 
 #include <cglm/vec3.h>
 
+#include "renderer/shaders.h"
 #include "renderer/vulkan.h"
 
 
@@ -53,7 +54,8 @@ typedef struct PModel{
     PMesh mesh;
 	  bool gpu_ready;
 
-    VkPipeline pipeline;
+    PShader shader;
+
     PUniformBufferObject uniform_buffer_object;
 }PModel;
 

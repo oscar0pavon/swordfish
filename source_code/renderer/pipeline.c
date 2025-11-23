@@ -243,16 +243,15 @@ VkGraphicsPipelineCreateInfo* pe_vk_pipeline_create_info(){
 
 void pe_vk_create_shader(PCreateShaderInfo* info){
 
-  VkGraphicsPipelineCreateInfo* create_info = pe_vk_pipeline_create_info();
-
+  info->vk_create_info = pe_vk_pipeline_create_info();
+  
   if(info->transparency)
     color_blend_state = pe_vk_pipeline_get_default_color_blend(true);
   else
     color_blend_state = pe_vk_pipeline_get_default_color_blend(false);
   
-  pe_vk_shader_load(shader_create_info, info->vertex_path, info->fragment_path);
+  pe_vk_shader_load(info);
 
-  create_info->pStages = shader_create_info; // here is where we assing the shader
 
   // example can be have vertex position and UV or more
   PVertexAtrributes vertex_attributes = {.has_attributes = true,
@@ -263,13 +262,13 @@ void pe_vk_create_shader(PCreateShaderInfo* info){
   vertex_input_state =
       pe_vk_pipeline_get_default_vertex_input(&vertex_attributes);
 
-  create_info->pVertexInputState = &vertex_input_state;
+  info->vk_create_info->pVertexInputState = &vertex_input_state;
 
-  create_info->layout = info->layout;
+  info->vk_create_info->layout = info->layout;
 
   int count = 1;
   VKVALID(vkCreateGraphicsPipelines(vk_device, VK_NULL_HANDLE, count,
-                                    create_info, NULL, info->out_pipeline),
+                                    info->vk_create_info, NULL, &info->out_shader->pipeline),
           "Can't create pipeline");
 }
 

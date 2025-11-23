@@ -138,7 +138,7 @@ void create_surface(WClient *client, WResource *resource,
 
   PCreateShaderInfo quad_shader = {
       .transparency = true,
-      .out_pipeline = &surface->model.pipeline,
+      .out_shader = &surface->model.shader,
       .vertex_path = "/usr/libexec/swordfish/shaders/dimention_2d_vert.spv",
       .fragment_path = "/usr/libexec/swordfish/shaders/texture_frag.spv",
       .layout = pe_vk_pipeline_layout3
