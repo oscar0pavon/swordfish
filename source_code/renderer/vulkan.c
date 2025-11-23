@@ -62,6 +62,8 @@ void pe_vk_end() {
 
   vkDestroySwapchainKHR(vk_device, pe_vk_swap_chain, NULL);
 
+  pe_vk_clean_layouts();
+
   pe_vk_end_sync();
 
   pe_vk_clean_image(&vk_depth_image);

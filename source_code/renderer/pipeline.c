@@ -31,6 +31,13 @@ VkPipelineDepthStencilStateCreateInfo depth_stencil;
 VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT,
                                   VK_DYNAMIC_STATE_SCISSOR};
 
+void pe_vk_clean_layouts(){
+
+  vkDestroyPipelineLayout(vk_device, pe_vk_pipeline_layout3, NULL);
+  vkDestroyPipelineLayout(vk_device, pe_vk_pipeline_layout, NULL);
+  vkDestroyPipelineLayout(vk_device, pe_vk_pipeline_layout_with_descriptors, NULL);
+}
+
 void pe_vk_pipeline_create_layout(bool use_descriptor, VkPipelineLayout *layout,
                                   VkDescriptorSetLayout *set_layout) {
 
@@ -240,36 +247,6 @@ VkGraphicsPipelineCreateInfo* pe_vk_pipeline_create_info(){
 }
 
 
-void pe_vk_create_shader(PCreateShaderInfo* info){
-
-  info->vk_create_info = pe_vk_pipeline_create_info();
-  
-  if(info->transparency)
-    color_blend_state = pe_vk_pipeline_get_default_color_blend(true);
-  else
-    color_blend_state = pe_vk_pipeline_get_default_color_blend(false);
-  
-  pe_vk_shader_load(info);
-
-
-  // example can be have vertex position and UV or more
-  PVertexAtrributes vertex_attributes = {.has_attributes = true,
-                                         .position = true,
-                                         .uv = true};
-
-  ZERO(vertex_input_state);
-  vertex_input_state =
-      pe_vk_pipeline_get_default_vertex_input(&vertex_attributes);
-
-  info->vk_create_info->pVertexInputState = &vertex_input_state;
-
-  info->vk_create_info->layout = info->layout;
-
-  int count = 1;
-  VKVALID(vkCreateGraphicsPipelines(vk_device, VK_NULL_HANDLE, count,
-                                    info->vk_create_info, NULL, &info->out_shader->pipeline),
-          "Can't create pipeline");
-}
 
 void pe_vk_pipelines_init() {
   

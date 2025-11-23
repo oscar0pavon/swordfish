@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 typedef struct PShader{
+  bool cleaned;
   VkPipeline pipeline;
   VkShaderModule vertex;
   VkShaderModule fragment;
@@ -18,6 +19,8 @@ typedef struct PCreateShaderInfo{
     VkPipelineLayout layout;
     VkGraphicsPipelineCreateInfo* vk_create_info;
 }PCreateShaderInfo;
+
+void pe_vk_clean_shader(PShader *shader);
 
 extern VkPipelineShaderStageCreateInfo shader_create_info[2];
 

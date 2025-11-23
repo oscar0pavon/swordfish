@@ -284,6 +284,8 @@ void pe_clean_model(PModel* model){
     vkFreeMemory(vk_device, *memory, NULL);
   }
 
+  pe_vk_clean_shader(&model->shader);
+
   vkFreeMemory(vk_device,model->index_buffer.memory, NULL); 
   vkFreeMemory(vk_device,model->vertex_buffer.memory, NULL); 
 
