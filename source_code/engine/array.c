@@ -88,6 +88,11 @@ void array_add(Array *array, const void *element) {
 }
 
 void array_add_pointer(Array *array, const void *element) {
+  for(int i = 0; i < array->count; i++){
+    void *old_element = array_get_pointer(array, i);
+    if(old_element == element)
+      return;
+  }
   array_add(array, &element);
 }
 

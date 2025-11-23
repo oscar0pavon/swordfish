@@ -127,7 +127,7 @@ void end_frame() {
   pthread_mutex_unlock(&draw_tasks_mutex);
 
   wl_display_flush_clients(compositor.display);
-  array_clean(&tasks_for_draw);
+  //array_clean(&tasks_for_draw);
 }
 
 void draw_surfaces(VkCommandBuffer *command, uint32_t index) {
