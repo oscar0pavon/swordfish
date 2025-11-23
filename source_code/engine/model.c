@@ -283,6 +283,10 @@ void pe_clean_model(PModel* model){
     printf("Freeying uniform buffermemory %p\n", *memory);
     vkFreeMemory(vk_device, *memory, NULL);
   }
+
+  vkFreeMemory(vk_device,model->index_buffer.memory, NULL); 
+  vkFreeMemory(vk_device,model->vertex_buffer.memory, NULL); 
+
 }
 
 int pe_load_model_path(PModel* model, const char *path) {

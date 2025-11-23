@@ -576,5 +576,7 @@ void pe_vk_create_texture(PTexture* new_texture, const char* path) {
 
   pe_vk_create_texture_sampler(new_texture);
 
+  vkFreeMemory(vk_device, image_buffer.memory, NULL);//Clean the stagin buffer
+
   free_image(&texture);
 }
