@@ -63,19 +63,22 @@ static void your_error_handler_func(void *data, const char *msg) {
 
 void focus_task(Task *task) {
 
-  printf("send focus enter\n");
+  // printf("send focus enter\n");
+  //
+  // wl_keyboard_send_enter(focused_task->input->keyboard_resource, 32,
+  //                        task->resource, NULL);
 
-  wl_keyboard_send_enter(focused_task->input->keyboard_resource, 32,
-                         task->resource, NULL);
-
-  return;
+//  return;
+  if(!focused_task)
+    return;
 
   TaskInput *temp_input;
   wl_list_for_each(temp_input, &compositor.tasks_input, link) {
     if (temp_input->client == wl_resource_get_client(task->resource)) {
-      printf("send focus enter\n");
-      wl_keyboard_send_enter(temp_input->keyboard_resource, 32, task->resource,
-                             NULL);
+      //printf("send focus enter\n");
+      // wl_keyboard_send_enter(temp_input->keyboard_resource, 32, task->resource,
+      //                        NULL);
+      task->input = temp_input;
     }
   }
 }

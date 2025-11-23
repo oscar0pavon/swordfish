@@ -171,7 +171,6 @@ void create_surface(WClient *client, WResource *resource,
                                  destroy_surface); // Set the destroy handler
 
   focused_task = surface;
-  focused_task->input = NULL;
 
   pthread_mutex_lock(&focus_task_mutex);
   is_focus_completed = false;

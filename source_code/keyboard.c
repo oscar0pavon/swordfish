@@ -65,7 +65,6 @@ void handle_xkb_keyboard_event(InputEvent *event) {
   InputEventKeyboard *key_event = libinput_event_get_keyboard_event(event);
 
 
-  uint32_t scancode = libinput_event_keyboard_get_seat_key_count(key_event);
 
   enum libinput_key_state key_state =
       libinput_event_keyboard_get_key_state(key_event);
@@ -73,8 +72,8 @@ void handle_xkb_keyboard_event(InputEvent *event) {
   uint32_t key_code = libinput_event_keyboard_get_key(key_event);
  
   //send keys to clients
-  printf("keyboard event\n");
-  send_wayland_key(scancode, key_state);
+  //printf("keyboard event\n");
+  send_wayland_key(key_code, key_state);
 
   enum xkb_key_direction direction;
   

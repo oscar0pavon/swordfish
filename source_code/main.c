@@ -131,7 +131,7 @@ int main(){
     if(compositor.gpu_fd < 0)
       continue;
 
-    //handle_focus();
+    handle_focus();
 
     //start_render_time();
 
@@ -142,7 +142,7 @@ int main(){
     update_delta_time();
   
     end_frame();
-    sleep(1);
+    //sleep(1);
     //delay_render_time();
     //array_clean(&surface_to_draw);
   }

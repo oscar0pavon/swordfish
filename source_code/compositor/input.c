@@ -23,11 +23,15 @@ uint32_t get_current_time_msec() {
 
 void send_wayland_key(uint32_t scancode, uint32_t event_state){
 
-  if(!focused_task)
+  if(!focused_task){
+    printf("not focused task\n");
     return;
+  }
 
-  if(!focused_task->input)
+  if(!focused_task->input){
+    printf("not input task\n");
     return;
+  }
 
   WResource *keyboard = focused_task->input->keyboard_resource;
   uint32_t timestamp = get_current_time_msec();
@@ -35,7 +39,8 @@ void send_wayland_key(uint32_t scancode, uint32_t event_state){
    uint32_t wl_state = (event_state == LIBINPUT_KEY_STATE_PRESSED) ? 
                         WL_KEYBOARD_KEY_STATE_PRESSED : 
                         WL_KEYBOARD_KEY_STATE_RELEASED;
-
+  
+   printf("Sent key\n");
   wl_keyboard_send_key(keyboard,
                          234,
                          timestamp,
@@ -55,23 +60,25 @@ void send_keyboard_configuration(WResource *resource){
 }
 
 void handle_focus(){
- pthread_mutex_lock(&focus_task_mutex); 
- printf("testing focus\n");
-  if(!is_focus_completed){
+ // pthread_mutex_lock(&focus_task_mutex); 
+ // printf("testing focus\n");
+ //  if(!is_focus_completed){
+ //
+ //    if(!focused_task)
+ //      return;
+ //    if(focused_task->input == NULL)
+ //      return;
+ //    if(focused_task->input->keyboard_resource == NULL)
+ //      return;
+ //
+ //    focus_task(focused_task);
+ //    is_focus_completed = true;
+ //    focused_task = NULL;
+ //  }
+ // pthread_mutex_unlock(&focus_task_mutex); 
+ // printf("end testing focus\n");
 
-    if(!focused_task)
-      return;
-    if(focused_task->input == NULL)
-      return;
-    if(focused_task->input->keyboard_resource == NULL)
-      return;
-
-    focus_task(focused_task);
-    is_focus_completed = true;
-    focused_task = NULL;
-  }
- pthread_mutex_unlock(&focus_task_mutex); 
- printf("end testing focus\n");
+  focus_task(focused_task);
 }
 
 static void get_pointer(WClient *client, WResource *resource, uint32_t id) {
