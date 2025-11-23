@@ -212,7 +212,7 @@ void swordfish_update_main_cube(PModel *model, uint32_t image_index) {
 
 // INFO first load the texture
 void load_textured_model(PModel* model, const char* path){
-  pe_vk_model_load(model, path);
+  pe_vk_load_model(model, path);
   pe_vk_create_descriptor_sets(model,pe_vk_descriptor_set_layout_with_texture);
   //pe_vk_descriptor_with_image_update(model);
 }
@@ -223,6 +223,12 @@ void clean_swordfish(){
   pe_vk_clean_image(&text_model.texture);
   pe_vk_clean_image(&background.texture);
 
+
+  pe_clean_model(&secondary_cube);
+  pe_clean_model(&text_model);
+  pe_clean_model(&background);
+  pe_clean_model(&main_cube);
+
 }
 
 void swordfish_init(){
@@ -232,7 +238,7 @@ void swordfish_init(){
   pe_vk_create_texture(&text_model.texture, "/usr/libexec/swordfish/images/font.png");
   pe_vk_create_texture(&background.texture, "/usr/libexec/swordfish/images/background1.png");
 
-  pe_vk_model_load(&main_cube, "/usr/libexec/swordfish/models/wireframe_cube.glb");
+  pe_vk_load_model(&main_cube, "/usr/libexec/swordfish/models/wireframe_cube.glb");
   pe_vk_create_descriptor_sets(&main_cube,pe_vk_descriptor_set_layout);
   pe_vk_descriptor_update(&main_cube);
  

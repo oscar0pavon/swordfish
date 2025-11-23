@@ -294,7 +294,7 @@ void pe_vk_create_image(PImageCreateInfo *info) {
   }
 
   if(info->is_importable){
-    printf("File descriptr %i\n", info->import.file_descriptor);
+    printf("File descriptor %i\n", info->import.file_descriptor);
     info->import.info.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR;
     info->import.info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
     info->import.info.fd = info->import.file_descriptor;
@@ -311,13 +311,17 @@ void pe_vk_create_image(PImageCreateInfo *info) {
 
   VkResult memory_allocation_result;
 
-   memory_allocation_result = vkAllocateMemory(vk_device, &info_alloc, NULL, &info->texture->memory);
-   if(memory_allocation_result != VK_SUCCESS){
-      printf("Can't allocate memory for image\n");
-      pe_vk_handle_error(memory_allocation_result);
-      sleep(2);
-      exit(-1);   
-   }
+  memory_allocation_result =
+      vkAllocateMemory(vk_device, &info_alloc, NULL, &info->texture->memory);
+
+  printf("Vulkan memory allocated: %p\n",info->texture->memory);
+ 
+  if (memory_allocation_result != VK_SUCCESS) {
+    printf("Can't allocate memory for image\n");
+    pe_vk_handle_error(memory_allocation_result);
+    sleep(2);
+    exit(-1);
+  }
 
   vkBindImageMemory(vk_device, info->texture->image, info->texture->memory, 0);
 

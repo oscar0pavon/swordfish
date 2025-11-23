@@ -108,7 +108,7 @@ int pe_vk_init() {
   pe_vk_create_swapchain();
 
   if(is_drm_rendering){
-    pe_vk_create_exportable_images();
+    //pe_vk_create_exportable_images();
     //init_direct_render();
   }
 

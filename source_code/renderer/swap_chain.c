@@ -89,7 +89,7 @@ pe_vk_swch_choose_extent(const VkSurfaceCapabilitiesKHR *capabilities) {
     VkExtent2D current;
     if (is_drm_rendering) {
       current.width = 1920;
-      current.height = 1920;
+      current.height = 1080;
     } else {
       current.width = WINDOW_WIDTH;
       current.height = WINDOW_HEIGHT;

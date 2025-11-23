@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 #include <vulkan/vulkan_core.h>
+#include "swap_chain.h"
 
 #include "../swordfish.h"
 
@@ -43,13 +44,18 @@ PBufferCreateInfo pe_vk_uniform_buffer_create_buffer(size_t size) {
 void pe_vk_create_uniform_buffers(PModel *model) {
   VkDeviceSize buffer_size = sizeof(PUniformBufferObject);
 
-  array_init(&model->uniform_buffers, sizeof(VkBuffer), 4);
-  array_init(&model->uniform_buffers_memory, sizeof(VkDeviceMemory), 4);
+  array_init(&model->uniform_buffers, sizeof(VkBuffer),
+             pe_vk_swapchain_image_count);
 
-  for (int i = 0; i < 4; i++) {
+  array_init(&model->uniform_buffers_memory, sizeof(VkDeviceMemory),
+             pe_vk_swapchain_image_count);
+
+  LOG("Creating uniform buffer\n");
+  for (int i = 0; i < pe_vk_swapchain_image_count; i++) {
     // create buffer
     PBufferCreateInfo info =
         pe_vk_uniform_buffer_create_buffer(sizeof(PUniformBufferObject));
+
     array_add(&model->uniform_buffers, &info.buffer);
     array_add(&model->uniform_buffers_memory, &info.buffer_memory);
   }

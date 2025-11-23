@@ -24,7 +24,7 @@ void pe_vk_create_buffer_memory(PBufferCreateInfo *buffer_info) {
   array_add(&buffers,&buffer);
 
   VkMemoryRequirements requirement = pe_vk_memory_get_requirements(buffer);
-  VkDeviceMemory memory = pe_vk_memory_allocate(requirement);
+  VkDeviceMemory memory = pe_vk_allocate_memory(requirement);
 
   VKVALID(vkBindBufferMemory(vk_device, buffer, memory, 0),
           "Can't bind memory");

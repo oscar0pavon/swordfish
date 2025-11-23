@@ -1,5 +1,6 @@
 #include "model.h"
 #include "engine/array.h"
+#include "renderer/vulkan.h"
 #include <vulkan/vulkan_core.h>
 
 #define CGLTF_IMPLEMENTATION
@@ -252,9 +253,9 @@ cgltf_result pe_loader_model_from_memory(PModel* model, void *gltf_data, u32 siz
   return result;
 }
 
-PModel *pe_vk_model_load(PModel* model, const char *path) {
+PModel *pe_vk_load_model(PModel* model, const char *path) {
 
-  pe_load_model(model, path);
+  pe_load_model_path(model, path);
 
   model->vertex_buffer = pe_vk_create_buffer(model->vertex_array.bytes_size,
                                              model->vertex_array.data,
@@ -276,8 +277,15 @@ PModel *pe_vk_model_load(PModel* model, const char *path) {
   return model;
 }
 
+void pe_clean_model(PModel* model){
+  for(int i = 0; i < model->uniform_buffers_memory.count; i++){
+    VkDeviceMemory* memory = array_get(&model->uniform_buffers_memory, i);
+    printf("Freeying uniform buffermemory %p\n", *memory);
+    vkFreeMemory(vk_device, *memory, NULL);
+  }
+}
 
-int pe_load_model(PModel* model, const char *path) {
+int pe_load_model_path(PModel* model, const char *path) {
   File new_file;
 
   if (load_file(path, &new_file) == -1) {
