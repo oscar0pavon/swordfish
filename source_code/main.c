@@ -151,7 +151,6 @@ finish:
   if(!is_drm_rendering)
     close_window();  
 
-  close_swordfish();
 
   printf("Goobye from Swordfish\n");
 

@@ -13,7 +13,7 @@ void pe_vk_clean_shader(PShader *shader) {
   if (shader->cleaned == false) {
     vkDestroyShaderModule(vk_device, shader->fragment, NULL);
     vkDestroyShaderModule(vk_device, shader->vertex, NULL);
-    //vkDestroyPipeline(vk_device, shader->pipeline, NULL);
+    vkDestroyPipeline(vk_device, shader->pipeline, NULL);
     shader->cleaned = true;
   }
 }
@@ -59,6 +59,7 @@ void pe_vk_shader_load(PCreateShaderInfo *info) {
 }
 
 void pe_vk_create_shader(PCreateShaderInfo* info){
+  info->out_shader->cleaned = false;
 
   info->vk_create_info = pe_vk_pipeline_create_info();
   

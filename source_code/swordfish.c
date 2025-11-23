@@ -226,6 +226,7 @@ void clean_swordfish(){
 
   pe_clean_model(&secondary_cube);
   pe_clean_model(&text_model);
+  background.shader.cleaned = true;
   pe_clean_model(&background);
   pe_clean_model(&main_cube);
 
@@ -268,7 +269,7 @@ void swordfish_init(){
   
   pe_vk_create_shader(&secondary_cube_shader);
 
-  background.shader.pipeline = secondary_cube.shader.pipeline;
+  background.shader = secondary_cube.shader;
 
   init_secodary_cube(&secondary_cube);
 

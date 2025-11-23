@@ -283,11 +283,6 @@ void pe_clean_model(PModel* model){
     //printf("Freeying uniform buffermemory %p\n", *memory);
     vkFreeMemory(vk_device, *memory, NULL);
   }
-  for(int i = 0; i < model->descriptor_sets.count; i++){
-    VkDescriptorSet *descriptor = array_get(&model->descriptor_sets, i);
-    
-
-  }
 
   vkDestroyDescriptorPool(vk_device, model->descriptor_pool, NULL);
 

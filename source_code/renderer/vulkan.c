@@ -76,6 +76,10 @@ void pe_vk_end() {
   vkDestroyImageView(vk_device, pe_vk_color_image_view, NULL);
   vkDestroyImageView(vk_device, pe_vk_depth_image_view, NULL);
 
+  for(int i = 0; i < pe_vk_images_views.count; i++){
+    VkFramebuffer *framebuffer = array_get(&pe_vk_framebuffers, i);
+    vkDestroyFramebuffer(vk_device, *framebuffer, NULL);
+  }
 
   for(int i = 0; i < pe_vk_images_views.count; i++){
     VkImageView *image_view = array_get(&pe_vk_images_views, i) ;
