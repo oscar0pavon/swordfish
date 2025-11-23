@@ -538,7 +538,7 @@ void pe_vk_create_texture(PTexture* new_texture, const char* path) {
 
   VkDeviceSize image_size = texture.width * texture.heigth * 4;
 
-  VkBuffer image_buffer = pe_vk_create_buffer(image_size, texture.pixels_data,
+  PBuffer image_buffer = pe_vk_create_buffer(image_size, texture.pixels_data,
                                               VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
   PImageCreateInfo image_create_info = {
@@ -559,7 +559,7 @@ void pe_vk_create_texture(PTexture* new_texture, const char* path) {
       new_texture->image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED,
       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, new_texture->mip_level);
 
-  pe_vk_image_copy_buffer(image_buffer, new_texture->image, texture.width,
+  pe_vk_image_copy_buffer(image_buffer.buffer, new_texture->image, texture.width,
                           texture.heigth);
 
   // pe_vk_transition_image_layout(pe_vk_texture_image, VK_FORMAT_R8G8B8A8_SRGB,

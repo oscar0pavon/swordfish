@@ -12,6 +12,7 @@
 
 
 #include <vulkan/vulkan_core.h>
+#include "renderer/vk_buffer.h"
 
 
 typedef struct PMesh{
@@ -40,8 +41,8 @@ typedef struct PModel{
 
     // PMaterial material;
 
-    VkBuffer vertex_buffer;
-    VkBuffer index_buffer;
+    PBuffer vertex_buffer;
+    PBuffer index_buffer;
 
     Array uniform_buffers;
     Array uniform_buffers_memory;

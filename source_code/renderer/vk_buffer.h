@@ -10,10 +10,16 @@ typedef struct PBufferCreateInfo {
   VkDeviceMemory buffer_memory;
 } PBufferCreateInfo;
 
+typedef struct PBuffer {
+  VkBuffer buffer;
+  VkDeviceMemory memory;
+} PBuffer;
+
 void pe_vk_create_buffer_memory(PBufferCreateInfo *buffer_info);
 
 void pe_vk_copy_buffer(VkBuffer source, VkBuffer destination,
                        VkDeviceSize size);
 
-VkBuffer pe_vk_create_buffer(u64 size, void *data, VkBufferUsageFlagBits type);
+PBuffer pe_vk_create_buffer(u64 size, void *data, VkBufferUsageFlagBits type);
+
 #endif

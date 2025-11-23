@@ -46,7 +46,7 @@ void pe_vk_copy_buffer(VkBuffer source, VkBuffer destination,
   pe_vk_end_single_time_cmd(command);
 }
 
-VkBuffer pe_vk_create_buffer(u64 size, void* data , VkBufferUsageFlagBits type) {
+PBuffer pe_vk_create_buffer(u64 size, void* data , VkBufferUsageFlagBits type) {
 
   PBufferCreateInfo info = {
 
@@ -64,5 +64,11 @@ VkBuffer pe_vk_create_buffer(u64 size, void* data , VkBufferUsageFlagBits type) 
   memcpy(vulkan_memory, data, size);
   vkUnmapMemory(vk_device, info.buffer_memory);
 
-  return info.buffer;
+
+  PBuffer buffer = {
+    .buffer = info.buffer,
+    .memory = info.buffer_memory
+  };
+
+  return buffer;
 }

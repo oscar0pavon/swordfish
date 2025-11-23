@@ -32,8 +32,8 @@ void pe_vk_draw_model(PDrawModelCommand *draw_model) {
   vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_GRAPHICS,
                     draw_model->model->pipeline);
 
-  vkCmdBindVertexBuffers(command, 0, 1, &draw_model->model->vertex_buffer, offsets);
-  vkCmdBindIndexBuffer(command, draw_model->model->index_buffer, 0,
+  vkCmdBindVertexBuffers(command, 0, 1, &draw_model->model->vertex_buffer.buffer, offsets);
+  vkCmdBindIndexBuffer(command, draw_model->model->index_buffer.buffer, 0,
                        VK_INDEX_TYPE_UINT16);
   vkCmdDrawIndexed(command, draw_model->model->index_array.count, 1, 0, 0, 0);
 }
