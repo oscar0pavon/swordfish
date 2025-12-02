@@ -32,6 +32,7 @@ bool is_drm_rendering = false;
 bool can_draw_surfaces = true;
 
 PModel main_cube;
+PModel car1;
 PModel secondary_cube;
 PModel background;
 
@@ -160,6 +161,18 @@ void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
   };
   pe_vk_draw_model(&draw_cube);
 
+  //car1 
+  swordfish_update_main_cube(&car1, index);
+  pe_vk_descriptor_update(&car1);
+
+  PDrawModelCommand draw_car= {
+    .model = &car1,
+    .command_buffer = *cmd_buffer,
+    .image_index = index,
+    .layout = pe_vk_pipeline_layout_with_descriptors
+  };
+  pe_vk_draw_model(&draw_car);
+
   //secondary_cube
   sworfish_set_secondary_cube_position(&secondary_cube, index);
   draw_textured_model(&secondary_cube, cmd_buffer, index);
@@ -193,8 +206,8 @@ void swordfish_update_main_cube(PModel *model, uint32_t image_index) {
 
   if (finished_build == false) {
 
-    glm_rotate(model->model_mat, -0.0001f*delta_time, VEC3(0, 0, 1));
-    glm_mat4_copy(model->model_mat, model->uniform_buffer_object.model);
+    // glm_rotate(model->model_mat, -0.0001f*delta_time, VEC3(0, 0, 1));
+    // glm_mat4_copy(model->model_mat, model->uniform_buffer_object.model);
   } else {
     mat4 identity;
     glm_mat4_identity(identity);
@@ -229,6 +242,8 @@ void clean_swordfish(){
   background.shader.cleaned = true;
   pe_clean_model(&background);
   pe_clean_model(&main_cube);
+  car1.shader.cleaned = true;
+  pe_clean_model(&car1);
 
 }
 
@@ -243,6 +258,10 @@ void swordfish_init(){
   pe_vk_create_descriptor_sets(&main_cube,pe_vk_descriptor_set_layout);
   pe_vk_descriptor_update(&main_cube);
  
+  pe_vk_load_model(&car1, "/root/models/nissan2026.glb");
+  pe_vk_create_descriptor_sets(&car1,pe_vk_descriptor_set_layout);
+  pe_vk_descriptor_update(&car1);
+
   load_textured_model(&secondary_cube,"/usr/libexec/swordfish/models/secondary_cube.glb");
   load_textured_model(&background,"/usr/libexec/swordfish/models/background.glb");
 
@@ -257,6 +276,8 @@ void swordfish_init(){
 
 
   pe_vk_create_shader(&main_cube_shader);
+
+  car1.shader = main_cube.shader;
 
 
   PCreateShaderInfo secondary_cube_shader = {
