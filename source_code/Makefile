@@ -44,6 +44,8 @@ shaders: shaders/red.frag shaders/model_view_projection.vert
 	glslc shaders/texture.frag -o ../shaders/texture_frag.spv
 	glslc shaders/model_view_projection.vert -o ../shaders/model_view_projection_vert.spv
 	glslc shaders/dimention_2d.vert -o ../shaders/dimention_2d_vert.spv
+	glslc shaders/city.vert -o ../shaders/city_vert.spv
+	glslc shaders/city.frag -o ../shaders/city_frag.spv
 
 clean:
 	rm -f ../swordfish

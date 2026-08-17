@@ -89,3 +89,31 @@ void pe_vk_create_shader(PCreateShaderInfo* info){
                                     info->vk_create_info, NULL, &info->out_shader->pipeline),
           "Can't create pipeline");
 }
+
+//same as pe_vk_create_shader but the pipeline also reads a per instance
+//buffer, so one draw can place many copies of the same mesh
+void pe_vk_create_shader_instanced(PCreateShaderInfo *info) {
+  info->out_shader->cleaned = false;
+
+  info->vk_create_info = pe_vk_pipeline_create_info();
+
+  if (info->transparency)
+    color_blend_state = pe_vk_pipeline_get_default_color_blend(true);
+  else
+    color_blend_state = pe_vk_pipeline_get_default_color_blend(false);
+
+  pe_vk_shader_load(info);
+
+  ZERO(vertex_input_state);
+  vertex_input_state = pe_vk_vertex_get_instanced_input();
+
+  info->vk_create_info->pVertexInputState = &vertex_input_state;
+
+  info->vk_create_info->layout = info->layout;
+
+  int count = 1;
+  VKVALID(vkCreateGraphicsPipelines(vk_device, VK_NULL_HANDLE, count,
+                                    info->vk_create_info, NULL,
+                                    &info->out_shader->pipeline),
+          "Can't create instanced pipeline");
+}

@@ -115,8 +115,9 @@ int main(){
   camera_init(&main_camera);
 
   //camera_set_position(&main_camera, VEC3(-10,0,0));
-  init_vec3(-10, 0, 4, main_camera.position);
-  pe_camera_look_at(&main_camera, VEC3(0,0,0));
+  //stand at the mouth of the city street and look straight down it
+  init_vec3(-24, 0, 9, main_camera.position);
+  pe_camera_look_at(&main_camera, VEC3(60, 0, 9));
 
   pe_vk_init();
   

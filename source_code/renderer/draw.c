@@ -38,6 +38,35 @@ void pe_vk_draw_model(PDrawModelCommand *draw_model) {
   vkCmdDrawIndexed(command, draw_model->model->index_array.count, 1, 0, 0, 0);
 }
 
+//draws instance_count copies of the mesh in one call, each one placed by
+//an entry in instance_buffer. needs a pipeline built with
+//pe_vk_create_shader_instanced()
+void pe_vk_draw_model_instanced(PDrawModelCommand *draw_model,
+                                VkBuffer instance_buffer,
+                                uint32_t instance_count) {
+
+  VkDeviceSize offsets[] = {0};
+
+  VkDescriptorSet *descriptor_set =
+      array_get(&draw_model->model->descriptor_sets, draw_model->image_index);
+
+  VkCommandBuffer command = draw_model->command_buffer;
+  vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          draw_model->layout, 0, 1, descriptor_set, 0, NULL);
+  vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    draw_model->model->shader.pipeline);
+
+  vkCmdBindVertexBuffers(command, 0, 1,
+                         &draw_model->model->vertex_buffer.buffer, offsets);
+  vkCmdBindVertexBuffers(command, 1, 1, &instance_buffer, offsets);
+
+  vkCmdBindIndexBuffer(command, draw_model->model->index_buffer.buffer, 0,
+                       VK_INDEX_TYPE_UINT16);
+
+  vkCmdDrawIndexed(command, draw_model->model->index_array.count,
+                   instance_count, 0, 0, 0);
+}
+
 void pe_vk_draw_commands(VkCommandBuffer *cmd_buffer, uint32_t index) {
 
   vkCmdSetViewport(*cmd_buffer, 0, 1, &viewport);

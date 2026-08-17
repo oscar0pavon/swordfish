@@ -112,8 +112,9 @@ void pe_vk_start_render_pass(VkCommandBuffer command, int i){
   //we use two clear values, 
   //one for the background a the other for clean depth, this make visible back objects
 
+  //black, so the depth fade on distant geometry has somewhere to fade into
   VkClearColorValue backgroud_color = {
-      .float32 = {rgb(10.4f), rgb(5.5f),rgb(100.f), 1.f}
+      .float32 = {0.f, 0.f, 0.f, 1.f}
   };
 
   VkClearDepthStencilValue depth_value = {1, 0};

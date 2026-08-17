@@ -4,9 +4,7 @@
 #include <engine/model.h>
 #include "renderer/vulkan.h"
 
-extern PModel main_cube;
 extern PModel text_model;
-extern PModel secondary_cube;
 
 extern Camera main_camera;
 
@@ -22,8 +20,6 @@ extern pthread_mutex_t focus_task_mutex;
 void clean_swordfish();
 
 void swordfish_init();
-
-void swordfish_update_main_cube(PModel *model, uint32_t image_index);
 
 void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index);
 
