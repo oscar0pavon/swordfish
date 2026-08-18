@@ -72,3 +72,11 @@ PBuffer pe_vk_create_buffer(u64 size, void* data , VkBufferUsageFlagBits type) {
 
   return buffer;
 }
+
+void pe_vk_update_buffer(PBuffer *buffer, void *data, u64 size) {
+
+  void *vulkan_memory;
+  vkMapMemory(vk_device, buffer->memory, 0, size, 0, &vulkan_memory);
+  memcpy(vulkan_memory, data, size);
+  vkUnmapMemory(vk_device, buffer->memory);
+}

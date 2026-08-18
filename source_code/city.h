@@ -18,6 +18,11 @@ typedef struct City {
 
 extern City city;
 
+//the unit box every instanced tower is a copy of: centred on X and Y,
+//spanning 0..1 on Z so scaling z grows it off the ground. shared with the
+//system monitor, which draws the same box with a different instance array
+void city_create_box(PModel *model);
+
 void city_init(City *target, const char *path);
 
 void city_draw(City *target, VkCommandBuffer *cmd_buffer, u32 image_index);

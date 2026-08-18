@@ -115,9 +115,11 @@ int main(){
   camera_init(&main_camera);
 
   //camera_set_position(&main_camera, VEC3(-10,0,0));
-  //stand at the mouth of the city street and look straight down it
-  init_vec3(-24, 0, 9, main_camera.position);
-  pe_camera_look_at(&main_camera, VEC3(60, 0, 9));
+  //look down over the street from above the median. the height has to clear
+  //MONITOR_MAX_HEIGHT: below it a busy core near the camera rises past the
+  //tops of the cores behind it and hides them completely
+  init_vec3(-16, 0, 27, main_camera.position);
+  pe_camera_look_at(&main_camera, VEC3(32, 0, 2));
 
   pe_vk_init();
   

@@ -60,6 +60,8 @@ Both flags are read all over `renderer/` and `compositor/`; grep for them before
 
 `swordfish_init()` (also `swordfish.c`) is the counterpart: load textures, create descriptor sets, create shaders/pipelines. `clean_swordfish()` must free whatever it allocates.
 
+`pe_vk_draw_frame()` ends in a `vkQueueWaitIdle()` (`renderer/draw.c`), and two things silently depend on it: `wl_buffer_send_release()` in `draw_surfaces()` is queued during command recording but only flushed after the GPU has drained, and `system_monitor_draw()` rewrites its host-visible instance buffer while the previous frame is assumed finished. Removing that wait — the obvious performance fix — means both need gating on the frame fence instead. They are a matched pair; fix them together.
+
 ### The city (`city.c`)
 
 The main scene content. `city_init()` does one `readdir()` pass over a directory and turns every entry into a `PInstance` (position, scale, colour, packed name); `city_draw()` renders the whole skyline with a **single** `vkCmdDrawIndexed`. Directory entries become towers — height from child count for directories, from file size for files, both log-scaled.
@@ -70,6 +72,18 @@ Each building shows its real filename on a repeating horizontal band. The name i
 
 Note `array_add` does **not** grow an array — it hits `debug_break()` on overflow — so `city.buildings` is capped at `CITY_MAX_BUILDINGS` and sized up front.
 
+`city_create_box()` is the unit box every instanced tower is a copy of — centred on X and Y, spanning 0..1 on Z so scaling z grows it off the ground. It is shared with the system monitor rather than duplicated.
+
+### The system monitor (`system_monitor.c`)
+
+The machine's CPUs as a row of towers down the middle of the city street, one `PInstance` per logical core, one instanced draw call. Reuses `city_create_box()` and the `city.vert`/`city.frag` pipeline unchanged — a monitor tower is a city building with a different instance array, so core names go through the same 4-chars-per-uint packing.
+
+A sampler thread reads `/proc/stat` every `MONITOR_SAMPLE_INTERVAL_US` (500ms) and writes busy fractions under `usage_mutex`; the render loop copies that snapshot and eases `displayed[]` toward it, so towers move smoothly instead of snapping twice a second. Sampling at frame rate would burn the CPU this is meant to be measuring. Two details in the parse are easy to get wrong: the first `cpu` line is the machine-wide total and must be skipped, and `guest`/`guest_nice` are already counted inside `user`/`nice`, so the total stops at `steal`.
+
+Unlike the city's, the monitor's instance buffer is rewritten every frame via `pe_vk_update_buffer()`.
+
+Layout sits inside `CITY_STREET_WIDTH` so it does not collide with the buildings, and `row = i % MONITOR_ROWS` puts hyperthread siblings side by side. The camera in `main.c` must stay **above `MONITOR_MAX_HEIGHT`**: below it, a busy core near the camera rises past the tops of the cores behind it and hides them entirely.
+
 ### Wayland client → 3D quad
 
 A client surface becomes a `Task` (`compositor/compositor.h`): it owns the `wl_resource`, the client's buffer, a `PTexture`, and a `PModel` quad. Buffers arrive either through wl_shm (`compositor/shared_memory.c`) or linux-dmabuf (`compositor/dma.c`, imported into a Vulkan image via dmabuf fds). `Task`s live in the `tasks_for_draw` array; each frame `draw_surfaces()` draws them and `end_frame()` sends the frame callbacks (`send_frame_callback_done`) then `wl_display_flush_clients`.
@@ -79,7 +93,7 @@ A client surface becomes a `Task` (`compositor/compositor.h`): it owns the `wl_r
 - **`renderer/`** — thin Vulkan wrapper, everything prefixed `pe_vk_`. `pe_vk_init()` in `renderer/vulkan.c` is the authoritative, order-sensitive init sequence; `pe_vk_end()` is its mirror.
 - **`engine/`** — reusable engine ("pengine", hence the `pe_` prefix): custom allocator, `Array` container, glTF/PNG loading, camera, 2D/text.
 - **`compositor/`** — Wayland server implementation.
-- Top-level `*.c` — app glue: window/X11, input, keyboard/xkb, child-process build invocation (`build.c`), the scene (`swordfish.c`), and the directory city (`city.c`).
+- Top-level `*.c` — app glue: window/X11, input, keyboard/xkb, child-process build invocation (`build.c`), the scene (`swordfish.c`), the directory city (`city.c`), and the CPU monitor (`system_monitor.c`).
 
 ### Memory
 

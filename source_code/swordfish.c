@@ -1,5 +1,6 @@
 #include "swordfish.h"
 #include "city.h"
+#include "system_monitor.h"
 #include "compositor/compositor.h"
 #include "compositor/surface.h"
 #include "engine/array.h"
@@ -90,6 +91,9 @@ void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
   //the directory as a street of towers, one draw call for all of it
   city_draw(&city, cmd_buffer, index);
 
+  //the cpus as a row of towers down the middle of that street
+  system_monitor_draw(&system_monitor, cmd_buffer, index);
+
   //quad
   // pe_2d_draw(&text_model, index, VEC2(0,0), VEC2(1,1));
   //
@@ -112,6 +116,8 @@ void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
 
 
 void clean_swordfish(){
+
+  system_monitor_clean(&system_monitor);
 
   city_clean(&city);
 
@@ -141,6 +147,8 @@ void swordfish_init(){
 
   //the directory swordfish was launched from, drawn as a city
   city_init(&city, ".");
+
+  system_monitor_init(&system_monitor);
 
 
 

@@ -150,7 +150,7 @@ static void city_add_face(Array *vertices, vec3 normal, vec3 corner0,
 }
 
 //unit box centred on X and Y, spanning 0..1 on Z so it sits on the ground
-static void city_create_box(PModel *model) {
+void city_create_box(PModel *model) {
 
   array_init(&model->vertex_array, sizeof(PVertex), CITY_BOX_FACES * 4);
   array_init(&model->index_array, sizeof(u16), CITY_BOX_FACES * 6);
