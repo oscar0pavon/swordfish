@@ -26,12 +26,16 @@ City city;
 //array_add does not grow the array, so this is a hard limit
 #define CITY_MAX_BUILDINGS 4096
 
-//the street runs along +X. this engine uses Z as up, so buildings stand
-//on the XY plane and grow along +Z
+//this engine uses Z as up, so buildings stand on the XY plane and grow
+//along +Z. they ring the cpu die at the centre of the world, filling one
+//ring evenly before starting the next one further out
 //wide enough that a normal length file name fits across the facade
-#define CITY_STREET_WIDTH 7.0f
+#define CITY_INNER_RADIUS 30.0f
+#define CITY_RING_GAP 2.5f
 #define CITY_FOOTPRINT 4.5f
 #define CITY_BLOCK_GAP 1.0f
+
+#define CITY_TAU 6.28318530f
 
 #define CITY_MIN_HEIGHT 1.5f
 #define CITY_MAX_HEIGHT 55.0f
@@ -79,6 +83,12 @@ static int city_count_entries(const char *path) {
 
   closedir(directory);
   return count;
+}
+
+//how many buildings fit shoulder to shoulder around a ring of this radius
+static int city_ring_capacity(float radius) {
+  int capacity = (int)(CITY_TAU * radius / (CITY_FOOTPRINT + CITY_BLOCK_GAP));
+  return capacity < 1 ? 1 : capacity;
 }
 
 //directories grow with how much they contain, files with how big they are.
@@ -187,7 +197,7 @@ void city_create_box(PModel *model) {
   }
 }
 
-//one readdir pass, laying entries down both sides of the street
+//one readdir pass, laying entries out on rings around the centre
 static void city_scan(City *target, const char *path) {
 
   DIR *directory = opendir(path);
@@ -196,8 +206,14 @@ static void city_scan(City *target, const char *path) {
     return;
   }
 
-  float street_x = 0;
-  int side = 0;
+  //the ring has to be shared out evenly, so how many go on it has to be known
+  //before the first one is placed
+  int remaining = city_count_entries(path);
+
+  float radius = CITY_INNER_RADIUS;
+  int ring_capacity = city_ring_capacity(radius);
+  int ring_count = (remaining < ring_capacity) ? remaining : ring_capacity;
+  int placed_in_ring = 0;
 
   struct dirent *entry;
   while ((entry = readdir(directory)) != NULL) {
@@ -226,12 +242,14 @@ static void city_scan(City *target, const char *path) {
     PInstance building;
     ZERO(building);
 
-    //alternate sides so the street reads as a canyon
-    float side_sign = (side == 0) ? -1.0f : 1.0f;
+    //spread whatever is on this ring over the whole circle, so the centre
+    //stays surrounded even when there are only a handful of entries
+    float angle = (ring_count > 0)
+                      ? (float)placed_in_ring / (float)ring_count * CITY_TAU
+                      : 0.0f;
 
-    building.position[0] = street_x;
-    building.position[1] =
-        side_sign * (CITY_STREET_WIDTH * 0.5f + CITY_FOOTPRINT * 0.5f);
+    building.position[0] = cosf(angle) * radius;
+    building.position[1] = sinf(angle) * radius;
     building.position[2] = 0;
 
     building.scale[0] = CITY_FOOTPRINT;
@@ -243,10 +261,16 @@ static void city_scan(City *target, const char *path) {
 
     array_add(&target->buildings, &building);
 
-    //move further down the street once both sides of the block are filled
-    side = !side;
-    if (side == 0)
-      street_x += CITY_FOOTPRINT + CITY_BLOCK_GAP;
+    //start the next ring further out once this one is full
+    placed_in_ring++;
+
+    if (placed_in_ring >= ring_count) {
+      remaining -= ring_count;
+      radius += CITY_FOOTPRINT + CITY_RING_GAP;
+      ring_capacity = city_ring_capacity(radius);
+      ring_count = (remaining < ring_capacity) ? remaining : ring_capacity;
+      placed_in_ring = 0;
+    }
   }
 
   closedir(directory);

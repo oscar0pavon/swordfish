@@ -1,5 +1,6 @@
 #include "system_monitor.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -22,19 +23,33 @@
 
 SystemMonitor system_monitor;
 
-//two rows of towers running down the middle of the road. the city keeps its
-//buildings outside CITY_STREET_WIDTH, so the median is free and sits straight
-//in the camera's line of sight
-#define MONITOR_ROWS 2
-#define MONITOR_ROW_OFFSET 1.6f
-#define MONITOR_FOOTPRINT 1.8f
-#define MONITOR_COLUMN_GAP 1.2f
-#define MONITOR_START_X 3.0f
+//the cpu is one square die at the centre of the world with every core inside
+//it, so the whole package reads as a single object whatever the core count.
+//the city rings it from CITY_INNER_RADIUS outwards
+#define MONITOR_FOOTPRINT 2.2f
+#define MONITOR_CORE_GAP 0.8f
+
+//the slab the cores stand on, so the die has an edge instead of floating
+#define MONITOR_DIE_MARGIN 1.6f
+#define MONITOR_DIE_THICKNESS 0.6f
 
 //an idle core still has to be visible, a saturated one still has to sit under
 //the skyline rather than through it
 #define MONITOR_MIN_HEIGHT 0.6f
 #define MONITOR_MAX_HEIGHT 16.0f
+
+//the memory block sits just off one edge of the die, wider towers so it
+//reads as a different kind of thing
+#define MEMORY_FOOTPRINT 3.0f
+#define MEMORY_GAP 1.5f
+#define MEMORY_DIE_CLEARANCE 4.0f
+#define MEMORY_MIN_HEIGHT 0.6f
+#define MEMORY_MAX_HEIGHT 18.0f
+
+//the range the tower colour maps over. below the floor everything reads cool,
+//above the ceiling everything reads hot
+#define MONITOR_TEMP_MIN 35.0f
+#define MONITOR_TEMP_MAX 100.0f
 
 //how far a tower moves toward the latest reading each frame
 #define MONITOR_SMOOTHING 0.08f
@@ -45,6 +60,16 @@ SystemMonitor system_monitor;
 
 //the sleep is split so shutdown doesn't have to wait out a whole interval
 #define MONITOR_SLEEP_CHUNKS 10
+
+static const char *memory_names[MONITOR_MEMORY_TOWERS] = {"USED", "CACHED",
+                                                          "FREE", "SWAP"};
+
+static const float memory_colors[MONITOR_MEMORY_TOWERS][3] = {
+    {1.00f, 0.55f, 0.15f}, //used, amber
+    {0.30f, 0.55f, 1.00f}, //cached, blue
+    {0.25f, 0.85f, 0.45f}, //free, green
+    {0.90f, 0.35f, 0.95f}  //swap, magenta
+};
 
 //own clock instead of delta_time, which never advances its counter
 static float monitor_elapsed_seconds(void) {
@@ -126,7 +151,170 @@ static int monitor_read_cpus(CoreSample *out, int max) {
   return count;
 }
 
-//one reading turned into a busy fraction per core
+//the hwmon directory the cpu package reports its temperatures through
+static bool monitor_find_coretemp(SystemMonitor *monitor) {
+
+  for (int index = 0; index < 32; index++) {
+
+    char path[256];
+    snprintf(path, sizeof(path), "/sys/class/hwmon/hwmon%i/name", index);
+
+    FILE *file = fopen(path, "r");
+    if (!file)
+      continue;
+
+    char name[64];
+    name[0] = '\0';
+
+    if (fgets(name, sizeof(name), file) != NULL) {
+      name[strcspn(name, "\n")] = '\0';
+
+      if (strcmp(name, "coretemp") == 0 || strcmp(name, "k10temp") == 0) {
+        snprintf(monitor->coretemp_path, sizeof(monitor->coretemp_path),
+                 "/sys/class/hwmon/hwmon%i", index);
+        fclose(file);
+        return true;
+      }
+    }
+
+    fclose(file);
+  }
+
+  return false;
+}
+
+//coretemp numbers its sensors sparsely and labels them by physical core id,
+//so the mapping has to go through each cpu's topology rather than assuming
+//tempN belongs to cpuN
+static void monitor_map_temperatures(SystemMonitor *monitor) {
+
+  int input_by_core_id[MONITOR_MAX_CORES];
+  for (int i = 0; i < MONITOR_MAX_CORES; i++)
+    input_by_core_id[i] = -1;
+
+  for (int cpu = 0; cpu < monitor->core_count; cpu++)
+    monitor->temperature_input[cpu] = -1;
+
+  if (!monitor_find_coretemp(monitor)) {
+    LOG("Monitor: no coretemp sensor, towers stay at the cool end\n");
+    return;
+  }
+
+  for (int input = 1; input < 128; input++) {
+
+    char path[512];
+    snprintf(path, sizeof(path), "%s/temp%i_label", monitor->coretemp_path,
+             input);
+
+    FILE *file = fopen(path, "r");
+    if (!file)
+      continue;
+
+    char label[64];
+    int core_id;
+
+    if (fgets(label, sizeof(label), file) != NULL &&
+        sscanf(label, "Core %i", &core_id) == 1 && core_id >= 0 &&
+        core_id < MONITOR_MAX_CORES)
+      input_by_core_id[core_id] = input;
+
+    fclose(file);
+  }
+
+  //hyperthread siblings share a physical core, so they share its sensor
+  int mapped = 0;
+
+  for (int cpu = 0; cpu < monitor->core_count; cpu++) {
+
+    char path[256];
+    snprintf(path, sizeof(path),
+             "/sys/devices/system/cpu/cpu%i/topology/core_id", cpu);
+
+    FILE *file = fopen(path, "r");
+    if (!file)
+      continue;
+
+    int core_id;
+    if (fscanf(file, "%i", &core_id) == 1 && core_id >= 0 &&
+        core_id < MONITOR_MAX_CORES) {
+      monitor->temperature_input[cpu] = input_by_core_id[core_id];
+      if (monitor->temperature_input[cpu] >= 0)
+        mapped++;
+    }
+
+    fclose(file);
+  }
+
+  LOG("Monitor: %i cpus mapped to %s\n", mapped, monitor->coretemp_path);
+}
+
+static float monitor_read_temperature(SystemMonitor *monitor, int input) {
+
+  if (input < 0)
+    return 0.0f;
+
+  char path[512];
+  snprintf(path, sizeof(path), "%s/temp%i_input", monitor->coretemp_path,
+           input);
+
+  FILE *file = fopen(path, "r");
+  if (!file)
+    return 0.0f;
+
+  int millidegrees = 0;
+  int read = fscanf(file, "%i", &millidegrees);
+
+  fclose(file);
+
+  if (read != 1)
+    return 0.0f;
+
+  return (float)millidegrees / 1000.0f;
+}
+
+//fractions, so the towers stay comparable whatever the machine has installed
+static void monitor_read_memory(float *out) {
+
+  FILE *file = fopen("/proc/meminfo", "r");
+  if (!file)
+    return;
+
+  u64 total = 0, available = 0, cached = 0, buffers = 0;
+  u64 swap_total = 0, swap_free = 0;
+
+  char line[256];
+  u64 value;
+
+  while (fgets(line, sizeof(line), file) != NULL) {
+    if (sscanf(line, "MemTotal: %lu", &value) == 1)
+      total = value;
+    else if (sscanf(line, "MemAvailable: %lu", &value) == 1)
+      available = value;
+    else if (sscanf(line, "Cached: %lu", &value) == 1)
+      cached = value;
+    else if (sscanf(line, "Buffers: %lu", &value) == 1)
+      buffers = value;
+    else if (sscanf(line, "SwapTotal: %lu", &value) == 1)
+      swap_total = value;
+    else if (sscanf(line, "SwapFree: %lu", &value) == 1)
+      swap_free = value;
+  }
+
+  fclose(file);
+
+  if (total == 0)
+    return;
+
+  //what MemAvailable leaves out is what is actually spoken for
+  out[0] = (float)(total - available) / (float)total;
+  out[1] = (float)(cached + buffers) / (float)total;
+  out[2] = (float)available / (float)total;
+  out[3] = swap_total ? (float)(swap_total - swap_free) / (float)swap_total
+                      : 0.0f;
+}
+
+//one reading turned into a busy fraction and a temperature per core, plus the
+//memory block
 static void monitor_sample(SystemMonitor *monitor) {
 
   CoreSample now[MONITOR_MAX_CORES];
@@ -135,6 +323,12 @@ static void monitor_sample(SystemMonitor *monitor) {
   if (count > monitor->core_count)
     count = monitor->core_count;
 
+  float usage[MONITOR_MAX_CORES];
+  float temperature[MONITOR_MAX_CORES];
+  float memory[MONITOR_MEMORY_TOWERS];
+
+  ZERO(memory);
+
   for (int i = 0; i < count; i++) {
 
     u64 total_delta = now[i].total - monitor->previous[i].total;
@@ -142,16 +336,31 @@ static void monitor_sample(SystemMonitor *monitor) {
 
     //a core that logged no jiffies at all keeps whatever it had, dividing
     //through would only produce noise
-    if (total_delta > 0) {
-      float busy = (float)(total_delta - idle_delta) / (float)total_delta;
+    usage[i] = (total_delta > 0)
+                   ? monitor_clamp((float)(total_delta - idle_delta) /
+                                       (float)total_delta,
+                                   0.0f, 1.0f)
+                   : monitor->usage[i];
 
-      pthread_mutex_lock(&monitor->usage_mutex);
-      monitor->usage[i] = monitor_clamp(busy, 0.0f, 1.0f);
-      pthread_mutex_unlock(&monitor->usage_mutex);
-    }
+    temperature[i] =
+        monitor_read_temperature(monitor, monitor->temperature_input[i]);
 
     monitor->previous[i] = now[i];
   }
+
+  monitor_read_memory(memory);
+
+  pthread_mutex_lock(&monitor->sample_mutex);
+
+  for (int i = 0; i < count; i++) {
+    monitor->usage[i] = usage[i];
+    monitor->temperature[i] = temperature[i];
+  }
+
+  for (int i = 0; i < MONITOR_MEMORY_TOWERS; i++)
+    monitor->memory[i] = memory[i];
+
+  pthread_mutex_unlock(&monitor->sample_mutex);
 }
 
 static void *monitor_sampler_thread(void *data) {
@@ -169,11 +378,17 @@ static void *monitor_sampler_thread(void *data) {
   return NULL;
 }
 
-//cold cores sit green, a saturated one burns red
-static void monitor_set_color(PInstance *tower, float usage) {
-  tower->color[0] = 0.15f + usage * 0.85f;
-  tower->color[1] = 0.90f - usage * 0.65f;
-  tower->color[2] = 0.35f - usage * 0.30f;
+//height is what the core is doing, colour is how hot it is doing it. the two
+//are independent, so a cool busy core and a hot idle one look different
+static void monitor_set_temperature_color(PInstance *tower, float celsius) {
+
+  float hot = monitor_clamp(
+      (celsius - MONITOR_TEMP_MIN) / (MONITOR_TEMP_MAX - MONITOR_TEMP_MIN),
+      0.0f, 1.0f);
+
+  tower->color[0] = 0.20f + hot * 0.80f;
+  tower->color[1] = 0.75f - hot * 0.50f;
+  tower->color[2] = 1.00f - hot * 0.90f;
 }
 
 //same packing the city uses, 4 characters per uint
@@ -191,30 +406,37 @@ static void monitor_set_name(PInstance *tower, const char *name) {
   tower->name_length = (float)length;
 }
 
-//hyperthread siblings are consecutive in /proc/stat, so filling the rows
-//first puts each pair side by side across the median
+//every core inside one square die at the centre, memory just off its near
+//edge, and the slab they all stand on as the last instance
 static void monitor_layout(SystemMonitor *monitor) {
+
+  int columns = (int)ceilf(sqrtf((float)monitor->core_count));
+  if (columns < 1)
+    columns = 1;
+
+  int rows = (monitor->core_count + columns - 1) / columns;
+
+  float pitch = MONITOR_FOOTPRINT + MONITOR_CORE_GAP;
+  float width = columns * pitch;
+  float depth = rows * pitch;
 
   for (int i = 0; i < monitor->core_count; i++) {
 
     PInstance tower;
     ZERO(tower);
 
-    int row = i % MONITOR_ROWS;
-    int column = i / MONITOR_ROWS;
+    int column = i % columns;
+    int row = i / columns;
 
-    float side_sign = (row == 0) ? -1.0f : 1.0f;
-
-    tower.position[0] =
-        MONITOR_START_X + column * (MONITOR_FOOTPRINT + MONITOR_COLUMN_GAP);
-    tower.position[1] = side_sign * MONITOR_ROW_OFFSET;
-    tower.position[2] = 0;
+    tower.position[0] = (column + 0.5f) * pitch - width * 0.5f;
+    tower.position[1] = (row + 0.5f) * pitch - depth * 0.5f;
+    tower.position[2] = MONITOR_DIE_THICKNESS;
 
     tower.scale[0] = MONITOR_FOOTPRINT;
     tower.scale[1] = MONITOR_FOOTPRINT;
     tower.scale[2] = MONITOR_MIN_HEIGHT;
 
-    monitor_set_color(&tower, 0.0f);
+    monitor_set_temperature_color(&tower, MONITOR_TEMP_MIN);
 
     //uppercase, the atlas rows the facade shader picks from are the legible
     //ones
@@ -224,6 +446,54 @@ static void monitor_layout(SystemMonitor *monitor) {
 
     array_add(&monitor->towers, &tower);
   }
+
+  float memory_pitch = MEMORY_FOOTPRINT + MEMORY_GAP;
+  float memory_width = MONITOR_MEMORY_TOWERS * memory_pitch;
+  float memory_y =
+      -(depth * 0.5f + MONITOR_DIE_MARGIN + MEMORY_DIE_CLEARANCE);
+
+  for (int i = 0; i < MONITOR_MEMORY_TOWERS; i++) {
+
+    PInstance tower;
+    ZERO(tower);
+
+    tower.position[0] = (i + 0.5f) * memory_pitch - memory_width * 0.5f;
+    tower.position[1] = memory_y;
+    tower.position[2] = 0;
+
+    tower.scale[0] = MEMORY_FOOTPRINT;
+    tower.scale[1] = MEMORY_FOOTPRINT;
+    tower.scale[2] = MEMORY_MIN_HEIGHT;
+
+    //memory towers keep a fixed colour, only their height moves
+    tower.color[0] = memory_colors[i][0];
+    tower.color[1] = memory_colors[i][1];
+    tower.color[2] = memory_colors[i][2];
+
+    monitor_set_name(&tower, memory_names[i]);
+
+    array_add(&monitor->towers, &tower);
+  }
+
+  //the die last, never updated after this
+  PInstance die;
+  ZERO(die);
+
+  die.position[0] = 0;
+  die.position[1] = 0;
+  die.position[2] = 0;
+
+  die.scale[0] = width + MONITOR_DIE_MARGIN * 2.0f;
+  die.scale[1] = depth + MONITOR_DIE_MARGIN * 2.0f;
+  die.scale[2] = MONITOR_DIE_THICKNESS;
+
+  die.color[0] = 0.16f;
+  die.color[1] = 0.28f;
+  die.color[2] = 0.24f;
+
+  monitor_set_name(&die, "CPU");
+
+  array_add(&monitor->towers, &die);
 }
 
 void system_monitor_init(SystemMonitor *monitor) {
@@ -236,7 +506,11 @@ void system_monitor_init(SystemMonitor *monitor) {
     return;
   }
 
-  array_init(&monitor->towers, sizeof(PInstance), monitor->core_count);
+  monitor_map_temperatures(monitor);
+
+  //cores, then the memory block, then the die slab
+  array_init(&monitor->towers, sizeof(PInstance),
+             monitor->core_count + MONITOR_MEMORY_TOWERS + 1);
   monitor_layout(monitor);
 
   city_create_box(&monitor->model);
@@ -278,7 +552,7 @@ void system_monitor_init(SystemMonitor *monitor) {
 
   pe_vk_create_shader_instanced(&monitor_shader);
 
-  pthread_mutex_init(&monitor->usage_mutex, NULL);
+  pthread_mutex_init(&monitor->sample_mutex, NULL);
 
   monitor->running = true;
   pthread_create(&monitor->sampler, NULL, monitor_sampler_thread, monitor);
@@ -293,24 +567,44 @@ void system_monitor_draw(SystemMonitor *monitor, VkCommandBuffer *cmd_buffer,
     return;
 
   float usage[MONITOR_MAX_CORES];
+  float temperature[MONITOR_MAX_CORES];
+  float memory[MONITOR_MEMORY_TOWERS];
 
-  pthread_mutex_lock(&monitor->usage_mutex);
+  pthread_mutex_lock(&monitor->sample_mutex);
   memcpy(usage, monitor->usage, sizeof(float) * monitor->core_count);
-  pthread_mutex_unlock(&monitor->usage_mutex);
+  memcpy(temperature, monitor->temperature,
+         sizeof(float) * monitor->core_count);
+  memcpy(memory, monitor->memory, sizeof(memory));
+  pthread_mutex_unlock(&monitor->sample_mutex);
 
   for (int i = 0; i < monitor->core_count; i++) {
 
     //ease toward the reading, otherwise the towers snap twice a second
-    monitor->displayed[i] +=
-        (usage[i] - monitor->displayed[i]) * MONITOR_SMOOTHING;
+    monitor->displayed_usage[i] +=
+        (usage[i] - monitor->displayed_usage[i]) * MONITOR_SMOOTHING;
+    monitor->displayed_temperature[i] +=
+        (temperature[i] - monitor->displayed_temperature[i]) *
+        MONITOR_SMOOTHING;
 
     PInstance *tower = array_get(&monitor->towers, i);
 
     tower->scale[2] = MONITOR_MIN_HEIGHT +
-                      monitor->displayed[i] *
+                      monitor->displayed_usage[i] *
                           (MONITOR_MAX_HEIGHT - MONITOR_MIN_HEIGHT);
 
-    monitor_set_color(tower, monitor->displayed[i]);
+    monitor_set_temperature_color(tower, monitor->displayed_temperature[i]);
+  }
+
+  for (int i = 0; i < MONITOR_MEMORY_TOWERS; i++) {
+
+    monitor->displayed_memory[i] +=
+        (memory[i] - monitor->displayed_memory[i]) * MONITOR_SMOOTHING;
+
+    PInstance *tower = array_get(&monitor->towers, monitor->core_count + i);
+
+    tower->scale[2] = MEMORY_MIN_HEIGHT +
+                      monitor->displayed_memory[i] *
+                          (MEMORY_MAX_HEIGHT - MEMORY_MIN_HEIGHT);
   }
 
   //INFO: safe only because pe_vk_draw_frame waits for the queue to go idle
@@ -347,7 +641,7 @@ void system_monitor_clean(SystemMonitor *monitor) {
   monitor->running = false;
   pthread_join(monitor->sampler, NULL);
 
-  pthread_mutex_destroy(&monitor->usage_mutex);
+  pthread_mutex_destroy(&monitor->sample_mutex);
 
   vkFreeMemory(vk_device, monitor->instance_buffer.memory, NULL);
 

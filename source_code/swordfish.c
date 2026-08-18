@@ -1,5 +1,6 @@
 #include "swordfish.h"
 #include "city.h"
+#include "processes.h"
 #include "system_monitor.h"
 #include "compositor/compositor.h"
 #include "compositor/surface.h"
@@ -7,6 +8,8 @@
 #include <engine/model.h>
 
 #include <cglm/cglm.h>
+#include <math.h>
+#include <time.h>
 #include "renderer/pipeline.h"
 #include <engine/engine2d.h>
 #include <stdint.h>
@@ -22,7 +25,9 @@
 #include "renderer/vk_images.h"
 #include "renderer/vulkan.h"
 
+#include <engine/camera.h>
 #include <engine/time.h>
+#include <engine/utils.h>
 #include <wayland-server-core.h>
 
 #include <pthread.h>
@@ -86,10 +91,68 @@ void draw_surfaces(VkCommandBuffer *command, uint32_t index) {
   pthread_mutex_unlock(&draw_tasks_mutex);
 }
 
+//the camera swings a few degrees around the centre instead of taking input.
+//the scene is a wall display, not something to drive, and the input thread
+//grabs devices globally so camera keys would fire while typing elsewhere
+#define ORBIT_RADIUS 28.0f
+#define ORBIT_HEIGHT 28.0f
+
+//aimed above the die so the ring of buildings behind it stays in frame
+#define ORBIT_LOOK_Z 10.0f
+
+//a few degrees either side. a full orbit would swing buildings between the
+//camera and the cpu
+#define ORBIT_SWING_RADIANS 0.21f
+#define ORBIT_PERIOD_SECONDS 40.0f
+
+#define SWORDFISH_TAU 6.28318530f
+
+//the box's side faces only carry correctly wound uvs when they are seen from
+//-X, so the swing is centred there. a full orbit would need city_create_box
+//to lay the uvs out per face instead
+#define ORBIT_BASE_ANGLE (SWORDFISH_TAU * 0.5f)
+
+//own clock instead of delta_time, which never advances its counter
+static float swordfish_elapsed_seconds(void) {
+
+  static struct timespec start;
+  static bool started = false;
+
+  struct timespec now;
+  clock_gettime(CLOCK_MONOTONIC, &now);
+
+  if (!started) {
+    start = now;
+    started = true;
+  }
+
+  return (float)(now.tv_sec - start.tv_sec) +
+         (float)(now.tv_nsec - start.tv_nsec) / 1000000000.0f;
+}
+
+static void swordfish_update_camera(void) {
+
+  float seconds = swordfish_elapsed_seconds();
+
+  //a sine already eases both ends, so the swing never reverses with a snap
+  float angle = ORBIT_BASE_ANGLE +
+                ORBIT_SWING_RADIANS *
+                    sinf(seconds * SWORDFISH_TAU / ORBIT_PERIOD_SECONDS);
+
+  init_vec3(cosf(angle) * ORBIT_RADIUS, sinf(angle) * ORBIT_RADIUS,
+            ORBIT_HEIGHT, main_camera.position);
+
+  pe_camera_look_at(&main_camera, VEC3(0, 0, ORBIT_LOOK_Z));
+}
+
 void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
 
-  //the directory as a street of towers, one draw call for all of it
-  city_draw(&city, cmd_buffer, index);
+  //before anything copies the view matrix out of main_camera
+  swordfish_update_camera();
+
+  //the running processes as a city ringing the die, one draw call for all
+  //of them. swap this for city_draw to get the directory instead
+  processes_draw(&processes, cmd_buffer, index);
 
   //the cpus as a row of towers down the middle of that street
   system_monitor_draw(&system_monitor, cmd_buffer, index);
@@ -119,7 +182,7 @@ void clean_swordfish(){
 
   system_monitor_clean(&system_monitor);
 
-  city_clean(&city);
+  processes_clean(&processes);
 
   pe_vk_clean_image(&text_model.texture);
 
@@ -145,8 +208,9 @@ void swordfish_init(){
   };
   pe_vk_create_shader(&quad_shader);
 
-  //the directory swordfish was launched from, drawn as a city
-  city_init(&city, ".");
+  //the process table, drawn as the city around the cpu. city_init(&city,
+  //".") puts the directory there instead, the two share the ring
+  processes_init(&processes);
 
   system_monitor_init(&system_monitor);
 

@@ -23,9 +23,10 @@ const vec2 density = vec2(3.0, 2.4);
 //how far apart the name bands repeat up a building, in world units
 const float NAME_BAND_SPACING = 5.0;
 
-//character size for the name, in world units. names too long for the
-//facade shrink below this, everything else renders at exactly this size
-const float NAME_CHAR_WIDTH = 0.28;
+//character size for the name, in world units. this is a ceiling, not a
+//size: a name that would overflow the facade shrinks to fit it, so short
+//names render big and long ones stay inside the wall
+const float NAME_CHAR_WIDTH = 1.0;
 
 float hash(vec2 cell) {
     return fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
@@ -80,7 +81,7 @@ void main() {
         local = vec2(fract(x_in_name / char_width), band_y / char_width);
         code = name_char(char_index);
 
-        brightness = glyph_alpha(code, local) * 2.2;
+        brightness = glyph_alpha(code, local) * 2.8;
     } else {
         vec2 base_uv = uv * density;
 
@@ -97,9 +98,9 @@ void main() {
         code = uint(48.0 + floor(hash(cell) * 43.0));
 
         //hold some cells dark so the facade is not a solid wall of characters
-        float lit = step(0.30, hash(cell + 3.7));
+        float lit = step(0.55, hash(cell + 3.7));
 
-        brightness = glyph_alpha(code, local) * lit * 1.1;
+        brightness = glyph_alpha(code, local) * lit * 0.45;
     }
 
     vec3 tint = building_color;
