@@ -1,5 +1,6 @@
 #include "swordfish.h"
 #include "city.h"
+#include "hud.h"
 #include "processes.h"
 #include "system_monitor.h"
 #include "compositor/compositor.h"
@@ -175,12 +176,17 @@ void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
   //we need to sync with compositor
   //if(can_draw_surfaces)
   draw_surfaces(cmd_buffer, index);
+
+  //flat overlay last, so the numbers sit over the scene
+  hud_draw(&hud, cmd_buffer, index);
 }
 
 
 void clean_swordfish(){
 
   system_monitor_clean(&system_monitor);
+
+  hud_clean(&hud);
 
   processes_clean(&processes);
 
@@ -213,6 +219,8 @@ void swordfish_init(){
   processes_init(&processes);
 
   system_monitor_init(&system_monitor);
+
+  hud_init(&hud);
 
 
 

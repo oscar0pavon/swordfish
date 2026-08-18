@@ -102,7 +102,21 @@ The thing that matters here is **stable identity**: each of the `PROCESS_MAX` sl
 
 A dead slot sets `scale.z = 0` — a degenerate box that rasterises nothing — so the draw count stays constant at `PROCESS_MAX`. Live-but-idle processes keep `PROCESS_MIN_HEIGHT`, which is what makes the idle carpet.
 
-Parsing `/proc/<pid>/stat`: `comm` can contain spaces and brackets, so the name is taken between the **first** `(` and the **last** `)`, and the numeric fields are read from after that. `PROCESS_MAX` is a hard cap (`array_add` does not grow); this machine runs ~480–550 processes, so it does get hit.
+Parsing `/proc/<pid>/stat`: `comm` can contain spaces and brackets, so the name is taken between the **first** `(` and the **last** `)`, and the numeric fields are read from after that.
+
+Kernel threads are skipped on `vsize == 0` — they have no address space. On this machine that is 426 of 469 entries, and none of them ever move, so leaving them in buried the interesting processes under a carpet. `vsize == 0` and an empty `/proc/<pid>/cmdline` were verified to agree on every process; `vsize` wins because it is already parsed and costs no extra syscall. Filtering also keeps the live count well under `PROCESS_MAX`, which is a hard cap (`array_add` does not grow).
+
+Because `process_slot_for()` takes the lowest free slot and low slots are the innermost ring, live processes stay clustered around the die instead of scattering across sparse outer rings.
+
+### The HUD (`hud.c`)
+
+The flat overlay carrying the numbers the 3D scene can only suggest: aggregate CPU, hottest core, memory, process count, busiest process. The 3D carries shape, the HUD carries precision.
+
+It reuses `pe_2d_get_character_uvs()` and `pe_2d_init_vulkan_buffers()` but **not** `pe_2d_create_text_geometry()`, which is single-line, fixed-string, and allocates fresh Vulkan buffers on every call — fine once at startup, a steady leak at the HUD's twice-a-second refresh. Instead the quad set is allocated once at `HUD_MAX_CHARS` and rewritten in place through `pe_vk_update_buffer()`; characters past the end of the string collapse to a single point, so `index_array.count` (which is what `pe_vk_draw_model()` passes to `vkCmdDrawIndexed`) never changes.
+
+`shaders/hud.frag` exists because `texture.frag` returns the sampled RGB, and `font.png` keeps its glyphs in the **alpha** channel — reusing it would have drawn black on black. The HUD shader treats the sample as a mask and supplies its own colour.
+
+The HUD reads only `displayed_*` fields from the monitor and the process ring. Those are render-thread-only by construction, so it never takes the samplers' locks.
 
 ### Wayland client → 3D quad
 
@@ -113,7 +127,7 @@ A client surface becomes a `Task` (`compositor/compositor.h`): it owns the `wl_r
 - **`renderer/`** — thin Vulkan wrapper, everything prefixed `pe_vk_`. `pe_vk_init()` in `renderer/vulkan.c` is the authoritative, order-sensitive init sequence; `pe_vk_end()` is its mirror.
 - **`engine/`** — reusable engine ("pengine", hence the `pe_` prefix): custom allocator, `Array` container, glTF/PNG loading, camera, 2D/text.
 - **`compositor/`** — Wayland server implementation.
-- Top-level `*.c` — app glue: window/X11, input, keyboard/xkb, child-process build invocation (`build.c`), the scene (`swordfish.c`), the directory city (`city.c`), the process ring (`processes.c`), and the CPU monitor (`system_monitor.c`).
+- Top-level `*.c` — app glue: window/X11, input, keyboard/xkb, child-process build invocation (`build.c`), the scene (`swordfish.c`), the directory city (`city.c`), the process ring (`processes.c`), the CPU monitor (`system_monitor.c`), and the 2D overlay (`hud.c`).
 
 ### Memory
 

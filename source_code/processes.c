@@ -138,9 +138,11 @@ static void process_pack_name(u32 *words, float *length, const char *name) {
 }
 
 //comm can hold spaces and brackets of its own, so the name is taken between
-//the first ( and the last ), and the numeric fields start after that
+//the first ( and the last ), and the numeric fields start after that.
+//virtual_size comes back too: a kernel thread has no address space, so zero
+//there is what separates them from real processes
 static bool process_read_stat(int pid, char *name, int name_size, u64 *cpu,
-                              long *resident_pages) {
+                              long *resident_pages, u64 *virtual_size) {
 
   char path[64];
   snprintf(path, sizeof(path), "/proc/%i/stat", pid);
@@ -191,6 +193,7 @@ static bool process_read_stat(int pid, char *name, int name_size, u64 *cpu,
 
   *cpu = (u64)utime + (u64)stime;
   *resident_pages = resident;
+  *virtual_size = (u64)vsize;
 
   return true;
 }
@@ -253,9 +256,16 @@ static void process_sample(Processes *target) {
     char name[PINSTANCE_NAME_MAX + 1];
     u64 cpu_jiffies;
     long resident_pages;
+    u64 virtual_size;
 
     if (!process_read_stat(pid, name, sizeof(name), &cpu_jiffies,
-                           &resident_pages))
+                           &resident_pages, &virtual_size))
+      continue;
+
+    //kernel threads have no address space. on this machine they are about
+    //nine tenths of /proc and none of them ever move, so they would bury the
+    //processes worth looking at under a carpet
+    if (virtual_size == 0)
       continue;
 
     int slot = process_slot_for(target, pid);
