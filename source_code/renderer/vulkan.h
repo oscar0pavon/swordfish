@@ -2,7 +2,7 @@
 #define PEVULKAN_H
 
 #include <vulkan/vulkan_core.h>
-#define VK_USE_PLATFORM_XLIB_KHR // Must be defined before including vulkan.h
+#define VK_USE_PLATFORM_WAYLAND_KHR // Must be defined before including vulkan.h
 #include <vulkan/vulkan.h>
 
 #include <engine/array.h>

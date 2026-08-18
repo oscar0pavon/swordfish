@@ -1,7 +1,6 @@
 #include "shared_memory.h"
 #include "compositor.h"
 #include "engine/array.h"
-#include <X11/Xutil.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>

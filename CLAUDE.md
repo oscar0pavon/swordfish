@@ -33,7 +33,11 @@ There is no test suite and no linter.
 
 ### System dependencies
 
-vulkan (+ validation layers), libdrm, gbm, EGL/GLESv2, X11, wayland-server, libinput, libudev, xkbcommon, libseat, lodepng (`liblodepng.a`), and the header-only cglm + cgltf.
+vulkan (+ validation layers), libdrm, gbm, EGL/GLESv2, wayland-server, wayland-client, wayland-egl, libinput, libudev, xkbcommon, libseat, lodepng (`liblodepng.a`), and the header-only cglm + cgltf.
+
+**pway** (`/root/pway`) supplies the window. It is a separate repo installed to `/usr/local/lib/libpway.a` and `/usr/local/include/pway`, which is why the build carries `-I/usr/local/include` and `-L/usr/local/lib`. If linking picks up a stale archive, rebuild it there with `make && make install` — the headers and the `.a` are not versioned against each other.
+
+There is **no X11**. Swordfish is a Wayland client of the host compositor, or it drives DRM/KMS directly.
 
 ## Architecture
 
@@ -43,16 +47,26 @@ Three threads, started in `main()`:
 
 1. **Main thread** — Vulkan render loop: `handle_focus()` → `pe_vk_draw_frame()` → `usleep(16667)` → `update_delta_time()` → `end_frame()`.
 2. **Compositor thread** — `run_compositor()` creates the `wl_display`, registers globals (wl_compositor, xdg_wm_base, shm, linux-dmabuf, seat/input), sets `WAYLAND_DISPLAY`, and blocks in `wl_display_run()`.
-3. **Input thread** — `handle_input()`; X11 `XNextEvent` loop when running in a window, libinput/udev when running on bare DRM.
+3. **Input thread** — `handle_input()`; when there is a pway window it loops on `pway_handle_events()`, otherwise libinput/udev on bare DRM. `pway_handle_events()` polls with an infinite timeout, so it must stay on its own thread — calling it from the render loop would stall rendering until something happened. Pumping it is also what gets the xdg surface configured, so the window never maps without it.
 
 `draw_tasks_mutex` and `focus_task_mutex` (`swordfish.c`) guard the `tasks_for_draw` array shared between the compositor thread and the render loop. Anything touching client surfaces from the render side must take `draw_tasks_mutex`.
 
 ### Two orthogonal mode flags
 
 - `is_opengl` (`main.c`, default `false`) — selects the EGL/GLES path (`compositor/egl.c`, `buffers.c`) instead of Vulkan. The Vulkan path is the live one; the EGL path exits early via `goto finish`.
-- `is_drm_rendering` (`swordfish.c`) — set to `true` when `create_window()` fails (no X display). Then rendering targets DRM/KMS directly (`direct_render.c`, `renderer/display.c`, `compositor.gpu_path = "/dev/dri/card0"`), the swapchain/surface setup differs, `vkGetMemoryFdKHR` is resolved for buffer export, and input comes from libinput instead of X.
+- `is_drm_rendering` (`swordfish.c`) — set to `true` when `create_wayland_window()` fails (no compositor to connect to). Then rendering targets DRM/KMS directly (`direct_render.c`, `renderer/display.c`, `compositor.gpu_path = "/dev/dri/card0"`), the swapchain/surface setup differs, `vkGetMemoryFdKHR` is resolved for buffer export, and input comes from libinput instead of pway.
 
 Both flags are read all over `renderer/` and `compositor/`; grep for them before changing init order.
+
+### The window (`window.c`)
+
+`create_wayland_window()` calls `pway_init()` then `pway_create_window()`, and deliberately **not** `pway_init_egl()` — Vulkan takes the raw `pway_surface` / `pway_display` through `VK_KHR_wayland_surface` instead, so the EGL context pway would build is never needed.
+
+Ordering matters twice over. `pway_init()` connects using `WAYLAND_DISPLAY`, and `run_compositor()` later overwrites that variable with swordfish's own socket, so the window must be created before the compositor thread starts or swordfish tries to be a client of itself. And within pway, `pway_init()` does all the real work (registry, `wl_surface`, `xdg_surface`, listeners, first commit); `pway_create_window()` only sets the title and size.
+
+Two things differ from the old X11 surface and are easy to reintroduce: a Wayland surface does **not** support `VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR`, so `swap_chain.c` picks a `compositeAlpha` out of `supportedCompositeAlpha` rather than assuming one; and the windowed EGL path in `compositor/egl.c` needs a `wl_egl_window` where it used to take an X11 `Window`.
+
+**Resizing is not implemented.** The swapchain and camera still use the hardcoded `WINDOW_WIDTH`/`WINDOW_HEIGHT`, so a tiled window renders a 1916x1040 image into whatever size the compositor actually gave it. `pway->resize` records the new size and nothing rebuilds from it yet.
 
 ### Frame path
 
@@ -127,7 +141,7 @@ A client surface becomes a `Task` (`compositor/compositor.h`): it owns the `wl_r
 - **`renderer/`** — thin Vulkan wrapper, everything prefixed `pe_vk_`. `pe_vk_init()` in `renderer/vulkan.c` is the authoritative, order-sensitive init sequence; `pe_vk_end()` is its mirror.
 - **`engine/`** — reusable engine ("pengine", hence the `pe_` prefix): custom allocator, `Array` container, glTF/PNG loading, camera, 2D/text.
 - **`compositor/`** — Wayland server implementation.
-- Top-level `*.c` — app glue: window/X11, input, keyboard/xkb, child-process build invocation (`build.c`), the scene (`swordfish.c`), the directory city (`city.c`), the process ring (`processes.c`), the CPU monitor (`system_monitor.c`), and the 2D overlay (`hud.c`).
+- Top-level `*.c` — app glue: the pway window (`window.c`), input, keyboard/xkb, child-process build invocation (`build.c`), the scene (`swordfish.c`), the directory city (`city.c`), the process ring (`processes.c`), the CPU monitor (`system_monitor.c`), and the 2D overlay (`hud.c`).
 
 ### Memory
 

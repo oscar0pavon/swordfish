@@ -1,5 +1,10 @@
 #include "egl.h"
 
+#include <pway/pway.h>
+#include <wayland-egl.h>
+
+#include "../window.h"
+
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <EGL/eglplatform.h>
@@ -27,6 +32,8 @@
 #include "buffers.h"
 
 EGLDisplay egl_display;
+
+static struct wl_egl_window *egl_window;
 EGLContext egl_context;
 EGLSurface egl_surface;
 EGLConfig config;
@@ -49,8 +56,10 @@ void init_egl() {
     egl_display =
         eglGetPlatformDisplay(EGL_PLATFORM_GBM_KHR, buffer_device, NULL);
   }else{
-    egl_display = 
-      eglGetDisplay((EGLNativeDisplayType)display);
+    //used to be the X11 Display. as a wayland client the native display is
+    //pway's connection
+    egl_display =
+        eglGetPlatformDisplay(EGL_PLATFORM_WAYLAND_KHR, pway_display, NULL);
   }
 
   if (egl_display == EGL_NO_DISPLAY) {
@@ -111,7 +120,13 @@ void init_egl() {
     egl_surface = eglCreatePlatformWindowSurface(egl_display, config,
                                                  display_surface, NULL);
   }else{
-    egl_surface = eglCreateWindowSurface(egl_display, config, swordfish_window, NULL);
+    //the X11 Window used to be the native window here. on wayland EGL needs a
+    //wl_egl_window wrapping the surface pway created
+    egl_window = wl_egl_window_create(pway_surface, WINDOW_WIDTH,
+                                      WINDOW_HEIGHT);
+
+    egl_surface = eglCreateWindowSurface(
+        egl_display, config, (EGLNativeWindowType)egl_window, NULL);
   }
 
   if (egl_surface == EGL_NO_SURFACE) {

@@ -1,12 +1,13 @@
 
-CLINKS := -lX11 -lpthread -lm -lvulkan -ldrm -lgbm -llodepng 
+CLINKS := -lpthread -lm -lvulkan -ldrm -lgbm -llodepng 
 CLINKS += -linput -ludev -lxkbcommon
 CLINKS += -lwayland-server
+CLINKS += -lpway -lwayland-client -lwayland-egl
 CLINKS += -lseat -lEGL -lGLESv2
 
 CFLAGS := -g
 
-CFLAGS_ENGINE := $(CFLAGS) -I/root/swordfish/source_code -I/usr/include/libdrm -I/usr/include
+CFLAGS_ENGINE := $(CFLAGS) -I/root/swordfish/source_code -I/usr/include/libdrm -I/usr/include -I/usr/local/include
 CFLAGS_RENDERER += -DCGLM_FORCE_DEPTH_ZERO_TO_ONE -DCGLM_FORCE_LEFT_HANDED
 
 compositor_src := $(wildcard ./compositor/*.c)
@@ -25,7 +26,7 @@ SWORDFISHOBJS := $(SRCS:c=o)
 OBJS := $(SWORDFISHOBJS) $(vulkan_objs) $(engine_objs) $(compositor_objs)
 
 swordfish: $(OBJS) shaders
-	cc $(CFLAGS_ENGINE) $(OBJS) -o ../swordfish $(CLINKS)
+	cc $(CFLAGS_ENGINE) -L/usr/local/lib $(OBJS) -o ../swordfish $(CLINKS)
 
 %.o: %.c
 	cc $(CFLAGS_ENGINE) -c $<

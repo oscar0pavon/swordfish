@@ -1,5 +1,4 @@
 #include <EGL/egl.h>
-#include <X11/Xlib.h>
 #include <gbm.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -72,7 +71,8 @@ int main(){
 
 
 
-  if(!create_window()){
+  //a wayland window through pway, or nothing and we drive DRM directly
+  if(!create_wayland_window()){
     is_drm_rendering = true;
 
     compositor.gpu_path = "/dev/dri/card0";
@@ -149,8 +149,8 @@ int main(){
   }
 
 finish:
-  if(!is_drm_rendering)
-    close_window();  
+  if(is_wayland_window)
+    close_wayland_window();
 
 
   printf("Goobye from Swordfish\n");

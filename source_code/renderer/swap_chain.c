@@ -125,10 +125,16 @@ void pe_vk_create_swapchain() {
       .clipped = VK_FALSE,
       .oldSwapchain = VK_NULL_HANDLE};
 
-  if (is_drm_rendering)
+  //INHERIT is what an xlib surface offers, a wayland one does not. ask the
+  //surface instead of assuming: opaque if it is there, otherwise whatever
+  //the lowest supported bit is
+  if (support.capabilities.supportedCompositeAlpha &
+      VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
     info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
   else
-    info.compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+    info.compositeAlpha = (VkCompositeAlphaFlagBitsKHR)(
+        support.capabilities.supportedCompositeAlpha &
+        -support.capabilities.supportedCompositeAlpha);
 
   VKVALID(vkCreateSwapchainKHR(vk_device, &info, NULL, &pe_vk_swap_chain),
           "Can't create a swap schain");

@@ -1,86 +1,47 @@
 #include "window.h"
-#include <X11/Xlib.h>
 
 #include <stdio.h>
-#include <stdlib.h>
 
+#include <pway/pway.h>
 
-
-
-Display* display;
-XEvent window_event;
-Window swordfish_window; 
-
-int screen;
-
-int mouse_click_x = 0;
-int mouse_click_y = 0;
+#include "swordfish.h"
 
 bool swordfish_running = true;
 
+bool is_wayland_window = false;
 
-XSetWindowAttributes window_attributes;
-
-Colormap color_map;
-
-
-
-Atom atom_close_window; 
-
-
-void close_window() {
-
-
-  XDestroyWindow(display, swordfish_window);
-
-  XCloseDisplay(display);
+static void pway_window_closed(void) {
+  swordfish_running = false;
 }
 
-bool create_window(){
-    display = XOpenDisplay(NULL); // NULL for default display
-    if (display == NULL) {
-        // Handle error
-        return false;
-    }
-    
+static void pway_window_resized(int width, int height) {
+  //TODO the swap chain and the camera still use WINDOW_WIDTH/WINDOW_HEIGHT,
+  //so the new size is recorded but nothing is rebuilt from it yet
+  pway->width = width;
+  pway->height = height;
+}
 
+//pway connects with whatever WAYLAND_DISPLAY points at, and run_compositor()
+//later overwrites that with swordfish's own socket. this has to run before
+//the compositor thread starts or swordfish tries to be a client of itself
+bool create_wayland_window(void) {
 
-    screen = DefaultScreen(display);
+  if (pway_init() == NULL)
+    return false;
 
-    window_attributes.colormap = color_map;
-    window_attributes.border_pixel = 0;
-    window_attributes.event_mask =
-        ExposureMask | KeyPressMask | StructureNotifyMask;
+  pway->exit = pway_window_closed;
+  pway->resize = pway_window_resized;
 
+  if (!pway_create_window("swordfish", WINDOW_WIDTH, WINDOW_HEIGHT))
+    return false;
 
+  //deliberately no pway_init_egl(): the wl_surface goes to vulkan instead, so
+  //the EGL context pway would build is never needed
+  is_wayland_window = true;
 
-    // swordfish_window= XCreateWindow(display, RootWindow(display, window_visual->screen),
-    //         0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0, 
-    //         window_visual->depth, InputOutput, window_visual->visual, 
-    //         CWBorderPixel | CWColormap | CWEventMask, &window_attributes);
+  return true;
+}
 
-    swordfish_window = XCreateSimpleWindow(display, RootWindow(display, screen),
-                                 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 1,
-                                 BlackPixel(display, screen), WhitePixel(display, screen));
-
-
-    XClassHint class_hint;
-    class_hint.res_name = "swordfish";
-    class_hint.res_class = "swordfish"; 
-    XSetClassHint(display, swordfish_window, &class_hint);
-    XSetStandardProperties(display, swordfish_window, 
-            "swordfish", "swordfish", None, NULL, 0, NULL);
-
-
-   
-    //handle close the window
-    atom_close_window = XInternAtom(display, "WM_DELETE_WINDOW", False);
-    XSetWMProtocols(display, swordfish_window, &atom_close_window, 1);
-
-
-    XSelectInput(display, swordfish_window, ButtonPressMask | ButtonReleaseMask | FocusChangeMask);
-
-    //show the window
-    XMapWindow(display, swordfish_window);
-
+void close_wayland_window(void) {
+  pway_finish();
 }

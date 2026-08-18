@@ -11,6 +11,8 @@
 #include <engine/time.h>
 #include "keyboard.h"
 
+#include <pway/pway.h>
+
 LibInput* libinput;
 struct udev *udev;
 
@@ -44,56 +46,6 @@ void init_input() {
   libinput_udev_assign_seat(libinput, "seat0"); // Assign to a seat
 }
 
-void handle_input_xorg(){
-
-  while (swordfish_running) {
-
-    start_input_time();
-
-    //if (XPending(display)) {
-    if (1) {
-
-      XNextEvent(display, &window_event);
-
-      switch (window_event.type) {
-      case ClientMessage:
-
-        if (window_event.xclient.message_type ==
-                XInternAtom(display, "WM_PROTOCOLS", False) &&
-            (Atom)window_event.xclient.data.l[0] ==
-                XInternAtom(display, "WM_DELETE_WINDOW", False)) {
-          // or prompt the user for confirmation
-
-          swordfish_running = false;
-
-        }
-
-        break;
-      case ButtonPress:
-        mouse_click_x = window_event.xbutton.x;
-        mouse_click_y = window_event.xbutton.y;
-
-
-        break;
-
-      case ButtonRelease:
-
-        break;
-
-      case FocusIn:
-
-        break;
-
-      case FocusOut:
-
-        break;
-      }
-    }
-  }
-
-
-}
-
 void finish_input() {
   finish_keyboard();
   libinput_unref(libinput);
@@ -102,8 +54,19 @@ void finish_input() {
 }
 
 void *handle_input(void *none) {
-  // if(!is_drm_rendering)
-  //   handle_input_xorg();
+
+  //as a wayland client the host compositor hands us input, and pway also has
+  //to be pumped for the xdg surface to ever get configured. libinput here
+  //would be reading the same devices a second time, behind the compositor's
+  //back
+  if (is_wayland_window) {
+    printf("Input from pway\n");
+
+    while (swordfish_running)
+      pway_handle_events();
+
+    return NULL;
+  }
 
   printf("Input initialazing\n");
 
