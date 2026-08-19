@@ -465,9 +465,12 @@ void pe_vk_create_depth_resources() {
 }
 
 void pe_vk_clean_image(PTexture* image){
-  
-  vkDestroyImage(vk_device, image->image, NULL);
+
+  //the view first: an image cannot be destroyed while a view of it still
+  //exists, and doing it the other way round is what the validation layer
+  //reports as "can't be called on VkImage ... currently in use by VkImageView"
   vkDestroyImageView(vk_device, image->image_view, NULL);
+  vkDestroyImage(vk_device, image->image, NULL);
   if(image->sampler != VK_NULL_HANDLE) {
     vkDestroySampler(vk_device, image->sampler, NULL);
   }

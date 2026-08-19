@@ -188,6 +188,9 @@ void forget_task_input(TaskInput *input){
 
 void send_wayland_key(uint32_t scancode, bool pressed){
 
+  //this is the input thread, and the compositor thread is sending to the same
+  //client out of its event loop. lock_wayland() is the outer lock everywhere
+  lock_wayland();
   pthread_mutex_lock(&focus_task_mutex);
 
   track_pressed_key(scancode, pressed);
@@ -195,6 +198,7 @@ void send_wayland_key(uint32_t scancode, bool pressed){
   WResource *keyboard = focused_keyboard();
   if(!keyboard){
     pthread_mutex_unlock(&focus_task_mutex);
+    unlock_wayland();
     return;
   }
 
@@ -211,6 +215,7 @@ void send_wayland_key(uint32_t scancode, bool pressed){
   wl_display_flush_clients(compositor.display);
 
   pthread_mutex_unlock(&focus_task_mutex);
+  unlock_wayland();
 }
 
 void send_keyboard_configuration(WResource *resource){
@@ -234,11 +239,14 @@ void send_keyboard_configuration(WResource *resource){
 //when the surface is created because the client creates its surface and its
 //keyboard as two separate requests, in either order
 void handle_focus(){
+  //the render thread, and focus_task() is what sends wl_keyboard.enter
+  lock_wayland();
   pthread_mutex_lock(&focus_task_mutex);
 
   focus_task(focused_task);
 
   pthread_mutex_unlock(&focus_task_mutex);
+  unlock_wayland();
 }
 
 static WResource *focused_pointer(void){
@@ -315,6 +323,9 @@ static void set_pointer_focus(Task *task){
 
 void send_wayland_pointer_motion(double x, double y){
 
+  //the input thread again, and this one fires as fast as the mouse moves -
+  //which is what turned the unsynchronised sends into a disconnected client
+  lock_wayland();
   pthread_mutex_lock(&focus_task_mutex);
 
   pointer_x = x;
@@ -334,10 +345,12 @@ void send_wayland_pointer_motion(double x, double y){
   }
 
   pthread_mutex_unlock(&focus_task_mutex);
+  unlock_wayland();
 }
 
 void send_wayland_pointer_button(uint32_t button, bool pressed){
 
+  lock_wayland();
   pthread_mutex_lock(&focus_task_mutex);
 
   WResource *pointer = focused_pointer();
@@ -351,10 +364,12 @@ void send_wayland_pointer_button(uint32_t button, bool pressed){
   }
 
   pthread_mutex_unlock(&focus_task_mutex);
+  unlock_wayland();
 }
 
 void send_wayland_pointer_axis(double value){
 
+  lock_wayland();
   pthread_mutex_lock(&focus_task_mutex);
 
   WResource *pointer = focused_pointer();
@@ -367,6 +382,7 @@ void send_wayland_pointer_axis(double value){
   }
 
   pthread_mutex_unlock(&focus_task_mutex);
+  unlock_wayland();
 }
 
 //the client's own cursor image. the surface came from wl_compositor.create_

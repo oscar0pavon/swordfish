@@ -58,6 +58,45 @@ void send_frame_callback_done(Task *surface){
   wl_resource_destroy(callback);
 }
 
+//a client may destroy a wl_buffer whenever it likes - mesa does it when the
+//window resizes - and nothing told the task, which went on sending
+//wl_buffer.release through the freed resource every frame
+static void handle_buffer_destroyed(struct wl_listener *listener, void *data) {
+
+  Task *surface = wl_container_of(listener, surface, buffer_destroy);
+
+  //this is the compositor thread and draw_surfaces() reads the same field on
+  //the render thread
+  pthread_mutex_lock(&draw_tasks_mutex);
+
+  wl_list_remove(&surface->buffer_destroy.link);
+  surface->listening_to_buffer = false;
+  surface->buffer_resource = NULL;
+
+  //TODO the PTexture and its vulkan image outlive the wl_buffer that owned
+  //them. freeing them here would destroy an image the render thread is still
+  //recording with, so for now the surface keeps sampling what it has
+  pthread_mutex_unlock(&draw_tasks_mutex);
+}
+
+static void stop_listening_to_buffer(Task *surface) {
+
+  if (!surface->listening_to_buffer)
+    return;
+
+  wl_list_remove(&surface->buffer_destroy.link);
+  surface->listening_to_buffer = false;
+}
+
+static void listen_to_buffer(Task *surface, WResource *buffer_resource) {
+
+  stop_listening_to_buffer(surface);
+
+  surface->buffer_destroy.notify = handle_buffer_destroyed;
+  wl_resource_add_destroy_listener(buffer_resource, &surface->buffer_destroy);
+  surface->listening_to_buffer = true;
+}
+
 //a cursor image is never drawn, so nothing in the render loop will ever
 //release its buffer. hand it straight back or the client waits for a buffer it
 //is never getting
@@ -72,8 +111,10 @@ void mark_surface_as_cursor(Task *task) {
   //image, so by now the task is usually in the draw list
   array_remove_element(&tasks_for_draw, task);
 
-  if (task->buffer_resource)
+  if (task->buffer_resource && !task->buffer_released) {
     wl_buffer_send_release(task->buffer_resource);
+    task->buffer_released = true;
+  }
 
   pthread_mutex_unlock(&draw_tasks_mutex);
 
@@ -89,10 +130,12 @@ void surface_attach(WClient *client, WResource *resource,
   //attaching NULL unmaps the surface. clients do it to their cursor as a way
   //of hiding it, and the user data below is read straight through
   if (!buffer_resource) {
+    pthread_mutex_lock(&draw_tasks_mutex);
+
+    stop_listening_to_buffer(surface);
     surface->buffer_resource = NULL;
     surface->can_draw = false;
 
-    pthread_mutex_lock(&draw_tasks_mutex);
     array_remove_element(&tasks_for_draw, surface);
     pthread_mutex_unlock(&draw_tasks_mutex);
 
@@ -100,11 +143,21 @@ void surface_attach(WClient *client, WResource *resource,
     return;
   }
 
+  pthread_mutex_lock(&draw_tasks_mutex);
+
   surface->buffer_resource = buffer_resource;
+
+  //this buffer has not been handed back yet, whatever was true of the last one
+  surface->buffer_released = false;
+
+  listen_to_buffer(surface, buffer_resource);
+
+  pthread_mutex_unlock(&draw_tasks_mutex);
 
   //a cursor stays out of the draw list however often it is redrawn
   if (surface->is_cursor) {
     wl_buffer_send_release(buffer_resource);
+    surface->buffer_released = true;
     return;
   }
 
@@ -228,6 +281,10 @@ static void destroy_surface(WResource *resource) {
   pthread_mutex_lock(&draw_tasks_mutex);
 
   array_remove_element(&tasks_for_draw, surface);
+
+  //the buffer can outlive the surface that attached it, and the listener lives
+  //inside the Task that is about to be freed
+  stop_listening_to_buffer(surface);
 
   //a surface destroyed before it ever attached a buffer has no image, and
   //pe_vk_clean_image() reads straight through the pointer. every client that

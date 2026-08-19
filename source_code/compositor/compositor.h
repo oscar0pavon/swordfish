@@ -47,9 +47,27 @@ typedef struct Task{
     //an ordinary surface and there is nothing to draw a cursor into yet, so it
     //is kept out of the scene
     bool is_cursor;
+    //release is owed once for each buffer the client attaches, not once per
+    //frame: a client told again that a buffer it has already taken back is free
+    //is entitled to draw into the one being sampled
+    bool buffer_released;
+    //the client is free to destroy a wl_buffer while the task still points at
+    //it, and wl_buffer_send_release() would write straight through the freed
+    //resource
+    struct wl_listener buffer_destroy;
+    bool listening_to_buffer;
 }Task;
 
 void* run_compositor(void* none);
+
+//everything sent to a client has to be serialised: libwayland-server has no
+//locking and swordfish sends from three threads. the compositor thread holds
+//this across its whole dispatch, so a request handler is already inside it;
+//the render and input threads take it around their own sends and flushes.
+//recursive, and the outermost lock - before draw_tasks_mutex and
+//focus_task_mutex, never after
+void lock_wayland(void);
+void unlock_wayland(void);
 
 void finish_compositor();
 

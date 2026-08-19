@@ -67,6 +67,41 @@ reaching, or serving a client dereferences a NULL `xkb_keymap`.
 
 `draw_tasks_mutex` and `focus_task_mutex` (`swordfish.c`) guard the `tasks_for_draw` array shared between the compositor thread and the render loop. Anything touching client surfaces from the render side must take `draw_tasks_mutex`.
 
+#### Sending to a client is single-threaded — `lock_wayland()`
+
+**libwayland-server has no locking of its own**, and all three threads send
+events: the compositor thread out of its event loop, the render thread in
+`end_frame()` and `draw_surfaces()`, the input thread in `send_wayland_key()`
+and the pointer. Everything a client is sent goes through one ring buffer per
+connection whose head a send advances and whose tail a flush moves, so two
+threads at once lose an update and leave the tail *past* the head. The client
+then reads a message length out of the middle of an event and drops the
+connection — from the outside it looks exactly like the compositor closing it:
+
+```
+Data too big for buffer (18446744073709117440 + 8 > 4096).   # -434176, from libwayland's ring buffer
+Message length 19200 exceeds limit 4096                       # printed by the *client*
+error in client communication (pid ...)
+```
+
+`lock_wayland()` / `unlock_wayland()` (`compositor/compositor.c`) serialise it.
+The compositor thread holds it **across the whole dispatch**, which is why
+`run_compositor()` no longer calls `wl_display_run()`: that welds the waiting to
+the dispatching, leaving nowhere to hold a lock. Unrolled, it polls
+`wl_event_loop_get_fd()` without the lock and calls
+`wl_event_loop_dispatch(loop, 0)` with it. Holding it across the dispatch is
+what covers the events **libwayland itself** sends — `wl_display.delete_id`
+after every `wl_resource_destroy`, protocol errors — which no lock around our
+own calls could reach.
+
+It is **recursive** (a handler cannot know whether it was reached from the
+dispatch or from the render thread) and it is the **outermost lock**: take it
+before `draw_tasks_mutex` and `focus_task_mutex`, never after, or the render
+thread and a request handler deadlock over the pair.
+
+Code already running on the compositor thread — every request handler — is
+inside it and needs nothing. Only the render and input threads take it by hand.
+
 ### Two orthogonal mode flags
 
 - `is_opengl` (`main.c`, default `false`) — selects the EGL/GLES path (`compositor/egl.c`, `buffers.c`) instead of Vulkan. The Vulkan path is the live one; the EGL path exits early via `goto finish`.
@@ -281,7 +316,16 @@ AMD DCC modifier rather than linear.
 
 A client surface becomes a `Task` (`compositor/compositor.h`): it owns the `wl_resource`, the client's buffer, a `PTexture`, and a `PModel` quad. Buffers arrive either through wl_shm (`compositor/shared_memory.c`) or linux-dmabuf (`compositor/dma.c`, imported into a Vulkan image via dmabuf fds). `Task`s live in the `tasks_for_draw` array; each frame `draw_surfaces()` draws them and `end_frame()` sends the frame callbacks (`send_frame_callback_done`) then `wl_display_flush_clients`.
 
-Teardown belongs in `destroy_surface()` — the resource destructor, which holds `draw_tasks_mutex` — not in the `wl_surface.destroy` handler, which runs before the `Task` leaves `tasks_for_draw` and so can free a Vulkan image the render thread is still sampling. `task->image` is also **NULL until the first attach**, and `pe_vk_clean_image()` reads straight through the pointer: a client that creates a surface and destroys it without ever drawing used to segfault the compositor.
+Teardown belongs in `destroy_surface()` — the resource destructor, which holds `draw_tasks_mutex` — not in the `wl_surface.destroy` handler, which runs before the `Task` leaves `tasks_for_draw` and so can free a Vulkan image the render thread is still sampling. `task->image` is also **NULL until the first attach**, and `pe_vk_clean_image()` reads straight through the pointer: a client that creates a surface and destroys it without ever drawing used to segfault the compositor. That function destroys the **view before the image** — the other order is a validation error, since an image cannot go while a view of it exists.
+
+`wl_buffer.release` is owed **once per attached buffer**, not once per frame,
+and `task->buffer_released` is what keeps it to one. Sending it every frame
+tells the client the buffer currently being sampled is free to draw into, and —
+worse — the client is entitled to destroy a buffer it has been given back. The
+`wl_resource` is then gone while the `Task` still points at it, so
+`surface_attach()` registers `handle_buffer_destroyed()` on each buffer to NULL
+`task->buffer_resource`. The `PTexture` and its Vulkan image still leak there:
+freeing them would destroy an image the render thread may be recording with.
 
 ### Layer conventions
 

@@ -63,7 +63,12 @@ void draw_surface(Task* surface, VkCommandBuffer *cmd_buffer, uint32_t index){
 
 void end_frame() {
 
+  //the compositor thread is sending to the same clients out of its event loop.
+  //lock_wayland() before draw_tasks_mutex, never the other way round: a
+  //request handler already holds the wayland lock when it takes this one
+  lock_wayland();
   pthread_mutex_lock(&draw_tasks_mutex);
+
   for (int i = 0; i < tasks_for_draw.count; i++) {
     Task *surface = array_get_pointer(&tasks_for_draw, i);
     if (surface->frame_call_resource != NULL)
@@ -74,22 +79,33 @@ void end_frame() {
   pthread_mutex_unlock(&draw_tasks_mutex);
 
   wl_display_flush_clients(compositor.display);
+
+  unlock_wayland();
   //array_clean(&tasks_for_draw);
 }
 
 void draw_surfaces(VkCommandBuffer *command, uint32_t index) {
 
+  lock_wayland();
   pthread_mutex_lock(&draw_tasks_mutex);
 
   for (int i = 0; i < tasks_for_draw.count; i++) {
     Task *task = array_get_pointer(&tasks_for_draw, i);
     if (task->can_draw) {
       draw_surface(task, command, index);
-      wl_buffer_send_release(task->buffer_resource);
+
+      //once per attached buffer. sending it every frame told the client the
+      //buffer being sampled was free to draw into, and the resource behind the
+      //pointer is gone the moment the client destroys the buffer
+      if (task->buffer_resource && !task->buffer_released) {
+        wl_buffer_send_release(task->buffer_resource);
+        task->buffer_released = true;
+      }
     }
   }
 
   pthread_mutex_unlock(&draw_tasks_mutex);
+  unlock_wayland();
 }
 
 //the camera swings a few degrees around the centre instead of taking input.
