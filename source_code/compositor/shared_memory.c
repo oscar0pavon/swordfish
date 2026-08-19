@@ -3,7 +3,7 @@
 
 #include "shared_memory.h"
 #include "compositor.h"
-#include "engine/array.h"
+#include <engine/array.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>

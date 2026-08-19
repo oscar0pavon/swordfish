@@ -5,13 +5,13 @@
 #include "system_monitor.h"
 #include "compositor/compositor.h"
 #include "compositor/surface.h"
-#include "engine/array.h"
+#include <engine/array.h>
 #include <engine/model.h>
 
 #include <cglm/cglm.h>
 #include <math.h>
 #include <time.h>
-#include "renderer/pipeline.h"
+#include <engine/renderer/pipeline.h>
 #include <engine/engine2d.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -19,12 +19,12 @@
 
 #include <cglm/cglm.h>
 
-#include "renderer/uniform_buffer.h"
+#include <engine/renderer/uniform_buffer.h>
 
-#include "renderer/descriptor_set.h"
-#include "renderer/draw.h"
-#include "renderer/vk_images.h"
-#include "renderer/vulkan.h"
+#include <engine/renderer/descriptor_set.h>
+#include <engine/renderer/draw.h>
+#include <engine/renderer/vk_images.h>
+#include <engine/renderer/vulkan.h>
 
 #include <engine/camera.h>
 #include <engine/time.h>
@@ -36,12 +36,9 @@
 pthread_mutex_t draw_tasks_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t focus_task_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-bool is_drm_rendering = false;
 bool can_draw_surfaces = true;
 
 PModel text_model;
-
-Camera main_camera;
 
 bool finished_build = false;
 
@@ -159,7 +156,7 @@ static void swordfish_update_camera(void) {
   init_vec3(cosf(angle) * ORBIT_RADIUS, sinf(angle) * ORBIT_RADIUS,
             ORBIT_HEIGHT, main_camera.position);
 
-  pe_camera_look_at(&main_camera, VEC3(0, 0, ORBIT_LOOK_Z));
+  pe_camera_look_at((Camera *)&main_camera, VEC3(0, 0, ORBIT_LOOK_Z));
 }
 
 void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){

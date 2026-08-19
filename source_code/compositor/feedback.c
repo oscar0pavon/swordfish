@@ -15,7 +15,7 @@
 #include <wayland-server-protocol.h>
 #include "linux-dmabuf.h"
 #include "drm_format.h"
-#include "renderer/physical_devices.h"
+#include <engine/renderer/physical_devices.h>
 
 typedef struct FormatTable {
   uint32_t format;

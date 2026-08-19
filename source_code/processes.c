@@ -8,16 +8,17 @@
 #include <unistd.h>
 
 #include <engine/array.h>
+#include <engine/camera.h>
 #include <engine/log.h>
 #include <engine/macros.h>
 #include <engine/vertex.h>
 
-#include "renderer/descriptor_set.h"
-#include "renderer/draw.h"
-#include "renderer/pipeline.h"
-#include "renderer/uniform_buffer.h"
-#include "renderer/vk_buffer.h"
-#include "renderer/vk_images.h"
+#include <engine/renderer/descriptor_set.h>
+#include <engine/renderer/draw.h>
+#include <engine/renderer/pipeline.h>
+#include <engine/renderer/uniform_buffer.h>
+#include <engine/renderer/vk_buffer.h>
+#include <engine/renderer/vk_images.h>
 
 #include "city.h"
 #include "swordfish.h"

@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 #include "compositor/types.h"
-#include "engine/images.h"
+#include <engine/images.h>
 
 typedef struct wl_client WClient;
 

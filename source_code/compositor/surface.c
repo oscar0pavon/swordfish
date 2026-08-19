@@ -10,13 +10,13 @@
 #include <wayland-server-protocol.h>
 #include <wayland-util.h>
 #include "dma.h"
-#include "engine/array.h"
-#include "engine/images.h"
-#include "engine/engine2d.h"
-#include "renderer/pipeline.h"
-#include "renderer/descriptor_set.h"
+#include <engine/array.h>
+#include <engine/images.h>
+#include <engine/engine2d.h>
+#include <engine/renderer/pipeline.h>
+#include <engine/renderer/descriptor_set.h>
 #include "swordfish.h"
-#include "renderer/vk_images.h"
+#include <engine/renderer/vk_images.h>
 #include "input.h"
 #include <pthread.h>
 

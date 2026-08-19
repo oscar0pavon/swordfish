@@ -5,7 +5,7 @@
 #include <engine/model.h>
 #include <engine/numbers.h>
 
-#include "renderer/vk_buffer.h"
+#include <engine/renderer/vk_buffer.h>
 
 //a directory drawn as a street of towers. every entry becomes one
 //PInstance, and the whole skyline is a single instanced draw call

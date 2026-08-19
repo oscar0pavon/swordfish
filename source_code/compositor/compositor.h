@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <libseat.h>
 #include "dma.h"
-#include "engine/images.h"
-#include "engine/model.h"
+#include <engine/images.h>
+#include <engine/model.h>
 #include "input.h"
 
 #include "types.h"

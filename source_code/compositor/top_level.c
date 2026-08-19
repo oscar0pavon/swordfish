@@ -7,7 +7,7 @@
 #include <string.h>
 #include "desktop.h"
 #include "surface.h"
-#include "engine/array.h"
+#include <engine/array.h>
 #include "swordfish.h"
 #include <pthread.h>
 

@@ -11,8 +11,6 @@
 
 bool swordfish_running = true;
 
-bool is_wayland_window = false;
-
 static void pway_window_closed(void) {
   swordfish_running = false;
 }

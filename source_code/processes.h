@@ -8,7 +8,7 @@
 #include <engine/numbers.h>
 #include <engine/vertex.h>
 
-#include "renderer/vk_buffer.h"
+#include <engine/renderer/vk_buffer.h>
 
 //array_add does not grow the array, so this is a hard limit on how many
 //processes can be on screen at once

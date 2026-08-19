@@ -7,7 +7,7 @@
 #include <engine/model.h>
 #include <engine/numbers.h>
 
-#include "renderer/vk_buffer.h"
+#include <engine/renderer/vk_buffer.h>
 
 //no machine here has this many logical cpus, it just bounds the /proc/stat
 //parse so a malformed file can't run off the end of the sample arrays

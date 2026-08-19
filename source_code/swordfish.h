@@ -2,15 +2,12 @@
 #define SWORDFISH_H
 
 #include <engine/model.h>
-#include "renderer/vulkan.h"
+#include <engine/renderer/renderer.h>
+#include <engine/renderer/vulkan.h>
 
 extern PModel text_model;
 
-extern Camera main_camera;
-
 extern bool finished_build;
-
-extern bool is_drm_rendering;
 
 extern bool can_draw_surfaces;
 

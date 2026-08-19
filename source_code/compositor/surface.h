@@ -3,7 +3,7 @@
 
 #include "compositor.h"
 
-#include "engine/array.h"
+#include <engine/array.h>
 
 extern Task *focused_task;
 extern Array tasks_for_draw;

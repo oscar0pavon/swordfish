@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Swordfish is a single C binary that is simultaneously a **Wayland compositor**, a **Vulkan renderer**, and a small **3D engine**. It displays software build progress as a 3D scene (inspired by the movie *Swordfish*): you run `swordfish <command>`, and client windows plus build output are composited into the 3D world.
+Swordfish is a single C binary that is simultaneously a **Wayland compositor**, a **Vulkan renderer**, and a small **3D engine**. The renderer and the engine are no longer in this repo: they are **pengine** (`/root/pengine`), linked in as `libpengine.a`. What is left here is the compositor and the scene. It displays software build progress as a 3D scene (inspired by the movie *Swordfish*): you run `swordfish <command>`, and client windows plus build output are composited into the 3D world.
 
 ## Build / install
 
@@ -23,9 +23,53 @@ Shaders are GLSL compiled with `glslc` into `shaders/*.spv` (gitignored, rebuilt
 
 There is no test suite and no linter.
 
-### Compile flags per directory
+### pengine
 
-`source_code/Makefile` uses different flags per subdirectory: `engine/` and `renderer/` get `-DCGLM_FORCE_DEPTH_ZERO_TO_ONE -DCGLM_FORCE_LEFT_HANDED`; top-level and `compositor/` objects do **not**. Keep cglm math in `engine/`/`renderer/` so handedness/depth conventions stay consistent.
+`engine/` and `renderer/` used to be subdirectories here. They are now
+`/root/pengine/src/engine` and `/root/pengine/src/engine/renderer`, built into
+`/usr/local/lib/libpengine.a` by `make && make install` in that repo. **A change
+to anything under `renderer/` or `engine/` is a change to pengine**, and needs a
+rebuild and reinstall there before swordfish sees it.
+
+`make install` in pengine copies the header tree to `/usr/local/include/pengine`
+keeping the `engine/...` prefix it is written against, so swordfish compiles
+with the single `-I/usr/local/include/pengine` and keeps spelling its includes
+`<engine/model.h>` and `<engine/renderer/vulkan.h>`. The `"renderer/..."`
+includes *inside* pengine's own headers resolve relative to the header doing the
+including, which is why no second `-I` is needed - and why adding one is a bad
+idea: it would put pengine's `engine/time.h` and `engine/input.h` ahead of
+libc's `<time.h>`.
+
+Two flags in `source_code/Makefile` are there because of pengine and are not
+optional:
+
+- **`-fcommon`**. pengine's headers hold about a hundred tentative definitions
+  (`bool thread_main;` in `threads.h`, `struct Input input;` in `input.h`), so
+  every object that includes one defines it. They merge under `-fcommon` and
+  collide at link time without it. pengine builds with it too.
+- **`-Wno-incompatible-pointer-types`**. `main_camera` is pengine's, and it is a
+  `CameraComponent` - a `Camera` plus one trailing pointer - while
+  `camera_init()` and `pe_camera_look_at()` take `Camera *`.
+
+`-DCGLM_FORCE_DEPTH_ZERO_TO_ONE -DCGLM_FORCE_LEFT_HANDED` moved with the code
+into pengine's `include.make`. They apply to pengine only; swordfish's own
+objects are built without them, exactly as before. Keep cglm math on pengine's
+side so the depth and handedness conventions stay consistent.
+
+### What swordfish hands the renderer
+
+pengine cannot call `swordfish_draw_scene()` by name any more, and three globals
+that used to be swordfish's now belong to the renderer. `main()` wires them up
+before `pe_vk_init()`:
+
+- `pe_vk_draw_scene` - a function pointer, set to `swordfish_draw_scene`.
+  `pe_vk_draw_commands()` calls it in the middle of the render pass.
+- `pe_window_width` / `pe_window_height` - set from `WINDOW_WIDTH` /
+  `WINDOW_HEIGHT` in `window.h`, which is still the app's authority on the size.
+  The swap chain extent, the camera and the 2D ortho projection all read them.
+- `is_wayland_window` and `is_drm_rendering` are declared in
+  `<engine/renderer/renderer.h>` and defined in pengine's `vulkan.c`.
+  `window.c` and `main()` still set them.
 
 ### Generated Wayland protocol code
 
@@ -33,7 +77,7 @@ There is no test suite and no linter.
 
 ### System dependencies
 
-vulkan (+ validation layers), libdrm, gbm, EGL/GLESv2, wayland-server, wayland-client, wayland-egl, libinput, libudev, xkbcommon, libseat, lodepng (`liblodepng.a`), and the header-only cglm + cgltf.
+pengine (`libpengine.a`, see above), vulkan (+ validation layers), libdrm, gbm, EGL/GLESv2/GL, wayland-server, wayland-client, wayland-egl, libinput, libudev, xkbcommon, libseat, lodepng (`liblodepng.a`), and the header-only cglm + cgltf.
 
 **Neither Makefile tracks header dependencies.** Changing a header - especially
 `/usr/local/include/pway/pway.h` - recompiles nothing, and `make` cheerfully
@@ -43,7 +87,7 @@ once left `pway_window_resized()` storing the window width and height on top of
 the `pway->key` function pointer, and the next keypress jumped to `0x3af00000434`
 - which is just 943 x 1076, the tiled window size. After touching a header in
 either repo, `make clean` (or `touch *.c`) in **every** project that includes
-it: pway, swordfish, and pterminal. Adding a member to `PWay` goes on the **end**
+it: pengine, pway, swordfish, and pterminal. Adding a member to `PWay` goes on the **end**
 of the struct for the same reason.
 
 **pway** (`/root/pway`) supplies the window. It is a separate repo installed to `/usr/local/lib/libpway.a` and `/usr/local/include/pway`, which is why the build carries `-I/usr/local/include` and `-L/usr/local/lib`. If linking picks up a stale archive, rebuild it there with `make && make install` — the headers and the `.a` are not versioned against each other.
@@ -105,7 +149,7 @@ inside it and needs nothing. Only the render and input threads take it by hand.
 ### Two orthogonal mode flags
 
 - `is_opengl` (`main.c`, default `false`) — selects the EGL/GLES path (`compositor/egl.c`, `buffers.c`) instead of Vulkan. The Vulkan path is the live one; the EGL path exits early via `goto finish`.
-- `is_drm_rendering` (`swordfish.c`) — set to `true` when `create_wayland_window()` fails (no compositor to connect to). Then rendering targets DRM/KMS directly (`direct_render.c`, `renderer/display.c`, `compositor.gpu_path = "/dev/dri/card0"`), the swapchain/surface setup differs, `vkGetMemoryFdKHR` is resolved for buffer export, and input comes from libinput instead of pway.
+- `is_drm_rendering` (pengine's `renderer/vulkan.c`, set by `main()`) — set to `true` when `create_wayland_window()` fails (no compositor to connect to). Then rendering targets DRM/KMS directly (`direct_render.c`, `renderer/display.c`, `compositor.gpu_path = "/dev/dri/card0"`), the swapchain/surface setup differs, `vkGetMemoryFdKHR` is resolved for buffer export, and input comes from libinput instead of pway.
 
 Both flags are read all over `renderer/` and `compositor/`; grep for them before changing init order.
 
@@ -329,8 +373,8 @@ freeing them would destroy an image the render thread may be recording with.
 
 ### Layer conventions
 
-- **`renderer/`** — thin Vulkan wrapper, everything prefixed `pe_vk_`. `pe_vk_init()` in `renderer/vulkan.c` is the authoritative, order-sensitive init sequence; `pe_vk_end()` is its mirror.
-- **`engine/`** — reusable engine ("pengine", hence the `pe_` prefix): custom allocator, `Array` container, glTF/PNG loading, camera, 2D/text.
+- **`renderer/`** (in pengine) — thin Vulkan wrapper, everything prefixed `pe_vk_`. `pe_vk_init()` in `renderer/vulkan.c` is the authoritative, order-sensitive init sequence; `pe_vk_end()` is its mirror.
+- **`engine/`** (in pengine) — reusable engine (hence the `pe_` prefix): custom allocator, `Array` container, glTF/PNG loading, camera, 2D/text.
 - **`compositor/`** — Wayland server implementation.
 - Top-level `*.c` — app glue: the pway window (`window.c`), input, keyboard/xkb, child-process build invocation (`build.c`), the scene (`swordfish.c`), the directory city (`city.c`), the process ring (`processes.c`), the CPU monitor (`system_monitor.c`), and the 2D overlay (`hud.c`).
 

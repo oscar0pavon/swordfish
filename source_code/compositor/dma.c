@@ -8,13 +8,13 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include "engine/images.h"
+#include <engine/images.h>
 #include "feedback.h"
 #include "swordfish.h"
 #include "linux-dmabuf.h"
 #include "compositor.h"
 
-#include "renderer/vk_images.h"
+#include <engine/renderer/vk_images.h>
 #include "drm_format.h"
 
 #include <xf86drm.h>

@@ -10,18 +10,19 @@
 #include "compositor/input.h"
 #include "compositor/seat.h"
 #include "compositor/surface.h"
-#include "engine/array.h"
+#include <engine/array.h>
 #include "swordfish.h"
 
-#include "engine/camera.h"
+#include <engine/camera.h>
 #include "input.h"
 #include "keyboard.h"
-#include "renderer/vulkan.h"
+#include <engine/renderer/vulkan.h>
 #include "window.h"
 
 #include <engine/memory.h>
 
-#include "renderer/draw.h"
+#include <engine/renderer/draw.h>
+#include <engine/renderer/renderer.h>
 
 #include <engine/utils.h>
 
@@ -85,7 +86,16 @@ int main(){
   //graphics stuff
   // For pengine - Vulkan Rendering
 
-  camera_init(&main_camera);
+  //the renderer draws at whatever size it is told; swordfish's is fixed and
+  //the window, the swap chain and the 2D projection all have to agree on it
+  pe_window_width = WINDOW_WIDTH;
+  pe_window_height = WINDOW_HEIGHT;
+
+  //the scene is the application's. the renderer records the render pass and
+  //calls back into this in the middle of it
+  pe_vk_draw_scene = swordfish_draw_scene;
+
+  camera_init((Camera *)&main_camera);
 
   //camera_set_position(&main_camera, VEC3(-10,0,0));
   //the position set here would never be seen: swordfish_update_camera() runs
