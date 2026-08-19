@@ -173,7 +173,13 @@ and `zwp_primary_selection_device_manager_v1`, so there is no clipboard. pway
 tolerates their absence now, but it used to call
 `wl_data_device_manager_get_data_device()` on a NULL proxy, which is a segfault
 inside libwayland-client — a missing global crashes the *client*, silently, with
-no protocol error to read.
+no protocol error to read. The same hole was still open on the primary-selection
+side and only showed up once the seat had a pointer: pterminal finishing a mouse
+selection calls `pway_primary_copy()`, which marshalled on the NULL manager and
+died on the button release, so a click in a client looked like swordfish closing
+it. Guarded in pway. **A client that dies the moment it uses a new input path is
+worth suspecting of a missing global before a protocol error** — the protocol
+error at least prints.
 
 ### xdg-shell
 
