@@ -11,6 +11,7 @@ typedef struct TaskInput {
   WClient *client;
   WResource *resource;
   WResource *keyboard_resource;
+  WResource *pointer_resource;
   struct wl_list link;
 }TaskInput;
 
@@ -25,6 +26,17 @@ void handle_focus();
 //one key from whichever input path is live, already an evdev code. pressed
 //keys are tracked here so a client taking focus is told what is already down
 void send_wayland_key(uint32_t scancode, bool pressed);
+
+//the cursor, in the render target's own pixels, from whichever input path is
+//live. the surface under it is worked out here, so motion is what sends
+//wl_pointer.enter and wl_pointer.leave as well
+void send_wayland_pointer_motion(double x, double y);
+
+//an evdev BTN_* code, which is what the protocol carries as well
+void send_wayland_pointer_button(uint32_t button, bool pressed);
+
+//vertical scroll. positive is down, away from the user, as the protocol has it
+void send_wayland_pointer_axis(double value);
 
 //wl_keyboard.leave the old surface, wl_keyboard.enter the new one. must be
 //called with focus_task_mutex held - focus_task() is its only caller

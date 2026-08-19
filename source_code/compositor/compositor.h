@@ -43,6 +43,10 @@ typedef struct Task{
     struct wl_list link;
     int32_t x,y;
     bool can_draw;
+    //a cursor image the client handed to wl_pointer.set_cursor. it arrived as
+    //an ordinary surface and there is nothing to draw a cursor into yet, so it
+    //is kept out of the scene
+    bool is_cursor;
 }Task;
 
 void* run_compositor(void* none);

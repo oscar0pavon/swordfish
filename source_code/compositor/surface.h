@@ -13,5 +13,9 @@ void create_surface(WClient *client, WResource *resource,
 
 void send_frame_callback_done(Task *surface);
 
+//the surface is a cursor image, not a window: keep it out of the draw list and
+//out of everything that follows from being in it
+void mark_surface_as_cursor(Task *task);
+
 
 #endif

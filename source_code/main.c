@@ -55,7 +55,11 @@ int main(){
 
   pe_init_memory();
   
-  array_init(&tasks_for_draw, 50, sizeof(void*)); 
+  //array_init takes the element size first and the count second, and these two
+  //were the other way round: a stride of 50 bytes per Task* left room for 8
+  //surfaces in a 400 byte block, and every add memcpy'd 50 bytes out of a
+  //place that held 8
+  array_init(&tasks_for_draw, sizeof(void *), 50);
 
   //the keymap is the compositor's, not the libinput path's: every client that
   //asks for a keyboard is sent it, whoever is feeding us keys. it used to be

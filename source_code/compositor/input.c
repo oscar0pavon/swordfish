@@ -32,6 +32,17 @@ static Task *keyboard_focus;
 //whether that task has actually been sent wl_keyboard.enter yet
 static bool focus_entered;
 
+//the task the cursor is inside, and whether it has been sent wl_pointer.enter.
+//the same split as the keyboard, for the same reason: the cursor can be over a
+//surface before that client has got round to asking for a wl_pointer
+static Task *pointer_focus;
+static bool pointer_entered;
+
+//where the cursor is, in the render target's own pixels, and where that lands
+//inside the surface under it
+static double pointer_x, pointer_y;
+static double pointer_local_x, pointer_local_y;
+
 // Helper function to get current time in milliseconds
 uint32_t get_current_time_msec() {
     struct timespec ts;
@@ -143,6 +154,11 @@ void forget_task(Task *task){
     focus_entered = false;
   }
 
+  if(pointer_focus == task){
+    pointer_focus = NULL;
+    pointer_entered = false;
+  }
+
   if(focused_task == task)
     focused_task = NULL;
 
@@ -156,6 +172,12 @@ void forget_task_input(TaskInput *input){
     keyboard_focus->input = NULL;
     keyboard_focus = NULL;
     focus_entered = false;
+  }
+
+  if(pointer_focus && pointer_focus->input == input){
+    pointer_focus->input = NULL;
+    pointer_focus = NULL;
+    pointer_entered = false;
   }
 
   if(focused_task && focused_task->input == input)
@@ -219,15 +241,249 @@ void handle_focus(){
   pthread_mutex_unlock(&focus_task_mutex);
 }
 
+static WResource *focused_pointer(void){
+  if(!pointer_focus || !pointer_focus->input)
+    return NULL;
+
+  //a client binds wl_seat before it asks for a pointer, so the resource can
+  //still be missing here
+  return pointer_focus->input->pointer_resource;
+}
+
+static void send_pointer_enter(void){
+
+  WResource *pointer = focused_pointer();
+  if(!pointer)
+    return;
+
+  wl_pointer_send_enter(pointer, next_serial(), pointer_focus->resource,
+                        wl_fixed_from_double(pointer_local_x),
+                        wl_fixed_from_double(pointer_local_y));
+
+  pointer_entered = true;
+
+  printf("Pointer entered task at %.0f %.0f\n", pointer_local_x,
+         pointer_local_y);
+}
+
+//which surface the cursor is over. every client quad is drawn in screen space
+//at the top left corner by draw_surface(), so this is the focused task's own
+//rectangle - task->x and task->y are the attach offset, not a position, and
+//nothing draws with them. once the quads move into the 3d world this becomes a
+//ray cast, and it is the only thing that has to change
+static Task *pointer_hit_task(void){
+
+  Task *task = focused_task;
+
+  //no buffer means no size to test against, and a cursor image is not a window
+  if(!task || !task->can_draw || task->is_cursor || !task->image)
+    return NULL;
+
+  if(pointer_x < 0 || pointer_y < 0)
+    return NULL;
+
+  if(pointer_x >= task->image->width || pointer_y >= task->image->heigth)
+    return NULL;
+
+  pointer_local_x = pointer_x;
+  pointer_local_y = pointer_y;
+
+  return task;
+}
+
+//must be called with focus_task_mutex held
+static void set_pointer_focus(Task *task){
+
+  if(pointer_focus == task){
+    //the cursor was already inside when the client finally asked for a
+    //pointer, so the enter that could not be sent then is still owed
+    if(task && !pointer_entered)
+      send_pointer_enter();
+
+    return;
+  }
+
+  WResource *pointer = focused_pointer();
+  if(pointer && pointer_entered)
+    wl_pointer_send_leave(pointer, next_serial(), pointer_focus->resource);
+
+  pointer_focus = task;
+  pointer_entered = false;
+
+  send_pointer_enter();
+}
+
+void send_wayland_pointer_motion(double x, double y){
+
+  pthread_mutex_lock(&focus_task_mutex);
+
+  pointer_x = x;
+  pointer_y = y;
+
+  set_pointer_focus(pointer_hit_task());
+
+  WResource *pointer = focused_pointer();
+  if(pointer && pointer_entered){
+    wl_pointer_send_motion(pointer, get_current_time_msec(),
+                           wl_fixed_from_double(pointer_local_x),
+                           wl_fixed_from_double(pointer_local_y));
+
+    //this runs on the input thread while the compositor thread owns the event
+    //loop, so nothing reaches the client until somebody flushes
+    wl_display_flush_clients(compositor.display);
+  }
+
+  pthread_mutex_unlock(&focus_task_mutex);
+}
+
+void send_wayland_pointer_button(uint32_t button, bool pressed){
+
+  pthread_mutex_lock(&focus_task_mutex);
+
+  WResource *pointer = focused_pointer();
+  if(pointer && pointer_entered){
+    wl_pointer_send_button(pointer, next_serial(), get_current_time_msec(),
+                           button,
+                           pressed ? WL_POINTER_BUTTON_STATE_PRESSED
+                                   : WL_POINTER_BUTTON_STATE_RELEASED);
+
+    wl_display_flush_clients(compositor.display);
+  }
+
+  pthread_mutex_unlock(&focus_task_mutex);
+}
+
+void send_wayland_pointer_axis(double value){
+
+  pthread_mutex_lock(&focus_task_mutex);
+
+  WResource *pointer = focused_pointer();
+  if(pointer && pointer_entered){
+    wl_pointer_send_axis(pointer, get_current_time_msec(),
+                         WL_POINTER_AXIS_VERTICAL_SCROLL,
+                         wl_fixed_from_double(value));
+
+    wl_display_flush_clients(compositor.display);
+  }
+
+  pthread_mutex_unlock(&focus_task_mutex);
+}
+
+//the client's own cursor image. the surface came from wl_compositor.create_
+//surface like any other, so without this it is drawn as a full quad in the
+//scene - and, being a surface, it would take the focus that goes with one
+static void pointer_set_cursor(WClient *client, WResource *resource,
+                               uint32_t serial, WResource *surface_resource,
+                               int32_t hotspot_x, int32_t hotspot_y) {
+
+  //a NULL surface means hide the cursor, and nothing is drawn to hide
+  if(!surface_resource)
+    return;
+
+  Task *cursor = wl_resource_get_user_data(surface_resource);
+  if(!cursor)
+    return;
+
+  mark_surface_as_cursor(cursor);
+
+  pthread_mutex_lock(&focus_task_mutex);
+
+  //focus follows xdg_toplevel, which a cursor surface never gets, so this
+  //should not happen. a client that skips xdg-shell entirely still must not be
+  //left with the keyboard pointed at its own cursor image
+  if(focused_task == cursor)
+    focused_task = pointer_focus;
+
+  if(keyboard_focus == cursor){
+    keyboard_focus = NULL;
+    focus_entered = false;
+  }
+
+  pthread_mutex_unlock(&focus_task_mutex);
+}
+
+//wl_pointer.release, since version 3. without an implementation on the
+//resource libwayland dispatches the request through a NULL table
+static void pointer_release(WClient *client, WResource *resource) {
+  wl_resource_destroy(resource);
+}
+
+static const struct wl_pointer_interface pointer_interface = {
+  .set_cursor = pointer_set_cursor,
+  .release = pointer_release
+};
+
+//the resource is dropped from the TaskInput here rather than in
+//forget_task_input, which is only reached when the whole seat goes away: a
+//client releasing just its pointer would otherwise leave a freed resource
+//behind for the next motion event to send through
+static void destroy_pointer(WResource *resource) {
+  TaskInput *input = wl_resource_get_user_data(resource);
+
+  //the seat resource went first and took the TaskInput with it
+  if(!input){
+    printf("Destroyed pointer\n");
+    return;
+  }
+
+  pthread_mutex_lock(&focus_task_mutex);
+
+  if(input->pointer_resource == resource){
+    input->pointer_resource = NULL;
+    pointer_entered = false;
+  }
+
+  pthread_mutex_unlock(&focus_task_mutex);
+
+  printf("Destroyed pointer\n");
+}
+
 static void get_pointer(WClient *client, WResource *resource, uint32_t id) {
 
   printf("Get pointer\n");
+
+  TaskInput *input = wl_resource_get_user_data(resource);
+
+  //the pointer carries the version the client bound the seat at
+  uint32_t version = wl_resource_get_version(resource);
+
+  WResource *pointer_resource =
+      wl_resource_create(client, &wl_pointer_interface, version, id);
+  if (!pointer_resource) {
+    wl_client_post_no_memory(client);
+    printf("Can't create pointer resource\n");
+    return;
+  }
+
+  wl_resource_set_implementation(pointer_resource, &pointer_interface, input,
+                                 destroy_pointer);
+
+  pthread_mutex_lock(&focus_task_mutex);
+
+  input->pointer_resource = pointer_resource;
+
+  //the cursor may already be sitting on this client's surface, in which case
+  //the enter it was owed could not be sent until now
+  if(pointer_focus && pointer_focus->input == input && !pointer_entered)
+    send_pointer_enter();
+
+  pthread_mutex_unlock(&focus_task_mutex);
 }
 
 static void destroy_task_input(WResource* resource){
   TaskInput* input = wl_resource_get_user_data(resource);
   forget_task_input(input);
   wl_list_remove(&input->link);
+
+  //the keyboard and the pointer are separate resources carrying this same
+  //TaskInput, and on a client disconnect libwayland is free to tear them down
+  //after the seat. neither destructor may read memory that is about to go
+  if(input->keyboard_resource)
+    wl_resource_set_user_data(input->keyboard_resource, NULL);
+
+  if(input->pointer_resource)
+    wl_resource_set_user_data(input->pointer_resource, NULL);
+
   free(input);
   printf("Destroyed Task input\n");
 }
@@ -241,6 +497,29 @@ static void keyboard_release(WClient *client, WResource *resource) {
 static const struct wl_keyboard_interface keyboard_interface = {
   .release = keyboard_release
 };
+
+//a client releasing its keyboard leaves the TaskInput holding a resource that
+//is already gone, and the next key sends through it
+static void destroy_keyboard(WResource *resource) {
+  TaskInput *input = wl_resource_get_user_data(resource);
+
+  //the seat resource went first and took the TaskInput with it
+  if(!input){
+    printf("Destroyed keyboard\n");
+    return;
+  }
+
+  pthread_mutex_lock(&focus_task_mutex);
+
+  if(input->keyboard_resource == resource){
+    input->keyboard_resource = NULL;
+    focus_entered = false;
+  }
+
+  pthread_mutex_unlock(&focus_task_mutex);
+
+  printf("Destroyed keyboard\n");
+}
 
 static void get_keyboard(WClient *client, WResource *resource, uint32_t id) {
 
@@ -261,7 +540,7 @@ static void get_keyboard(WClient *client, WResource *resource, uint32_t id) {
   }
 
   wl_resource_set_implementation(keyboard_resource, &keyboard_interface,
-                                 input, NULL);
+                                 input, destroy_keyboard);
 
   input->keyboard_resource = keyboard_resource;
 
@@ -318,9 +597,10 @@ static void bind_input_handler(WClient *client, void* data,
 
   wl_list_insert(&compositor.tasks_input, &input->link);
 
-  uint32_t key_board_cap = 0;
-  key_board_cap |= WL_SEAT_CAPABILITY_KEYBOARD;
-  wl_seat_send_capabilities(resource, key_board_cap);
+  uint32_t capabilities = 0;
+  capabilities |= WL_SEAT_CAPABILITY_KEYBOARD;
+  capabilities |= WL_SEAT_CAPABILITY_POINTER;
+  wl_seat_send_capabilities(resource, capabilities);
 
   //since version 2
   if (version >= WL_SEAT_NAME_SINCE_VERSION)

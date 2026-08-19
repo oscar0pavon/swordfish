@@ -1,3 +1,6 @@
+//mremap, which resize_shared_memory_pool() needs
+#define _GNU_SOURCE
+
 #include "shared_memory.h"
 #include "compositor.h"
 #include "engine/array.h"
@@ -17,7 +20,10 @@ typedef struct SharedMemory{
 typedef struct MemoryBuffer{
     WResource*resource;
     SharedMemory *pool;
-    void *data; // Pointer to the start of pixel data for this specific buffer
+    //where the pixels start inside the pool, rather than a pointer to them:
+    //resizing a pool remaps it and the mapping is free to move, which would
+    //leave every buffer made before the resize pointing into nothing
+    int32_t offset;
     int32_t width;
     int32_t height;
     int32_t stride;
@@ -110,8 +116,6 @@ void create_shared_memory_buffer(WClient *client,
 
   SharedMemory *pool = wl_resource_get_user_data(resource);
 
-  void *buffer_data = (uint8_t *)pool->data + offset;
-
   WResource *buffer_resource = wl_resource_create(
       client, &wl_buffer_interface, wl_resource_get_version(resource), id);
 
@@ -125,7 +129,7 @@ void create_shared_memory_buffer(WClient *client,
 
   my_buffer_info->resource = buffer_resource;
   my_buffer_info->pool = pool;
-  my_buffer_info->data = buffer_data;
+  my_buffer_info->offset = offset;
   my_buffer_info->width = width;
   my_buffer_info->height = height;
   my_buffer_info->stride = stride;
@@ -137,9 +141,37 @@ void create_shared_memory_buffer(WClient *client,
   printf("Created buffer\n");
 
 }
+//wl_shm_pool.resize, which every toolkit sends the moment its window grows. a
+//pool only ever grows, and the mapping has to grow with it or the buffers made
+//afterwards are read past the end of it. leaving this NULL is dispatched as a
+//call and aborts the whole compositor - libwayland says "listener function for
+//opcode 2 of wl_shm_pool is NULL" and takes swordfish down with the client
+void resize_shared_memory_pool(WClient *client, WResource *resource,
+                               int32_t size) {
+
+  SharedMemory *pool = wl_resource_get_user_data(resource);
+  if (!pool)
+    return;
+
+  if (size <= 0 || (uint32_t)size <= pool->size)
+    return;
+
+  void *data = mremap(pool->data, pool->size, size, MREMAP_MAYMOVE);
+
+  if (data == MAP_FAILED) {
+    fprintf(stderr, "Failed to remap shared memory: %m\n");
+    wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_FD, "remap failed");
+    return;
+  }
+
+  pool->data = data;
+  pool->size = size;
+}
+
 const struct wl_shm_pool_interface pool_interface = {
   .create_buffer = create_shared_memory_buffer,
-  .destroy = destroy_pool_function
+  .destroy = destroy_pool_function,
+  .resize = resize_shared_memory_pool
 };
 
 

@@ -198,6 +198,45 @@ sends `xdg_popup.popup_done`. That is the only one of the three options that
 leaves the client alive: a protocol error kills it, and silence hangs a client
 that took a grab.
 
+### The pointer
+
+The seat advertises `WL_SEAT_CAPABILITY_POINTER` alongside the keyboard.
+`mouse.c` owns the cursor position in the render target's own pixels and is fed
+by both input paths — `window.c` wires pway's `update_mouse`/`click`/
+`click_release` on the windowed path, `input.c` forwards libinput's pointer
+events on the DRM one. `compositor/input.c` turns a cursor position into
+`wl_pointer` events.
+
+Three things about that are easy to get wrong. The host reports the cursor in
+the **window's** pixels and swordfish renders at a fixed `WINDOW_WIDTH`
+×`WINDOW_HEIGHT` that a tiled window is only scaled into, so the position has
+to be scaled the same way the image is or the cursor lands somewhere other than
+where the user is pointing. pway hands over which of *its* buttons moved rather
+than an evdev code, and labels the wheel by the opposite sign convention from
+the protocol's, so `pway_window_click_release()` translates both. And libinput
+sends the deprecated `LIBINPUT_EVENT_POINTER_AXIS` **as well as** the typed
+`..._SCROLL_WHEEL`/`_FINGER`/`_CONTINUOUS` events, so handling both counts every
+scroll twice.
+
+`pointer_hit_task()` is the whole hit test: every client quad is drawn in screen
+space at the top left corner by `draw_surface()`, so it is the focused task's
+own rectangle. When the quads move into the 3D world this becomes a ray cast and
+it is the only thing that has to change.
+
+A client's **cursor image is a surface like any other** — it comes through
+`wl_compositor.create_surface` and would otherwise be drawn as a full quad in
+the scene and take the focus that goes with a new surface. Two things stop that:
+focus is claimed in `get_top_level_implementation()` rather than
+`create_surface()`, because a wl_surface is not necessarily a window; and
+`wl_pointer.set_cursor` calls `mark_surface_as_cursor()`, which pulls the task
+back out of `tasks_for_draw` and releases its buffer by hand, since nothing in
+the render loop ever will. There is no cursor drawn anywhere.
+
+`wl_keyboard` and `wl_pointer` are separate resources carrying the same
+`TaskInput`, and on a client disconnect libwayland may destroy them **after**
+the seat. `destroy_task_input()` NULLs their user data before freeing, and both
+destructors check for it.
+
 ### DRM formats and the dmabuf import
 
 Client buffers arrive as a DRM fourcc, and `compositor/drm_format.c` is the only

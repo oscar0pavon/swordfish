@@ -6,7 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include "desktop.h"
+#include "surface.h"
 #include "engine/array.h"
+#include "swordfish.h"
+#include <pthread.h>
 
 typedef struct TopLevel{
   DesktopSurface *surface;
@@ -128,9 +131,10 @@ static void set_min_size(WClient *client, WResource *resource, int32_t width,
 static void set_parent(WClient *client, WResource *resource,
                        WResource *parent){}
 
-//the three requests a client makes on behalf of the pointer. there is no
-//pointer yet - the seat only advertises a keyboard - so none of them can
-//arrive, and all three still need a handler for the day one does
+//the three requests a client makes on behalf of the pointer. the seat does
+//advertise one now, so these do arrive - and there is nothing to do with them
+//while every window is a quad drawn at the same place: a move or a resize
+//needs a window position and a swapchain that can change size
 static void show_window_menu(WClient *client, WResource *resource,
                              WResource *seat, uint32_t serial, int32_t x,
                              int32_t y){}
@@ -193,6 +197,16 @@ void get_top_level_implementation(WClient *client,
 
   wl_resource_set_implementation(top_level->resource, &top_level_implementation,
                                  top_level, destroy_top_level_resource);
+
+  //the newest window takes the keyboard. this is the point at which a surface
+  //becomes a window - doing it in create_surface() handed the focus to cursor
+  //images and anything else a client makes a bare wl_surface for.
+  //handle_focus() on the render thread reads this, so it goes under the same
+  //lock as the rest of the focus state
+  pthread_mutex_lock(&focus_task_mutex);
+  focused_task = surface->surface;
+  is_focus_completed = false;
+  pthread_mutex_unlock(&focus_task_mutex);
 
   send_top_level_configure(top_level, 800, 600);
 

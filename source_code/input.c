@@ -10,6 +10,7 @@
 #include "window.h"
 #include <engine/time.h>
 #include "keyboard.h"
+#include "mouse.h"
 
 #include <pway/pway.h>
 
@@ -95,8 +96,12 @@ void *handle_input(void *none) {
         // Handle device added event
         break;
       case LIBINPUT_EVENT_POINTER_MOTION:
-        // Handle pointer motion event
-        //printf("mouse movement\n");
+      case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE:
+      case LIBINPUT_EVENT_POINTER_BUTTON:
+      case LIBINPUT_EVENT_POINTER_SCROLL_WHEEL:
+      case LIBINPUT_EVENT_POINTER_SCROLL_FINGER:
+      case LIBINPUT_EVENT_POINTER_SCROLL_CONTINUOUS:
+        handle_libinput_pointer_event(event);
         break;
       case LIBINPUT_EVENT_KEYBOARD_KEY:
         handle_xkb_keyboard_event(event);

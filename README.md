@@ -26,9 +26,14 @@ It runs two ways: as a **Wayland client** of another compositor (a window
 inside sway), or **directly on DRM/KMS** from a tty with no compositor under it
 at all. Which one is chosen automatically, by whether a host compositor answers.
 
+The seat carries a keyboard and a pointer. The pointer works out which client
+the cursor is over and sends it motion, buttons and scroll, from the host
+compositor in a window or from libinput on bare DRM.
+
 Not done yet: resizing (the swapchain is a fixed size), the clipboard, popups
-(they are dismissed the moment a client asks for one), `wl_output`, and there is
-no pointer — the seat advertises a keyboard only.
+(they are dismissed the moment a client asks for one), `wl_output`, and drawing
+a cursor — a client's own cursor image is kept out of the scene rather than
+composited, so on the DRM path there is nothing on screen to point with.
 
 # Dependencies
 

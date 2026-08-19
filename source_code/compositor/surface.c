@@ -58,12 +58,55 @@ void send_frame_callback_done(Task *surface){
   wl_resource_destroy(callback);
 }
 
+//a cursor image is never drawn, so nothing in the render loop will ever
+//release its buffer. hand it straight back or the client waits for a buffer it
+//is never getting
+void mark_surface_as_cursor(Task *task) {
+
+  pthread_mutex_lock(&draw_tasks_mutex);
+
+  task->is_cursor = true;
+  task->can_draw = false;
+
+  //set_cursor arrives after the client has already attached and committed the
+  //image, so by now the task is usually in the draw list
+  array_remove_element(&tasks_for_draw, task);
+
+  if (task->buffer_resource)
+    wl_buffer_send_release(task->buffer_resource);
+
+  pthread_mutex_unlock(&draw_tasks_mutex);
+
+  printf("Surface is a cursor\n");
+}
+
 void surface_attach(WClient *client, WResource *resource,
                            WResource *buffer_resource, int32_t x,
                            int32_t y) {
 
   Task *surface = wl_resource_get_user_data(resource);
+
+  //attaching NULL unmaps the surface. clients do it to their cursor as a way
+  //of hiding it, and the user data below is read straight through
+  if (!buffer_resource) {
+    surface->buffer_resource = NULL;
+    surface->can_draw = false;
+
+    pthread_mutex_lock(&draw_tasks_mutex);
+    array_remove_element(&tasks_for_draw, surface);
+    pthread_mutex_unlock(&draw_tasks_mutex);
+
+    printf("Surface detached\n");
+    return;
+  }
+
   surface->buffer_resource = buffer_resource;
+
+  //a cursor stays out of the draw list however often it is redrawn
+  if (surface->is_cursor) {
+    wl_buffer_send_release(buffer_resource);
+    return;
+  }
 
   PTexture *image_buffer = wl_resource_get_user_data(buffer_resource);
 
@@ -243,12 +286,10 @@ void create_surface(WClient *client, WResource *resource,
                                  surface,
                                  destroy_surface); // Set the destroy handler
 
-  //the newest surface takes the keyboard. handle_focus() on the render thread
-  //reads this, so it goes under the same lock as the rest of the focus state
-  pthread_mutex_lock(&focus_task_mutex);
-  focused_task = surface;
-  is_focus_completed = false;
-  pthread_mutex_unlock(&focus_task_mutex);
+  //focus is taken in get_top_level_implementation() rather than here: a
+  //wl_surface is not necessarily a window, and once the seat advertised a
+  //pointer the cursor images clients create came through here and took the
+  //keyboard away from the window that asked for them
 
   surface->compositor = compositor;
   wl_list_insert(&compositor->surfaces, &surface->link);

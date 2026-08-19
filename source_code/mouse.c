@@ -1,0 +1,90 @@
+#include "mouse.h"
+
+#include <libinput.h>
+
+#include "compositor/input.h"
+#include "window.h"
+
+double cursor_x, cursor_y;
+
+//the cursor belongs to swordfish's own image, so it stops at the edge of it
+//rather than wherever the mouse kept going
+static void clamp_cursor(void) {
+
+  if (cursor_x < 0)
+    cursor_x = 0;
+
+  if (cursor_y < 0)
+    cursor_y = 0;
+
+  if (cursor_x > WINDOW_WIDTH - 1)
+    cursor_x = WINDOW_WIDTH - 1;
+
+  if (cursor_y > WINDOW_HEIGHT - 1)
+    cursor_y = WINDOW_HEIGHT - 1;
+}
+
+void move_cursor_to(double x, double y) {
+
+  cursor_x = x;
+  cursor_y = y;
+
+  clamp_cursor();
+
+  send_wayland_pointer_motion(cursor_x, cursor_y);
+}
+
+void move_cursor_by(double dx, double dy) {
+  move_cursor_to(cursor_x + dx, cursor_y + dy);
+}
+
+void handle_pointer_button(uint32_t button, bool pressed) {
+  send_wayland_pointer_button(button, pressed);
+}
+
+void handle_pointer_axis(double value) {
+  send_wayland_pointer_axis(value);
+}
+
+void handle_libinput_pointer_event(InputEvent *event) {
+
+  struct libinput_event_pointer *pointer =
+      libinput_event_get_pointer_event(event);
+
+  switch (libinput_event_get_type(event)) {
+
+  case LIBINPUT_EVENT_POINTER_MOTION:
+    move_cursor_by(libinput_event_pointer_get_dx(pointer),
+                   libinput_event_pointer_get_dy(pointer));
+    break;
+
+  //tablets and touchscreens report where the cursor is rather than how far it
+  //moved, in a space of their own that libinput scales to whatever is asked
+  case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE:
+    move_cursor_to(
+        libinput_event_pointer_get_absolute_x_transformed(pointer,
+                                                          WINDOW_WIDTH),
+        libinput_event_pointer_get_absolute_y_transformed(pointer,
+                                                          WINDOW_HEIGHT));
+    break;
+
+  case LIBINPUT_EVENT_POINTER_BUTTON:
+    handle_pointer_button(libinput_event_pointer_get_button(pointer),
+                          libinput_event_pointer_get_button_state(pointer) ==
+                              LIBINPUT_BUTTON_STATE_PRESSED);
+    break;
+
+  //LIBINPUT_EVENT_POINTER_AXIS is the older shape of these three and libinput
+  //sends both for every scroll, so taking only the typed ones is what counts
+  //a wheel click once instead of twice
+  case LIBINPUT_EVENT_POINTER_SCROLL_WHEEL:
+  case LIBINPUT_EVENT_POINTER_SCROLL_FINGER:
+  case LIBINPUT_EVENT_POINTER_SCROLL_CONTINUOUS:
+    handle_pointer_axis(libinput_event_pointer_get_scroll_value(
+        pointer, LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL));
+    break;
+
+  default:
+    break;
+  }
+}
