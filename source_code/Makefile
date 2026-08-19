@@ -1,9 +1,9 @@
 
-CLINKS := -lpthread -lm -lvulkan -ldrm -lgbm -llodepng 
+CLINKS := -lpthread -lm -lvulkan -ldrm -llodepng 
 CLINKS += -linput -ludev -lxkbcommon
 CLINKS += -lwayland-server
 CLINKS += -lpway -lwayland-client -lwayland-egl
-CLINKS += -lseat -lEGL -lGLESv2
+CLINKS += -lseat -lEGL
 
 CFLAGS := -g
 
