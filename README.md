@@ -8,23 +8,63 @@ Build software with 3D status progress like Swordfish movie
 
 ![current_status](images/current_status.png)  
 
+Swordfish is one C binary that is three things at once: a **Wayland
+compositor**, a **Vulkan renderer** and a small **3D engine**. Client windows
+are composited into the 3D world as textured quads, and the machine itself is
+the scenery.
+
+What is in the scene right now:
+
+- the CPU as a square die at the centre of the world, one tower per core —
+  height is utilisation, colour is temperature
+- the running processes as the city around it, height CPU and colour resident
+  memory, with towers appearing and disappearing as processes start and exit
+- a flat HUD with the numbers the 3D can only suggest
+- every connected Wayland client as a quad in the world
+
+It runs two ways: as a **Wayland client** of another compositor (a window
+inside sway), or **directly on DRM/KMS** from a tty with no compositor under it
+at all. Which one is chosen automatically, by whether a host compositor answers.
+
+Not done yet: resizing (the swapchain is a fixed size), the clipboard, popups
+(they are dismissed the moment a client asks for one), `wl_output`, and there is
+no pointer — the seat advertises a keyboard only.
+
 # Dependencies
-- XDG Shell header and code
-```
-wayland-scanner server-header /usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml desktop-server.h
-wayland-scanner public-code /usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml desktop-server.c
+
+- a C compiler and `make`
+- vulkan drivers, headers and validation layers
+- `glslc` (shaderc) to compile the GLSL shaders
+- wayland-server, wayland-client, wayland-egl and `wayland-scanner`
+- libdrm, gbm, EGL/GLESv2
+- libinput, libudev, libseat — input and the tty on the DRM path
+- xkbcommon
+- lodepng (`liblodepng.a`), and the header-only cglm and cgltf
+- [pway](https://github.com/oscar0pavon/pway) — the Wayland client library that
+  supplies the window. A separate repo, installed to `/usr/local/lib/libpway.a`
+  and `/usr/local/include/pway`
+
+There is **no X11**.
+
+The xdg-shell and linux-dmabuf protocol code is generated with
+`wayland-scanner` and checked into git, so it does not have to be regenerated
+to build. To regenerate it, from inside `source_code/compositor`:
 
 ```
-- vulkan drivers
-- vulkan headers
-- vulkan validation layers
-- Xlib
-- C compiler
-- Wayland Server development
+./generate_wayland_protocol_files.sh
+```
 
 # To test
+
+The repo path is hardcoded in the build, so it has to live at `/root/swordfish`
+(and pway at `/root/pway`).
+
     make
     sudo make install
+
+`make install` is what puts the shaders, models and images under
+`/usr/libexec/swordfish`, and they are loaded from there at runtime — a changed
+shader does nothing until it is installed again.
 
 Then in the project directory for building  
 
@@ -33,4 +73,16 @@ Then in the project directory for building
 Ex:  
     
     swordfish make -j8  
-    swordfish ninja  
+    swordfish ninja
+
+Run it with no command and it just shows the machine.
+
+## Keys
+
+Shortcuts are behind super, so everything else goes to the focused client.
+
+| key | |
+|---|---|
+| `super` + `d` | open a terminal |
+| `super` + `q` | quit |
+| `super` + `w` | switch to another virtual terminal (DRM only) |
