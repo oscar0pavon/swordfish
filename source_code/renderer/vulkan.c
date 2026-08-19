@@ -6,7 +6,6 @@
 
 #include "commands.h"
 #include "descriptor_set.h"
-#include "direct_render.h"
 #include "engine/array.h"
 #include "engine/images.h"
 #include "framebuffer.h"

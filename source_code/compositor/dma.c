@@ -11,7 +11,6 @@
 #include "engine/images.h"
 #include "feedback.h"
 #include "swordfish.h"
-#include "direct_render.h"
 #include "linux-dmabuf.h"
 #include "compositor.h"
 

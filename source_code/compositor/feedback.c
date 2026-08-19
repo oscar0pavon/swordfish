@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <wayland-server-core.h>
 #include <unistd.h>
-#include "direct_render.h"
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>

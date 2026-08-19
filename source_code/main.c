@@ -7,14 +7,12 @@
 #include <unistd.h>
 #include <signal.h>
 
-#include "compositor/egl.h"
 #include "compositor/input.h"
 #include "compositor/seat.h"
 #include "compositor/surface.h"
 #include "engine/array.h"
 #include "swordfish.h"
 
-#include "buffers.h"
 
 #include "engine/camera.h"
 #include "engine/engine2d.h"
@@ -34,10 +32,6 @@
 
 #include <engine/time.h>
 #include "compositor/compositor.h"
-
-#include "compositor/egl.h"
-
-#include "direct_render.h"
 
 #include "build.h"
 
@@ -77,8 +71,6 @@ int main(){
 
   pe_vk_validation_layer_enable = true;
 
-
-
   //a wayland window through pway, or nothing and we drive DRM directly
   if(!create_wayland_window()){
     is_drm_rendering = true;
@@ -90,17 +82,8 @@ int main(){
   }
 
 
-  if(is_opengl){
-    //only for get gpu supported format just like an one time util app 
-    //get_drm_support_format();
-
-    init_buffers();
-
-    init_egl();
-    //we use drm to draw with EGL
-    if(is_drm_rendering)
-      init_direct_render();
-  }
+  // if(is_drm_rendering)
+  //   init_direct_render();
 
   pthread_t input_thread_id;
   pthread_create(&input_thread_id, NULL, handle_input, NULL);
@@ -108,13 +91,6 @@ int main(){
   pthread_t compositor_thread_id;
   pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
   
-
-  if(is_opengl){
-    draw_with_egl();
-    //we finish otherwise vulkan will be initialized
-    goto finish; 
-  }
-
 
   //graphics stuff
   // For pengine - Vulkan Rendering
