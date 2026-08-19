@@ -78,10 +78,6 @@ int main(){
   pthread_t input_thread_id;
   pthread_create(&input_thread_id, NULL, handle_input, NULL);
 
-  pthread_t compositor_thread_id;
-  pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
-  
-
   //graphics stuff
   // For pengine - Vulkan Rendering
 
@@ -95,6 +91,14 @@ int main(){
   pe_vk_init();
   
   swordfish_init();
+
+  //the socket goes up only now. everything a client touches on the compositor
+  //thread - the quad's pipeline, the buffers behind it, the dmabuf format
+  //table the GPU is asked for - needs a vulkan device, and the thread used to
+  //start before pe_vk_init() ran. a client that connected in that window died
+  //on "vkCreateBuffer: Invalid device" and took swordfish with it
+  pthread_t compositor_thread_id;
+  pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
 
   pthread_t make_thread_id;
   //pthread_create(&make_thread_id,NULL,call_make, NULL);

@@ -14,6 +14,8 @@
 #include <string.h>
 #include <wayland-server-protocol.h>
 #include "linux-dmabuf.h"
+#include "drm_format.h"
+#include "renderer/physical_devices.h"
 
 typedef struct FormatTable {
   uint32_t format;
@@ -24,60 +26,66 @@ typedef struct FormatTable {
 size_t num_formats;
 size_t table_size;
 
-#define AMD_MOD_XR24_SCANOUT 0x200000018733b03 
-/* or */
-#define AMD_MOD_AR24_SCANOUT 0x200000018763b03
+//the table used to be a hardcoded guess - two formats with modifier 0, one of
+//which (BGRA8888) has no vulkan format with the same byte order at all, so a
+//client that picked it got its channels rotated. it is built at startup now by
+//asking the GPU which modifiers it can actually sample each format with
+#define MAX_ADVERTISED_FORMATS 128
 
-FormatTable supported_formats[] = {
-        // 8-bit UNORM formats (most commonly used)
-        // { 0x34324152, 0, DRM_FORMAT_MOD_LINEAR }, // RA24 (likely RGBA8888)
-        // // // // 8-bit BGR variants
-        // { 0x34324258, 0, DRM_FORMAT_MOD_LINEAR }, // XB24 (likely XBGR8888)
-        // { 0x34324241, 0, DRM_FORMAT_MOD_LINEAR }, // AB24 (likely ABGR8888/BGRA8888)
-        // { DRM_FORMAT_XRGB8888, 0, DRM_FORMAT_MOD_LINEAR }, 
-        // { DRM_FORMAT_BGRA8888, 0, DRM_FORMAT_MOD_LINEAR },
-        //{ DRM_FORMAT_BGRA8888, 0, AMD_FMT_MOD_DCC_MASK},
-        //{ 0x34325258, 0, 0x0 }, // XR24 (XRGB8888) - Works with 0x0
-        { DRM_FORMAT_XRGB8888, 0, 0x0}, // Try linear first (0x0)
-        { DRM_FORMAT_BGRA8888, 0, 0x0},
-       // { 0x34325241, 0, AMD_MOD_AR24_SCANOUT}, // AR24 (ARGB8888) - Works with 0x0
-        // { DRM_FORMAT_RGBA8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_R8G8B8A8_UNORM
-        // { DRM_FORMAT_BGRA8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_B8G8R8A8_UNORM
-        // { DRM_FORMAT_XRGB8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_R8G8B8X8_UNORM
-        // { DRM_FORMAT_BGR888, 0, DRM_FORMAT_MOD_LINEAR },   // PIPE_FORMAT_B8G8R8_UNORM
-        // { DRM_FORMAT_RGBX8888, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_R8G8B8X8_UNORM
-        // { DRM_FORMAT_RGB888, 0, DRM_FORMAT_MOD_LINEAR },   // PIPE_FORMAT_R8G8B8_UNORM
-        //
-        // // // 8-bit (XR24/AR24 are likely XRGB8888/ARGB8888 variants)
-        // // { 0x34325258, 0, DRM_FORMAT_MOD_LINEAR }, // XR24
-        // // { 0x34325241, 0, DRM_FORMAT_MOD_LINEAR }, // AR24
-        // //
-        // { DRM_FORMAT_XRGB8888, 0, DRM_FORMAT_MOD_LINEAR },
-        // // 16-bit float/half-float (XR4H, AR4H, etc. are likely R16G16B16A16F variants)
-        // { 0x48345258, 0, DRM_FORMAT_MOD_LINEAR }, // XR4H
-        // { 0x48345241, 0, DRM_FORMAT_MOD_LINEAR }, // AR4H
-        // { 0x48344258, 0, DRM_FORMAT_MOD_LINEAR }, // XB4H
-        // { 0x48344241, 0, DRM_FORMAT_MOD_LINEAR }, // AB4H
-        // // 10-bit (XR30/AR30 are likely XRGB2101010/ARGB2101010 variants)
-        // { 0x30335258, 0, DRM_FORMAT_MOD_LINEAR }, // XR30
-        // { 0x30334258, 0, DRM_FORMAT_MOD_LINEAR }, // XB30
-        // { 0x30335241, 0, DRM_FORMAT_MOD_LINEAR }, // AR30
-        // { 0x30334241, 0, DRM_FORMAT_MOD_LINEAR }, // AB30
-      // 10-bit UNORM formats
-        // { DRM_FORMAT_B2G10R10X2A_UNORM, 0, DRM_FORMAT_MOD_LINEAR }, // B10G10R10X2A
-        // { DRM_FORMAT_B2G10R10A10_UNORM, 0, DRM_FORMAT_MOD_LINEAR }, // B10G10R10A2
-        // { DRM_FORMAT_R10G10B10X2A_UNORM, 0, DRM_FORMAT_MOD_LINEAR }, // R10G10B10X2A
-        // { DRM_FORMAT_R10G10B10A2_UNORM, 0, DRM_FORMAT_MOD_LINEAR }, // R10G10B10A2
+FormatTable supported_formats[MAX_ADVERTISED_FORMATS];
 
-        // 16-bit packed UNORM formats
-        // { DRM_FORMAT_RGB565, 0, DRM_FORMAT_MOD_LINEAR },   // PIPE_FORMAT_B5G6R5_UNORM
-        // { DRM_FORMAT_BGR5A1, 0, DRM_FORMAT_MOD_LINEAR },   // PIPE_FORMAT_B5G5R5A1_UNORM
-        // { DRM_FORMAT_BGRX555, 0, DRM_FORMAT_MOD_LINEAR },  // PIPE_FORMAT_B5G5R5X1_UNORM
-        // { DRM_FORMAT_BGRA4444, 0, DRM_FORMAT_MOD_LINEAR }, // PIPE_FORMAT_B4G4R4A4_UNORM
-        // { DRM_FORMAT_BGRX4444, 0, DRM_FORMAT_MOD_LINEAR },
-    };
+static void add_format_modifiers(const DrmFormat *format) {
 
+  VkDrmFormatModifierPropertiesListEXT modifier_list = {
+      .sType = VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT,
+  };
 
+  VkFormatProperties2 properties = {
+      .sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2,
+      .pNext = &modifier_list,
+  };
+
+  //called twice: once for the count, once for the data
+  vkGetPhysicalDeviceFormatProperties2(vk_physical_device, format->vulkan,
+                                       &properties);
+
+  if (modifier_list.drmFormatModifierCount == 0)
+    return;
+
+  VkDrmFormatModifierPropertiesEXT *modifiers =
+      calloc(modifier_list.drmFormatModifierCount,
+             sizeof(VkDrmFormatModifierPropertiesEXT));
+  if (!modifiers)
+    return;
+
+  modifier_list.pDrmFormatModifierProperties = modifiers;
+
+  vkGetPhysicalDeviceFormatProperties2(vk_physical_device, format->vulkan,
+                                       &properties);
+
+  for (uint32_t i = 0; i < modifier_list.drmFormatModifierCount; i++) {
+    //a modifier the compositor cannot sample from is no use to it, whatever
+    //else the GPU can do with it
+    if (!(modifiers[i].drmFormatModifierTilingFeatures &
+          VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT))
+      continue;
+
+    //every format in the table is single plane, and a multi plane modifier
+    //would need one fd and one layout per plane to import
+    if (modifiers[i].drmFormatModifierPlaneCount != 1)
+      continue;
+
+    if (num_formats >= MAX_ADVERTISED_FORMATS)
+      break;
+
+    supported_formats[num_formats].format = format->fourcc;
+    supported_formats[num_formats].padding = 0;
+    supported_formats[num_formats].modifier = modifiers[i].drmFormatModifier;
+    num_formats++;
+  }
+
+  free(modifiers);
+}
 
 static int create_anon_file(size_t size) {
     int fd = memfd_create("dmabuf-feedback", MFD_CLOEXEC);
@@ -113,8 +121,23 @@ void send_supported_formats_indices(WResource *resource) {
 }
 
 void init_format_table() {
-  num_formats = sizeof(supported_formats) / sizeof(FormatTable);
+  //built once - the GPU's answer does not change, and get_feedback() is called
+  //again for every client
+  if (num_formats > 0)
+    return;
+
+  for (int i = 0; i < drm_format_count(); i++)
+    add_format_modifiers(drm_format_get(i));
+
   table_size = num_formats * sizeof(FormatTable);
+
+  printf("Advertising %zu format/modifier pairs\n", num_formats);
+
+  for (size_t i = 0; i < num_formats; i++) {
+    const DrmFormat *format = drm_format_find(supported_formats[i].format);
+    printf("  %s modifier 0x%016lx\n", format ? format->name : "????",
+           (unsigned long)supported_formats[i].modifier);
+  }
 }
 
 void send_format_table(WResource* resource) {

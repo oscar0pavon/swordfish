@@ -57,7 +57,7 @@ There is **no X11**. Swordfish is a Wayland client of the host compositor, or it
 Three threads, started in `main()`:
 
 1. **Main thread** — Vulkan render loop: `handle_focus()` → `pe_vk_draw_frame()` → `usleep(16667)` → `update_delta_time()` → `end_frame()`.
-2. **Compositor thread** — `run_compositor()` creates the `wl_display`, registers globals (wl_compositor, xdg_wm_base, shm, linux-dmabuf, seat/input), sets `WAYLAND_DISPLAY`, and blocks in `wl_display_run()`.
+2. **Compositor thread** — started *after* `pe_vk_init()` and `swordfish_init()`, because everything a client touches on it (the quad's pipeline, its buffers, the dmabuf format table the GPU is asked for) needs a Vulkan device; a client that connected before that died on `vkCreateBuffer: Invalid device` and took swordfish with it. `run_compositor()` creates the `wl_display`, registers globals (wl_compositor, xdg_wm_base, shm, linux-dmabuf, seat/input), sets `WAYLAND_DISPLAY`, and blocks in `wl_display_run()`.
 3. **Input thread** — `handle_input()`; when there is a pway window it loops on `pway_handle_events()`, otherwise libinput/udev on bare DRM. `pway_handle_events()` polls with an infinite timeout, so it must stay on its own thread — calling it from the render loop would stall rendering until something happened. Pumping it is also what gets the xdg surface configured, so the window never maps without it.
 
 `init_keyboard()` runs in `main()`, not on the input thread. The xkb keymap is
@@ -197,6 +197,40 @@ draw a popup into, so `create_popup()` creates the resource and immediately
 sends `xdg_popup.popup_done`. That is the only one of the three options that
 leaves the client alive: a protocol error kills it, and silence hangs a client
 that took a grab.
+
+### DRM formats and the dmabuf import
+
+Client buffers arrive as a DRM fourcc, and `compositor/drm_format.c` is the only
+place that says what that means in Vulkan. The two naming schemes read backwards
+from each other — a fourcc names its channels from the top of a little-endian
+32-bit word down, Vulkan names them in memory order — so `XR24` is X,R,G,B in
+the word and B,G,R,A in memory, which is `VK_FORMAT_B8G8R8A8`. Several common
+fourccs have **no** Vulkan equivalent at all (`BGRA8888` is A,R,G,B in memory);
+they must not be advertised, because importing one anyway rotates every channel.
+
+The 8-bit formats map to **`_SRGB`, not `_UNORM`**. A Wayland client renders
+sRGB-encoded pixels, the swapchain is `VK_FORMAT_B8G8R8A8_SRGB`, and every
+texture the engine loads is `_SRGB` too. Sampling a client buffer as `_UNORM`
+hands the framebuffer a value that is already gamma-encoded and lets it encode
+the whole thing a second time — client windows came out washed out next to the
+rest of the scene. 10- and 16-bit formats are deliberately not in the table:
+Vulkan has no `A2R10G10B10_SRGB`, so the round trip cannot be done in hardware,
+and merely offering 10-bit moved Mesa onto it (a client that does not ask for a
+depth takes the first config that matches).
+
+`pe_vk_import_image()` must use `VkImageDrmFormatModifierExplicitCreateInfoEXT`
+and pass the client's own offsets and row pitches. The `...ListCreateInfoEXT`
+form lets Vulkan pick a layout, which is right for an image Vulkan allocates and
+wrong for one that already exists elsewhere: Mesa rounds an 800-pixel row up to
+3584 bytes, not 3200. X formats also leave the fourth byte undefined, so the
+image view sets `components.a = VK_COMPONENT_SWIZZLE_ONE`.
+
+The advertised format table in `compositor/feedback.c` is built once at first
+`get_default_feedback` by asking the GPU, via
+`vkGetPhysicalDeviceFormatProperties2` + `VkDrmFormatModifierPropertiesListEXT`,
+which modifiers it can sample each format with — it used to be two hardcoded
+guesses with modifier 0. On this machine that is 16 pairs, and clients pick an
+AMD DCC modifier rather than linear.
 
 ### Wayland client → 3D quad
 

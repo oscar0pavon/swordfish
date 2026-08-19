@@ -15,6 +15,7 @@
 #include "compositor.h"
 
 #include "renderer/vk_images.h"
+#include "drm_format.h"
 
 #include <xf86drm.h>
 
@@ -163,25 +164,66 @@ static void create_immediate(WClient *client,
   buffer->height = height;
   buffer->format = format;
 
+  //the client's format was thrown away here and every buffer imported as
+  //B8G8R8A8_UNORM. that is the right byte order for XR24 and the wrong one for
+  //half the list, and UNORM is wrong for all of them - see drm_format.c
+  const DrmFormat *drm_format = drm_format_find(format);
+
+  if (!drm_format) {
+    printf("Client asked for format 0x%08x, which has no vulkan equivalent\n",
+           format);
+    wl_resource_post_error(resource,
+                           ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT,
+                           "unsupported format");
+    return;
+  }
+
+  if (buffer->num_planes == 0) {
+    wl_resource_post_error(resource,
+                           ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE,
+                           "no planes added");
+    return;
+  }
+
+  printf("Creatig buffer with %i %i format %s modifier 0x%016lx planes %i "
+         "stride %u offset %u\n",
+         width, height, drm_format->name,
+         (unsigned long)buffer->modifiers[0], buffer->num_planes,
+         buffer->strides[0], buffer->offsets[0]);
 
   PTexture *new_image = calloc(1,sizeof(PTexture));
-
-  printf("########### Creating image!!! %p\n", new_image);
 
   new_image->width = width;
   new_image->heigth = height;
 
-
   WResource* buffer_resource = 
     wl_resource_create(client, &wl_buffer_interface, 1, buffer_id);
-
 
   wl_resource_set_implementation(buffer_resource, &buffer_implementation, NULL,
                                  NULL);
 
-  printf("Creatig buffer with %i %i\n", width, height);
-  printf("Buffer fd[0]=%i\n",buffer->fds[0]);
-  pe_vk_import_image(new_image, width, height, buffer->fds[0], buffer->modifiers[0]);
+  PImageImportInfo import = {
+      .width = width,
+      .height = height,
+      .format = drm_format->vulkan,
+      .modifier = buffer->modifiers[0],
+      .plane_count = buffer->num_planes,
+      .file_descriptor = buffer->fds[0],
+      .opaque = drm_format->opaque,
+  };
+
+  for (int i = 0; i < buffer->num_planes && i < PE_MAX_IMAGE_PLANES; i++) {
+    import.offsets[i] = buffer->offsets[i];
+    import.strides[i] = buffer->strides[i];
+  }
+
+  if (!pe_vk_import_image(new_image, &import)) {
+    free(new_image);
+    wl_resource_post_error(resource,
+                           ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_DIMENSIONS,
+                           "could not import buffer");
+    return;
+  }
 
   wl_resource_set_user_data(buffer_resource, new_image);
 
