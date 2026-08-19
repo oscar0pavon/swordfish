@@ -61,26 +61,25 @@ static void your_error_handler_func(void *data, const char *msg) {
     fprintf(stderr, "Wayland Error: %s\n", msg);
 }
 
+//a surface and the seat are separate objects, so the Task has to be matched up
+//with whichever TaskInput belongs to the same client before it can be sent a
+//key
 void focus_task(Task *task) {
 
-  // printf("send focus enter\n");
-  //
-  // wl_keyboard_send_enter(focused_task->input->keyboard_resource, 32,
-  //                        task->resource, NULL);
-
-//  return;
-  if(!focused_task)
+  if(!task)
     return;
 
-  TaskInput *temp_input;
-  wl_list_for_each(temp_input, &compositor.tasks_input, link) {
-    if (temp_input->client == wl_resource_get_client(task->resource)) {
-      //printf("send focus enter\n");
-      // wl_keyboard_send_enter(temp_input->keyboard_resource, 32, task->resource,
-      //                        NULL);
-      task->input = temp_input;
+  if(!task->input){
+    TaskInput *temp_input;
+    wl_list_for_each(temp_input, &compositor.tasks_input, link) {
+      if (temp_input->client == wl_resource_get_client(task->resource))
+        task->input = temp_input;
     }
   }
+
+  //cheap when nothing changed, and it is what finally sends wl_keyboard.enter
+  //once the client has got round to asking for a keyboard
+  set_keyboard_focus(task);
 }
 
 void* run_compositor(void* none) {

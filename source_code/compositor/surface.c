@@ -149,14 +149,24 @@ const struct wl_surface_interface surface_implementation = {
 
 static void destroy_surface(WResource *resource) {
   Task *surface = wl_resource_get_user_data(resource);
+
+  //focused_task is a bare global and the keyboard holds its own pointer, so
+  //both have to let go before this memory goes away
+  forget_task(surface);
+
   wl_list_remove(&surface->link);
 
-  can_draw_surfaces = false;
+  //draw_surfaces() and end_frame() walk tasks_for_draw on the render thread,
+  //so this cannot pull the Task out and free it unsynchronised - a client
+  //exiting mid-frame left the renderer drawing freed memory and jumping
+  //through a freed pipeline pointer. can_draw_surfaces was meant to cover this
+  //and never could: the render side only ever read it behind a comment
+  pthread_mutex_lock(&draw_tasks_mutex);
 
   array_remove_element(&tasks_for_draw, surface);
   free(surface);
 
-  can_draw_surfaces = true;
+  pthread_mutex_unlock(&draw_tasks_mutex);
 
   printf("Destroyed surface\n");
 }
@@ -204,9 +214,10 @@ void create_surface(WClient *client, WResource *resource,
                                  surface,
                                  destroy_surface); // Set the destroy handler
 
-  focused_task = surface;
-
+  //the newest surface takes the keyboard. handle_focus() on the render thread
+  //reads this, so it goes under the same lock as the rest of the focus state
   pthread_mutex_lock(&focus_task_mutex);
+  focused_task = surface;
   is_focus_completed = false;
   pthread_mutex_unlock(&focus_task_mutex);
 

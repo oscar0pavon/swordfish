@@ -15,12 +15,11 @@ static void pway_window_closed(void) {
   swordfish_running = false;
 }
 
-//pway hands us the utf8 the host compositor's keymap produced. without this
-//the shortcuts only ever existed on the libinput path, so a windowed
-//swordfish had no keys of its own at all
-static void pway_window_input(const char *text, int length) {
-  for (int index = 0; index < length; index++)
-    handle_swordfish_key((unsigned char)text[index]);
+//the raw key from the host compositor, not pway->input's utf8: swordfish has
+//to pass these on to its own clients, and text carries neither the keycode nor
+//the release
+static void pway_window_key(uint32_t key_code, uint32_t state) {
+  handle_key_code(key_code, state == WL_KEYBOARD_KEY_STATE_PRESSED);
 }
 
 static void pway_window_resized(int width, int height) {
@@ -40,7 +39,7 @@ bool create_wayland_window(void) {
 
   pway->exit = pway_window_closed;
   pway->resize = pway_window_resized;
-  pway->input = pway_window_input;
+  pway->key = pway_window_key;
 
   if (!pway_create_window("swordfish", WINDOW_WIDTH, WINDOW_HEIGHT))
     return false;

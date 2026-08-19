@@ -17,6 +17,21 @@
 #define KEYBOARD_REPEAT_DELAY 400
 #define KEYBOARD_REPEAT_RATE 25
 
+//keys held right now. wl_keyboard.enter has to carry them, otherwise a client
+//that gains focus mid-keystroke never learns the key went down and can wait
+//forever for a release it cannot match
+#define MAX_PRESSED_KEYS 32
+static uint32_t pressed_keys[MAX_PRESSED_KEYS];
+static int pressed_keys_count;
+
+//the task holding wl_keyboard focus, which is not the same as focused_task:
+//focus is claimed the moment a surface is created, but enter can only be sent
+//once that client has actually asked for a keyboard
+static Task *keyboard_focus;
+
+//whether that task has actually been sent wl_keyboard.enter yet
+static bool focus_entered;
+
 // Helper function to get current time in milliseconds
 uint32_t get_current_time_msec() {
     struct timespec ts;
@@ -24,43 +39,156 @@ uint32_t get_current_time_msec() {
     return ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
+//every event a client can correlate needs its own serial. a constant made all
+//of them look like the same event, which is why clients ignored the keys
+static uint32_t next_serial(void){
+  return wl_display_next_serial(compositor.display);
+}
 
-void send_wayland_key(uint32_t scancode, uint32_t event_state){
+static WResource *focused_keyboard(void){
+  if(!keyboard_focus || !keyboard_focus->input)
+    return NULL;
 
-  if(!focused_task){
-    printf("not focused task\n");
+  //a client binds wl_seat before it asks for a keyboard, so the resource can
+  //still be missing here. wl_keyboard_send_* dereferences it immediately
+  return keyboard_focus->input->keyboard_resource;
+}
+
+static void track_pressed_key(uint32_t scancode, bool pressed){
+  for(int i = 0; i < pressed_keys_count; i++){
+    if(pressed_keys[i] != scancode)
+      continue;
+
+    if(!pressed)
+      pressed_keys[i] = pressed_keys[--pressed_keys_count];
+
     return;
   }
 
-  if(!focused_task->input){
-    printf("not input task\n");
+  if(pressed && pressed_keys_count < MAX_PRESSED_KEYS)
+    pressed_keys[pressed_keys_count++] = scancode;
+}
+
+static void send_wayland_modifiers(void){
+
+  WResource *keyboard = focused_keyboard();
+  if(!keyboard)
+    return;
+
+  wl_keyboard_send_modifiers(
+      keyboard, next_serial(),
+      xkb_state_serialize_mods(xkb_state, XKB_STATE_MODS_DEPRESSED),
+      xkb_state_serialize_mods(xkb_state, XKB_STATE_MODS_LATCHED),
+      xkb_state_serialize_mods(xkb_state, XKB_STATE_MODS_LOCKED),
+      xkb_state_serialize_layout(xkb_state, XKB_STATE_LAYOUT_EFFECTIVE));
+}
+
+static void send_keyboard_enter(void){
+
+  WResource *keyboard = focused_keyboard();
+  if(!keyboard)
+    return;
+
+  struct wl_array keys;
+  wl_array_init(&keys);
+
+  for(int i = 0; i < pressed_keys_count; i++){
+    uint32_t *key = wl_array_add(&keys, sizeof(uint32_t));
+    if(key)
+      *key = pressed_keys[i];
+  }
+
+  wl_keyboard_send_enter(keyboard, next_serial(), keyboard_focus->resource,
+                         &keys);
+
+  wl_array_release(&keys);
+
+  focus_entered = true;
+
+  //the client's idea of shift and ctrl starts empty, so tell it straight away
+  send_wayland_modifiers();
+
+  printf("Keyboard focus entered\n");
+}
+
+void set_keyboard_focus(Task *task){
+
+  if(keyboard_focus == task){
+    //focus is taken when the surface appears, which is before the client has
+    //asked for a keyboard, so the enter it could not be sent then is still owed
+    if(!focus_entered)
+      send_keyboard_enter();
+
     return;
   }
 
-  WResource *keyboard = focused_task->input->keyboard_resource;
+  WResource *keyboard = focused_keyboard();
+  if(keyboard)
+    wl_keyboard_send_leave(keyboard, next_serial(), keyboard_focus->resource);
 
-  //the client binds wl_seat before it asks for a keyboard, so focus_task() can
-  //hand us an input with no keyboard_resource yet. wl_keyboard_send_key
-  //dereferences the resource immediately, so a keypress landing in that window
-  //took the whole compositor down - only ever on the libinput path, since the
-  //pway path never calls this
+  keyboard_focus = task;
+  focus_entered = false;
+
+  send_keyboard_enter();
+}
+
+//the Task is about to be freed and focused_task is a bare global, so anything
+//still pointing at it has to let go first or the next key dereferences freed
+//memory
+void forget_task(Task *task){
+  pthread_mutex_lock(&focus_task_mutex);
+
+  if(keyboard_focus == task){
+    keyboard_focus = NULL;
+    focus_entered = false;
+  }
+
+  if(focused_task == task)
+    focused_task = NULL;
+
+  pthread_mutex_unlock(&focus_task_mutex);
+}
+
+void forget_task_input(TaskInput *input){
+  pthread_mutex_lock(&focus_task_mutex);
+
+  if(keyboard_focus && keyboard_focus->input == input){
+    keyboard_focus->input = NULL;
+    keyboard_focus = NULL;
+    focus_entered = false;
+  }
+
+  if(focused_task && focused_task->input == input)
+    focused_task->input = NULL;
+
+  pthread_mutex_unlock(&focus_task_mutex);
+}
+
+void send_wayland_key(uint32_t scancode, bool pressed){
+
+  pthread_mutex_lock(&focus_task_mutex);
+
+  track_pressed_key(scancode, pressed);
+
+  WResource *keyboard = focused_keyboard();
   if(!keyboard){
-    printf("focused task has no keyboard yet\n");
+    pthread_mutex_unlock(&focus_task_mutex);
     return;
   }
 
-  uint32_t timestamp = get_current_time_msec();
+  wl_keyboard_send_key(keyboard, next_serial(), get_current_time_msec(),
+                       scancode,
+                       pressed ? WL_KEYBOARD_KEY_STATE_PRESSED
+                               : WL_KEYBOARD_KEY_STATE_RELEASED);
 
-   uint32_t wl_state = (event_state == LIBINPUT_KEY_STATE_PRESSED) ? 
-                        WL_KEYBOARD_KEY_STATE_PRESSED : 
-                        WL_KEYBOARD_KEY_STATE_RELEASED;
-  
-   printf("Sent key\n");
-  wl_keyboard_send_key(keyboard,
-                         234,
-                         timestamp,
-                         scancode,
-                         wl_state);
+  //the key alone does not tell the client that shift went down with it
+  send_wayland_modifiers();
+
+  //this runs on the input thread while the compositor thread owns the event
+  //loop, so nothing reaches the client until somebody flushes
+  wl_display_flush_clients(compositor.display);
+
+  pthread_mutex_unlock(&focus_task_mutex);
 }
 
 void send_keyboard_configuration(WResource *resource){
@@ -80,26 +208,15 @@ void send_keyboard_configuration(WResource *resource){
 
 }
 
+//called once a frame from the render loop. focus is settled here rather than
+//when the surface is created because the client creates its surface and its
+//keyboard as two separate requests, in either order
 void handle_focus(){
- // pthread_mutex_lock(&focus_task_mutex); 
- // printf("testing focus\n");
- //  if(!is_focus_completed){
- //
- //    if(!focused_task)
- //      return;
- //    if(focused_task->input == NULL)
- //      return;
- //    if(focused_task->input->keyboard_resource == NULL)
- //      return;
- //
- //    focus_task(focused_task);
- //    is_focus_completed = true;
- //    focused_task = NULL;
- //  }
- // pthread_mutex_unlock(&focus_task_mutex); 
- // printf("end testing focus\n");
+  pthread_mutex_lock(&focus_task_mutex);
 
   focus_task(focused_task);
+
+  pthread_mutex_unlock(&focus_task_mutex);
 }
 
 static void get_pointer(WClient *client, WResource *resource, uint32_t id) {
@@ -109,6 +226,7 @@ static void get_pointer(WClient *client, WResource *resource, uint32_t id) {
 
 static void destroy_task_input(WResource* resource){
   TaskInput* input = wl_resource_get_user_data(resource);
+  forget_task_input(input);
   wl_list_remove(&input->link);
   free(input);
   printf("Destroyed Task input\n");

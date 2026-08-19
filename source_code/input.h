@@ -8,7 +8,7 @@ typedef struct libinput_event_keyboard InputEventKeyboard;
 
 void* handle_input(void* none);
 
-void send_wayland_key(uint32_t scancode, uint32_t event_state);
+//declared by compositor/input.h, which owns it
 
 void init_input();
 

@@ -66,69 +66,104 @@ off_t get_keymap_file_size(int fd){
 
 
 
+//keys the compositor ate on the way down. their release has to be eaten too,
+//or the client is handed a release for a press it never saw
+#define MAX_SWALLOWED_KEYS 8
+static uint32_t swallowed_keys[MAX_SWALLOWED_KEYS];
+static int swallowed_keys_count;
+
+static bool take_swallowed_key(uint32_t key_code) {
+  for (int i = 0; i < swallowed_keys_count; i++) {
+    if (swallowed_keys[i] != key_code)
+      continue;
+
+    swallowed_keys[i] = swallowed_keys[--swallowed_keys_count];
+    return true;
+  }
+
+  return false;
+}
+
+static void swallow_key(uint32_t key_code) {
+  if (swallowed_keys_count < MAX_SWALLOWED_KEYS)
+    swallowed_keys[swallowed_keys_count++] = key_code;
+}
+
 //the shortcuts of the compositor itself, shared by both input paths: libinput
-//on bare DRM, and the host compositor through pway->input when swordfish is a
-//wayland client. gating these on is_drm_rendering is what made them dead in a
-//window
-void handle_swordfish_key(uint32_t unicode) {
+//on bare DRM, and the host compositor through pway when swordfish is a wayland
+//client. returns whether the key was consumed
+static bool handle_swordfish_key(uint32_t unicode) {
 
   switch (unicode) {
   case 'd':
     //must not block: this runs on the input thread, and in the pway path that
     //thread is also what pumps the window
     launch_program("/root/pterminal/pterminal");
-    break;
+    return true;
   case 'q':
     printf("Closing from keyboard\n");
     exit(0);
-    break;
+    return true;
   case 'w':
     //there is only a seat to switch when we own the tty
     if (is_drm_rendering)
       libseat_switch_session(compositor.seat, 3);
-    break;
+    return true;
   }
+
+  return false;
 }
 
+//shortcuts are behind super, so everything else belongs to the focused client.
+//unconditional shortcuts meant a terminal could never type d, and typing q
+//killed the compositor
+static bool shortcut_modifier_held(void) {
+  return xkb_state_mod_name_is_active(xkb_state, XKB_MOD_NAME_LOGO,
+                                      XKB_STATE_MODS_EFFECTIVE) > 0;
+}
+
+//one key, whichever path it arrived on, as an evdev code
+void handle_key_code(uint32_t key_code, bool pressed) {
+
+  // XKB uses keycodes offset by 8 (evdev codes start at 8)
+  xkb_keycode_t xkb_keycode = key_code + 8;
+
+  //our own state goes first: the modifiers the client is sent and the super
+  //test below both read it, and both were reading the previous key's state
+  //while this lived after the send
+  xkb_state_update_key(xkb_state, xkb_keycode,
+                       pressed ? XKB_KEY_DOWN : XKB_KEY_UP);
+
+  if (!pressed) {
+    if (take_swallowed_key(key_code))
+      return;
+
+    send_wayland_key(key_code, false);
+    return;
+  }
+
+  if (shortcut_modifier_held()) {
+    xkb_keysym_t sym = xkb_state_key_get_one_sym(xkb_state, xkb_keycode);
+    uint32_t unicode = xkb_keysym_to_utf32(sym);
+
+    if (unicode && handle_swordfish_key(unicode)) {
+      swallow_key(key_code);
+      return;
+    }
+  }
+
+  send_wayland_key(key_code, true);
+}
 
 void handle_xkb_keyboard_event(InputEvent *event) {
   InputEventKeyboard *key_event = libinput_event_get_keyboard_event(event);
-
-
 
   enum libinput_key_state key_state =
       libinput_event_keyboard_get_key_state(key_event);
 
   uint32_t key_code = libinput_event_keyboard_get_key(key_event);
- 
-  //send keys to clients
-  //printf("keyboard event\n");
-  send_wayland_key(key_code, key_state);
 
-  enum xkb_key_direction direction;
-  
-  // XKB uses keycodes offset by 8 (evdev codes start at 8)
-  xkb_keycode_t xkb_keycode = key_code + 8;
-
-  if (key_state == LIBINPUT_KEY_STATE_PRESSED) {
-
-    direction = XKB_KEY_DOWN;
-
-    xkb_keysym_t keysym =
-        xkb_state_update_key(xkb_state, xkb_keycode, direction);
-
-    xkb_keysym_t sym = xkb_state_key_get_one_sym(xkb_state, xkb_keycode);
-
-    uint32_t unicode = xkb_keysym_to_utf32(sym);
-
-    if (unicode)
-      handle_swordfish_key(unicode);
-
-  } else {                  // LIBINPUT_KEY_STATE_RELEASED
-    direction = XKB_KEY_UP;
-    xkb_state_update_key(xkb_state, xkb_keycode, direction);
-  }
-
+  handle_key_code(key_code, key_state == LIBINPUT_KEY_STATE_PRESSED);
 }
 
 void init_xkb(void) {

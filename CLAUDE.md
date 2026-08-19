@@ -35,6 +35,17 @@ There is no test suite and no linter.
 
 vulkan (+ validation layers), libdrm, gbm, EGL/GLESv2, wayland-server, wayland-client, wayland-egl, libinput, libudev, xkbcommon, libseat, lodepng (`liblodepng.a`), and the header-only cglm + cgltf.
 
+**Neither Makefile tracks header dependencies.** Changing a header - especially
+`/usr/local/include/pway/pway.h` - recompiles nothing, and `make` cheerfully
+reports "Nothing to be done". A stale object linked against an older struct
+layout writes its fields at the offsets it was built with: a `pway.h` change
+once left `pway_window_resized()` storing the window width and height on top of
+the `pway->key` function pointer, and the next keypress jumped to `0x3af00000434`
+- which is just 943 x 1076, the tiled window size. After touching a header in
+either repo, `make clean` (or `touch *.c`) in **every** project that includes
+it: pway, swordfish, and pterminal. Adding a member to `PWay` goes on the **end**
+of the struct for the same reason.
+
 **pway** (`/root/pway`) supplies the window. It is a separate repo installed to `/usr/local/lib/libpway.a` and `/usr/local/include/pway`, which is why the build carries `-I/usr/local/include` and `-L/usr/local/lib`. If linking picks up a stale archive, rebuild it there with `make && make install` — the headers and the `.a` are not versioned against each other.
 
 There is **no X11**. Swordfish is a Wayland client of the host compositor, or it drives DRM/KMS directly.

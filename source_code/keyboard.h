@@ -1,6 +1,7 @@
 #ifndef KEYBOARD_H
 #define KEYBOARD_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <xkbcommon/xkbcommon.h>
 
@@ -13,9 +14,10 @@ extern struct xkb_state *xkb_state;
 void init_keyboard(void);
 void handle_xkb_keyboard_event(InputEvent *event);
 
-//the compositor's own shortcuts, reached from libinput on DRM and from the
-//host compositor through pway when swordfish runs in a window
-void handle_swordfish_key(uint32_t unicode);
+//one key as an evdev code, from libinput on DRM or from the host compositor
+//through pway in a window. runs the compositor's own super shortcuts and
+//passes everything else to the focused client
+void handle_key_code(uint32_t key_code, bool pressed);
 void finish_keyboard(void);
 
 
