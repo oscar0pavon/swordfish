@@ -49,6 +49,11 @@ Three threads, started in `main()`:
 2. **Compositor thread** — `run_compositor()` creates the `wl_display`, registers globals (wl_compositor, xdg_wm_base, shm, linux-dmabuf, seat/input), sets `WAYLAND_DISPLAY`, and blocks in `wl_display_run()`.
 3. **Input thread** — `handle_input()`; when there is a pway window it loops on `pway_handle_events()`, otherwise libinput/udev on bare DRM. `pway_handle_events()` polls with an infinite timeout, so it must stay on its own thread — calling it from the render loop would stall rendering until something happened. Pumping it is also what gets the xdg surface configured, so the window never maps without it.
 
+`init_keyboard()` runs in `main()`, not on the input thread. The xkb keymap is
+the *compositor's* — every client that calls `wl_seat.get_keyboard` is sent it —
+so it cannot live behind the libinput branch that the pway path returns before
+reaching, or serving a client dereferences a NULL `xkb_keymap`.
+
 `draw_tasks_mutex` and `focus_task_mutex` (`swordfish.c`) guard the `tasks_for_draw` array shared between the compositor thread and the render loop. Anything touching client surfaces from the render side must take `draw_tasks_mutex`.
 
 ### Two orthogonal mode flags
@@ -131,6 +136,33 @@ It reuses `pe_2d_get_character_uvs()` and `pe_2d_init_vulkan_buffers()` but **no
 `shaders/hud.frag` exists because `texture.frag` returns the sampled RGB, and `font.png` keeps its glyphs in the **alpha** channel — reusing it would have drawn black on black. The HUD shader treats the sample as a mask and supplies its own colour.
 
 The HUD reads only `displayed_*` fields from the monitor and the process ring. Those are render-thread-only by construction, so it never takes the samplers' locks.
+
+### Advertised global versions
+
+`COMPOSITOR_VERSION` and `SEAT_VERSION` (`compositor/compositor.h`) are what
+`wl_global_create()` advertises for `wl_compositor` and `wl_seat`. **A client
+binding above the advertised version is a protocol error and gets
+disconnected** — libwayland prints `invalid version for global ... expected at
+most N, got M` followed by `error in client communication`, and the client dies
+on the registry roundtrip before it ever creates a surface. pway binds both at
+4, so both are 4.
+
+Raising a version is not free: every request the new version adds needs a
+handler in the interface struct, because **libwayland dispatches a NULL handler
+as a call** and takes the compositor down with it. Version 4 of `wl_compositor`
+is entirely `wl_surface` requests — `set_buffer_transform` (v2),
+`set_buffer_scale` (v3), `damage_buffer` (v4) — all no-ops in
+`compositor/surface.c` since the quad samples the whole buffer regardless. Child
+resources are created with `wl_resource_get_version(resource)` rather than a
+hardcoded 1, so a surface or keyboard inherits the version its parent was bound
+at.
+
+Two things the compositor still does **not** advertise: `wl_data_device_manager`
+and `zwp_primary_selection_device_manager_v1`, so there is no clipboard. pway
+tolerates their absence now, but it used to call
+`wl_data_device_manager_get_data_device()` on a NULL proxy, which is a segfault
+inside libwayland-client — a missing global crashes the *client*, silently, with
+no protocol error to read.
 
 ### Wayland client → 3D quad
 

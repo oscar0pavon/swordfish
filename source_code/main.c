@@ -20,6 +20,7 @@
 #include "engine/engine2d.h"
 #include "engine/model.h"
 #include "input.h"
+#include "keyboard.h"
 #include "renderer/vulkan.h"
 #include "window.h"
 
@@ -52,6 +53,7 @@ void close_swordfish() {
   if(is_drm_rendering){
     finish_input();
   }
+  finish_keyboard();
   finish_compositor();
   clear_engine_memory();
 }
@@ -66,6 +68,12 @@ int main(){
   pe_init_memory();
   
   array_init(&tasks_for_draw, 50, sizeof(void*)); 
+
+  //the keymap is the compositor's, not the libinput path's: every client that
+  //asks for a keyboard is sent it, whoever is feeding us keys. it used to be
+  //initialized inside handle_input(), which the pway path returns before
+  //reaching, so serving a client meant reading a NULL xkb_keymap
+  init_keyboard();
 
   pe_vk_validation_layer_enable = true;
 

@@ -47,7 +47,6 @@ void init_input() {
 }
 
 void finish_input() {
-  finish_keyboard();
   libinput_unref(libinput);
   udev_unref(udev);
   printf("finished input\n");
@@ -71,7 +70,6 @@ void *handle_input(void *none) {
   printf("Input initialazing\n");
 
   init_input();
-  init_keyboard();
 
   struct pollfd pfd = {
       .fd = libinput_get_fd(libinput),

@@ -106,14 +106,45 @@ void handle_frame(WClient *client, WResource *resource, uint32_t callback_id){
 
 }
 
+//every request in the interface needs a handler, NULL is dispatched as a call
+//and takes the compositor down with the client. these are the ones swordfish
+//has nothing to do with: the quad is drawn from the whole buffer at whatever
+//size it arrives, so regions, transform and scale change nothing yet
+static void surface_set_opaque_region(WClient *client, WResource *resource,
+                                      WResource *region) {}
+
+static void surface_set_input_region(WClient *client, WResource *resource,
+                                     WResource *region) {}
+
+//since version 2
+static void surface_set_buffer_transform(WClient *client, WResource *resource,
+                                         int32_t transform) {
+  //TODO the quad ignores this and always samples the buffer upright
+}
+
+//since version 3
+static void surface_set_buffer_scale(WClient *client, WResource *resource,
+                                     int32_t scale) {
+  //TODO a scale above 1 means the buffer is bigger than the surface
+}
+
+//since version 4, damage in buffer coordinates. the whole texture is
+//re-uploaded every attach, so like surface_damage there is nothing to record
+static void surface_damage_buffer(WClient *client, WResource *resource,
+                                  int32_t x, int32_t y, int32_t width,
+                                  int32_t height) {}
+
 const struct wl_surface_interface surface_implementation = {
     .destroy = surface_destroy,
     .attach = surface_attach,
     .damage = surface_damage,
     .frame = handle_frame, 
-    .set_opaque_region = NULL,
-    .set_input_region = NULL,
+    .set_opaque_region = surface_set_opaque_region,
+    .set_input_region = surface_set_input_region,
     .commit = surface_commit,
+    .set_buffer_transform = surface_set_buffer_transform,
+    .set_buffer_scale = surface_set_buffer_scale,
+    .damage_buffer = surface_damage_buffer,
 };
 
 static void destroy_surface(WResource *resource) {
@@ -158,7 +189,10 @@ void create_surface(WClient *client, WResource *resource,
     return;
   }
 
-  surface->resource = wl_resource_create(client, &wl_surface_interface, 1, id);
+  //the surface inherits the version the client bound wl_compositor at, so a
+  //version 4 client gets a surface that accepts the version 4 requests
+  surface->resource = wl_resource_create(client, &wl_surface_interface,
+                                         wl_resource_get_version(resource), id);
   if (!surface->resource) {
     free(surface);
     printf("Can't create wayland resource\n");

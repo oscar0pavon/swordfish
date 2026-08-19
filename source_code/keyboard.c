@@ -20,6 +20,11 @@ struct xkb_state *xkb_state;
 
 //return file descriptor of keymap
 int create_keymap_file_descriptor(off_t *size_out){
+  if(!xkb_keymap){
+    printf("No xkb keymap, init_keyboard() has not run\n");
+    return -1;
+  }
+
   char *keymap_string = xkb_keymap_get_as_string(xkb_keymap, 
       XKB_KEYMAP_FORMAT_TEXT_V1);
   if(!keymap_string){
@@ -61,6 +66,31 @@ off_t get_keymap_file_size(int fd){
 
 
 
+//the shortcuts of the compositor itself, shared by both input paths: libinput
+//on bare DRM, and the host compositor through pway->input when swordfish is a
+//wayland client. gating these on is_drm_rendering is what made them dead in a
+//window
+void handle_swordfish_key(uint32_t unicode) {
+
+  switch (unicode) {
+  case 'd':
+    //must not block: this runs on the input thread, and in the pway path that
+    //thread is also what pumps the window
+    launch_program("/root/pterminal/pterminal");
+    break;
+  case 'q':
+    printf("Closing from keyboard\n");
+    exit(0);
+    break;
+  case 'w':
+    //there is only a seat to switch when we own the tty
+    if (is_drm_rendering)
+      libseat_switch_session(compositor.seat, 3);
+    break;
+  }
+}
+
+
 void handle_xkb_keyboard_event(InputEvent *event) {
   InputEventKeyboard *key_event = libinput_event_get_keyboard_event(event);
 
@@ -91,24 +121,8 @@ void handle_xkb_keyboard_event(InputEvent *event) {
 
     uint32_t unicode = xkb_keysym_to_utf32(sym);
 
-    if (is_drm_rendering) {
-
-      if (unicode) {
-        // printf("Key pressed: %c (U+%04x)\n", (char)unicode, unicode);
-        if (unicode == 'd') {
-          printf("Calling program\n");
-          // call_program("/root/pterminal/test_terminal");
-          call_program("firefox");
-        }
-        if (unicode == 'q') {
-          printf("Calling program\n");
-          exit(0);
-        }
-        if (unicode == 'w') {
-          libseat_switch_session(compositor.seat, 3);
-        }
-      }
-    }
+    if (unicode)
+      handle_swordfish_key(unicode);
 
   } else {                  // LIBINPUT_KEY_STATE_RELEASED
     direction = XKB_KEY_UP;

@@ -105,8 +105,12 @@ void* run_compositor(void* none) {
 
 
 
-  wl_global_create(compositor.display, &wl_compositor_interface, 1, &compositor,
-                   bind_compositor);
+  //advertising version 1 here is what disconnected every client: pway binds
+  //wl_compositor at 4, and a bind above the advertised version is a protocol
+  //error, so the client died on the registry before it ever made a surface.
+  //everything version 4 adds is on wl_surface, see surface_implementation
+  wl_global_create(compositor.display, &wl_compositor_interface,
+                   COMPOSITOR_VERSION, &compositor, bind_compositor);
 
   wl_global_create(compositor.display, &xdg_wm_base_interface, 1, &compositor,
                    bind_desktop);

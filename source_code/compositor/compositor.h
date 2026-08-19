@@ -10,6 +10,12 @@
 
 #include "types.h"
 
+//the versions swordfish advertises on the registry. a client binding above
+//these is a protocol error and gets disconnected, so they have to cover what
+//the clients actually ask for - pway binds wl_compositor and wl_seat at 4
+#define COMPOSITOR_VERSION 4
+#define SEAT_VERSION 4
+
 typedef struct SwordfishCompositor{
     struct wl_display *display;
     struct wl_event_loop *event_loop;

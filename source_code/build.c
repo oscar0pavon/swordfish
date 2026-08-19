@@ -26,6 +26,37 @@ void handle_child_output(int pipe_fd) {
 }
 
 
+//call_program() blocks until the child exits, which is what call_make() wants
+//and exactly what a keybinding must not do: it runs on the input thread, so
+//waiting there stops pway from being pumped and freezes the window until the
+//terminal is closed. double fork so the grandchild is reparented to init and
+//nothing has to be reaped later
+void launch_program(const char* command){
+
+  pid_t pid = fork();
+  if (pid == -1) {
+    perror("fork");
+    return;
+  }
+
+  if (pid == 0) {
+    if (fork() == 0) {
+      //own session, so the child does not take our controlling terminal
+      setsid();
+      execlp(command, command, NULL);
+      perror("execlp");
+      _exit(EXIT_FAILURE);
+    }
+    _exit(EXIT_SUCCESS);
+  }
+
+  printf("Launching %s\n", command);
+
+  //only the short lived middle child is waited for
+  waitpid(pid, NULL, 0);
+}
+
+
 void call_program(const char* command){
 
   int pipefd[2];
