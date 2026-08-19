@@ -33,10 +33,9 @@ static void surface_damage(WClient *client, WResource *resource,
 
 static void surface_destroy(WClient *client, WResource *resource) {
 
-  Task *task = wl_resource_get_user_data(resource);
-
-  pe_vk_clean_image(task->image);
-
+  //the image is torn down in destroy_surface() instead, under
+  //draw_tasks_mutex: freeing it here means freeing a vulkan image the render
+  //thread may still be sampling, and the task is not out of tasks_for_draw yet
   wl_resource_destroy(resource);
 
   printf("Surface destroy\n");
@@ -164,6 +163,14 @@ static void destroy_surface(WResource *resource) {
   pthread_mutex_lock(&draw_tasks_mutex);
 
   array_remove_element(&tasks_for_draw, surface);
+
+  //a surface destroyed before it ever attached a buffer has no image, and
+  //pe_vk_clean_image() reads straight through the pointer. every client that
+  //shuts down cleanly without drawing came through here and took the
+  //compositor with it
+  if (surface->image)
+    pe_vk_clean_image(surface->image);
+
   free(surface);
 
   pthread_mutex_unlock(&draw_tasks_mutex);

@@ -9,7 +9,15 @@
 typedef struct DesktopSurface{
   Task* surface;
   WResource* resource;
+  //the serial of the configure the client still owes an ack for, 0 when it
+  //owes nothing
   uint32_t pending_serial;
+  //xdg_surface.set_window_geometry: the window without the client's own
+  //shadows. recorded but not used yet, the quad samples the whole buffer
+  int32_t geometry_x;
+  int32_t geometry_y;
+  int32_t geometry_width;
+  int32_t geometry_height;
 }DesktopSurface;
 
 

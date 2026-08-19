@@ -175,9 +175,34 @@ tolerates their absence now, but it used to call
 inside libwayland-client — a missing global crashes the *client*, silently, with
 no protocol error to read.
 
+### xdg-shell
+
+`xdg_wm_base` is advertised at version 1 (`compositor/compositor.c`), and every
+request of every xdg interface has a handler for the reason above — a NULL entry
+is dispatched as a call. `xdg_toplevel` (`compositor/top_level.c`) records the
+title, app id and size limits and no-ops the rest; `set_maximized`,
+`unset_maximized`, `set_fullscreen` and `unset_fullscreen` **must** still answer
+with a configure even though swordfish declines them, because a client blocks
+waiting for that configure before it will draw again. `reconfigure()` sends the
+size the client already has and an empty state array, which is the protocol's
+way of saying no.
+
+Configure serials come from `wl_display_next_serial()` and are stored in
+`DesktopSurface.pending_serial`, so `do_desktop_ack()` can tell a real ack from
+a stale one. A constant serial made every configure look like the same event.
+
+`xdg_positioner` and `xdg_popup` (`compositor/popup.c`) exist only so a client
+opening a menu does not take the compositor down. There is no second quad to
+draw a popup into, so `create_popup()` creates the resource and immediately
+sends `xdg_popup.popup_done`. That is the only one of the three options that
+leaves the client alive: a protocol error kills it, and silence hangs a client
+that took a grab.
+
 ### Wayland client → 3D quad
 
 A client surface becomes a `Task` (`compositor/compositor.h`): it owns the `wl_resource`, the client's buffer, a `PTexture`, and a `PModel` quad. Buffers arrive either through wl_shm (`compositor/shared_memory.c`) or linux-dmabuf (`compositor/dma.c`, imported into a Vulkan image via dmabuf fds). `Task`s live in the `tasks_for_draw` array; each frame `draw_surfaces()` draws them and `end_frame()` sends the frame callbacks (`send_frame_callback_done`) then `wl_display_flush_clients`.
+
+Teardown belongs in `destroy_surface()` — the resource destructor, which holds `draw_tasks_mutex` — not in the `wl_surface.destroy` handler, which runs before the `Task` leaves `tasks_for_draw` and so can free a Vulkan image the render thread is still sampling. `task->image` is also **NULL until the first attach**, and `pe_vk_clean_image()` reads straight through the pointer: a client that creates a surface and destroys it without ever drawing used to segfault the compositor.
 
 ### Layer conventions
 

@@ -5,18 +5,26 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "popup.h"
 #include "top_level.h"
 
 //recieve from client
 void do_desktop_ack(WClient* client, WResource* resource, uint32_t serial){
 
   DesktopSurface * desktop_surface = wl_resource_get_user_data(resource);
-  Task *surface = desktop_surface->surface;
 
-  
-   
-  
-  printf("ack\n");
+  //the configure the client is answering. an ack for anything else is a stale
+  //reply to a configure that has already been superseded, and the state that
+  //came with it must not be applied
+  if(serial != desktop_surface->pending_serial){
+    printf("Client acked configure %u, waiting for %u\n", serial,
+           desktop_surface->pending_serial);
+    return;
+  }
+
+  desktop_surface->pending_serial = 0;
+
+  printf("ack %u\n", serial);
 }
 
 void do_desktop_pong(WClient* client, WResource* resource, uint32_t serial){
@@ -24,13 +32,43 @@ void do_desktop_pong(WClient* client, WResource* resource, uint32_t serial){
   printf("pong\n");
 }
 
+//every request in the interface needs a handler: libwayland dispatches a NULL
+//entry as a call, so a client sending one of these takes the compositor down
+static void desktop_surface_destroy(WClient *client, WResource *resource) {
+  wl_resource_destroy(resource);
+}
+
+//the part of the surface that is the window proper, the rest being the client's
+//own shadows and borders. recorded rather than used: the quad still samples the
+//whole buffer
+static void desktop_surface_set_window_geometry(WClient *client,
+                                                WResource *resource, int32_t x,
+                                                int32_t y, int32_t width,
+                                                int32_t height) {
+
+  DesktopSurface *desktop_surface = wl_resource_get_user_data(resource);
+
+  desktop_surface->geometry_x = x;
+  desktop_surface->geometry_y = y;
+  desktop_surface->geometry_width = width;
+  desktop_surface->geometry_height = height;
+}
+
 const struct xdg_surface_interface desktop_surface_implementation = {
-    .destroy = NULL,
+    .destroy = desktop_surface_destroy,
     .get_toplevel = get_top_level_implementation,
-    .get_popup = NULL,
-    .set_window_geometry = NULL,
+    .get_popup = create_popup,
+    .set_window_geometry = desktop_surface_set_window_geometry,
     .ack_configure = do_desktop_ack,
 };
+
+static void destroy_desktop_surface(WResource *resource) {
+  DesktopSurface *desktop_surface = wl_resource_get_user_data(resource);
+
+  free(desktop_surface);
+
+  printf("Destroyed desktop surface\n");
+}
 
 void get_desktop_surface(WClient *client, WResource *resource,
     uint32_t id, WResource *surface_resource) {
@@ -46,13 +84,18 @@ void get_desktop_surface(WClient *client, WResource *resource,
 
   wl_resource_set_implementation(desktop_surface->resource,
                                  &desktop_surface_implementation,
-                                 desktop_surface, NULL);
+                                 desktop_surface, destroy_desktop_surface);
 
   printf("Get desktop surface\n");
 }
 
+static void desktop_destroy(WClient *client, WResource *resource) {
+  wl_resource_destroy(resource);
+}
+
 const struct xdg_wm_base_interface desktop_implementation = {
-  .destroy = NULL,
+  .destroy = desktop_destroy,
+  .create_positioner = create_positioner,
   .get_xdg_surface = get_desktop_surface,
   .pong = do_desktop_pong
 };

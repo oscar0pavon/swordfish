@@ -12,40 +12,161 @@ typedef struct TopLevel{
   DesktopSurface *surface;
   WResource *resource;
   char *title;
+  char *app_id;
+  //what the client was last configured at, so a state request can be answered
+  //with the size it already has
+  int32_t width;
+  int32_t height;
+  //the client's own limits. recorded because the protocol calls them state,
+  //not because anything sizes a window from them yet
+  int32_t min_width;
+  int32_t min_height;
+  int32_t max_width;
+  int32_t max_height;
 }TopLevel;
 
 
 void destroy_top_level(WClient *client, WResource *resource){
-  printf("Destroy top level");
+  printf("Destroy top level\n");
   wl_resource_destroy(resource);
+}
+
+//the strings are set again whenever the client feels like it, so the old one
+//has to go or every rename leaks
+static void replace_string(char **destination, const char *value){
+  free(*destination);
+  *destination = strdup(value);
 }
 
 void set_title(WClient *client, WResource *resource, const char *title){
   TopLevel *top_level = wl_resource_get_user_data(resource);
-  top_level->title = strdup(title);
-  printf("new title\n");
-  printf("New tack with title: %s\n", top_level->title);
-
+  replace_string(&top_level->title, title);
+  printf("New task with title: %s\n", top_level->title);
 }
 
-const struct xdg_toplevel_interface top_level_implementation = {
-  .destroy = destroy_top_level,
-  .set_title = set_title
-};
+//the class of application, not the window. clients send this immediately after
+//set_title, which is why a NULL here killed the compositor on the first real
+//toolkit that connected
+static void set_app_id(WClient *client, WResource *resource,
+                       const char *app_id){
+  TopLevel *top_level = wl_resource_get_user_data(resource);
+  replace_string(&top_level->app_id, app_id);
+  printf("Task app id: %s\n", top_level->app_id);
+}
 
 void send_top_level_configure(TopLevel* toplevel, int width, int height){
   struct wl_array states;
   wl_array_init(&states);
 
+  //no states: not maximized, not fullscreen. that is the honest answer to the
+  //requests below, which the protocol says must be answered with a configure
+  //whether or not the compositor grants them
   xdg_toplevel_send_configure(toplevel->resource,
       width,
       height,
       &states);
 
   wl_array_release(&states);
-  uint32_t serial = 30;
+
+  toplevel->width = width;
+  toplevel->height = height;
+
+  //a constant serial made every configure look like the same event, so the
+  //client's ack could never be matched to the configure it answered
+  uint32_t serial = wl_display_next_serial(compositor.display);
+  toplevel->surface->pending_serial = serial;
+
   xdg_surface_send_configure(toplevel->surface->resource, serial);
 
+}
+
+//swordfish draws every client at the size it already has, so a request to
+//change state is answered with a configure carrying the current size and no
+//states - "declined". leaving it unanswered is what hangs a client: it waits
+//for the configure before it will draw anything again
+static void reconfigure(WResource *resource){
+  TopLevel *top_level = wl_resource_get_user_data(resource);
+  send_top_level_configure(top_level, top_level->width, top_level->height);
+}
+
+static void set_maximized(WClient *client, WResource *resource){
+  reconfigure(resource);
+}
+
+static void unset_maximized(WClient *client, WResource *resource){
+  reconfigure(resource);
+}
+
+static void set_fullscreen(WClient *client, WResource *resource,
+                           WResource *output){
+  reconfigure(resource);
+}
+
+static void unset_fullscreen(WClient *client, WResource *resource){
+  reconfigure(resource);
+}
+
+//no configure is owed for this one, and there is nothing to minimize into
+static void set_minimized(WClient *client, WResource *resource){}
+
+static void set_max_size(WClient *client, WResource *resource, int32_t width,
+                         int32_t height){
+  TopLevel *top_level = wl_resource_get_user_data(resource);
+  top_level->max_width = width;
+  top_level->max_height = height;
+}
+
+static void set_min_size(WClient *client, WResource *resource, int32_t width,
+                         int32_t height){
+  TopLevel *top_level = wl_resource_get_user_data(resource);
+  top_level->min_width = width;
+  top_level->min_height = height;
+}
+
+//dialogs and toolboxes stack above their parent. every task is one quad in the
+//scene and nothing stacks, so there is nothing to record
+static void set_parent(WClient *client, WResource *resource,
+                       WResource *parent){}
+
+//the three requests a client makes on behalf of the pointer. there is no
+//pointer yet - the seat only advertises a keyboard - so none of them can
+//arrive, and all three still need a handler for the day one does
+static void show_window_menu(WClient *client, WResource *resource,
+                             WResource *seat, uint32_t serial, int32_t x,
+                             int32_t y){}
+
+static void move_top_level(WClient *client, WResource *resource,
+                           WResource *seat, uint32_t serial){}
+
+static void resize_top_level(WClient *client, WResource *resource,
+                             WResource *seat, uint32_t serial,
+                             uint32_t edges){}
+
+const struct xdg_toplevel_interface top_level_implementation = {
+  .destroy = destroy_top_level,
+  .set_parent = set_parent,
+  .set_title = set_title,
+  .set_app_id = set_app_id,
+  .show_window_menu = show_window_menu,
+  .move = move_top_level,
+  .resize = resize_top_level,
+  .set_max_size = set_max_size,
+  .set_min_size = set_min_size,
+  .set_maximized = set_maximized,
+  .unset_maximized = unset_maximized,
+  .set_fullscreen = set_fullscreen,
+  .unset_fullscreen = unset_fullscreen,
+  .set_minimized = set_minimized
+};
+
+static void destroy_top_level_resource(WResource *resource){
+  TopLevel *top_level = wl_resource_get_user_data(resource);
+
+  free(top_level->title);
+  free(top_level->app_id);
+  free(top_level);
+
+  printf("Destroyed top level\n");
 }
 
 void get_top_level_implementation(WClient *client,
@@ -56,13 +177,22 @@ void get_top_level_implementation(WClient *client,
   TopLevel *top_level = calloc(1, sizeof(TopLevel));
   top_level->surface = surface;
 
-  top_level->resource =
-      wl_resource_create(client, &xdg_toplevel_interface, 1, id);
+  //the toplevel inherits the version its xdg_surface was created at, so a
+  //client that bound xdg_wm_base higher gets the events that version added
+  top_level->resource = wl_resource_create(
+      client, &xdg_toplevel_interface, wl_resource_get_version(resource), id);
+
+  if (!top_level->resource) {
+    free(top_level);
+    wl_client_post_no_memory(client);
+    printf("Can't create top level resource\n");
+    return;
+  }
 
   printf("get top level\n");
 
-  wl_resource_set_implementation(top_level->resource, &top_level_implementation, top_level,
-                                 NULL);
+  wl_resource_set_implementation(top_level->resource, &top_level_implementation,
+                                 top_level, destroy_top_level_resource);
 
   send_top_level_configure(top_level, 800, 600);
 
