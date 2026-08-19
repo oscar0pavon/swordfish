@@ -13,10 +13,7 @@
 #include "engine/array.h"
 #include "swordfish.h"
 
-
 #include "engine/camera.h"
-#include "engine/engine2d.h"
-#include "engine/model.h"
 #include "input.h"
 #include "keyboard.h"
 #include "renderer/vulkan.h"
@@ -26,8 +23,6 @@
 
 #include "renderer/draw.h"
 
-
-
 #include <engine/utils.h>
 
 #include <engine/time.h>
@@ -35,14 +30,13 @@
 
 #include "build.h"
 
-bool is_opengl = false;
 
 void close_swordfish() {
   printf("Closing Swordfish\n");
-  if(!is_opengl){
-    clean_swordfish();
-    pe_vk_end();
-  }
+    
+  clean_swordfish();
+  pe_vk_end();
+
   swordfish_running = false;
   if(is_drm_rendering){
     finish_input();
@@ -81,10 +75,6 @@ int main(){
     //init_seat();
   }
 
-
-  // if(is_drm_rendering)
-  //   init_direct_render();
-
   pthread_t input_thread_id;
   pthread_create(&input_thread_id, NULL, handle_input, NULL);
 
@@ -94,7 +84,6 @@ int main(){
 
   //graphics stuff
   // For pengine - Vulkan Rendering
-
 
   camera_init(&main_camera);
 
