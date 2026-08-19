@@ -38,6 +38,17 @@ void send_wayland_key(uint32_t scancode, uint32_t event_state){
   }
 
   WResource *keyboard = focused_task->input->keyboard_resource;
+
+  //the client binds wl_seat before it asks for a keyboard, so focus_task() can
+  //hand us an input with no keyboard_resource yet. wl_keyboard_send_key
+  //dereferences the resource immediately, so a keypress landing in that window
+  //took the whole compositor down - only ever on the libinput path, since the
+  //pway path never calls this
+  if(!keyboard){
+    printf("focused task has no keyboard yet\n");
+    return;
+  }
+
   uint32_t timestamp = get_current_time_msec();
 
    uint32_t wl_state = (event_state == LIBINPUT_KEY_STATE_PRESSED) ? 

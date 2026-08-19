@@ -16,11 +16,51 @@
 
 #include "renderer/vk_images.h"
 
+#include <xf86drm.h>
+
 uint64_t main_device_id;
 
 
 static struct zwp_linux_dmabuf_v1_interface dmabuf_data;
       
+
+uint64_t get_drm_device_id(const char *device_path);
+
+//clients must be handed the *render* node, never the primary one. on the tty
+//swordfish is DRM master on card0, so a client that opens it cannot
+//authenticate and mesa ends up with no device at all: eglChooseConfig returns
+//nothing, egl_config stays garbage and eglCreateWindowSurface fails. the node
+//permissions say the same thing - card0 is root:video, renderD128 is world
+//readable because it is the one clients are meant to use
+uint64_t get_render_device_id(const char *primary_path) {
+  int fd = open(primary_path, O_RDWR | O_CLOEXEC);
+  if (fd < 0) {
+    perror("open primary node");
+    return 0;
+  }
+
+  drmDevicePtr device;
+  if (drmGetDevice2(fd, 0, &device) != 0) {
+    printf("Can't get the drm device for %s\n", primary_path);
+    close(fd);
+    return 0;
+  }
+
+  uint64_t device_id = 0;
+
+  if (device->available_nodes & (1 << DRM_NODE_RENDER)) {
+    printf("Advertising render node %s\n", device->nodes[DRM_NODE_RENDER]);
+    device_id = get_drm_device_id(device->nodes[DRM_NODE_RENDER]);
+  } else {
+    printf("No render node for %s, falling back to it\n", primary_path);
+    device_id = get_drm_device_id(primary_path);
+  }
+
+  drmFreeDevice(&device);
+  close(fd);
+
+  return device_id;
+}
 
 uint64_t get_drm_device_id(const char *device_path) {
     struct stat st;
@@ -253,7 +293,7 @@ void init_dma(){
 
   printf("Added DMA global\n");
 
-  main_device_id = get_drm_device_id("/dev/dri/card0");
+  main_device_id = get_render_device_id("/dev/dri/card0");
 
   wl_global_create(compositor.display, &zwp_linux_dmabuf_v1_interface, 4,
                    &compositor, bind_dma);
