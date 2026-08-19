@@ -95,10 +95,15 @@ static void swallow_key(uint32_t key_code) {
 static bool handle_swordfish_key(uint32_t unicode) {
 
   switch (unicode) {
-  case 'd':
+  case 'y':
     //must not block: this runs on the input thread, and in the pway path that
     //thread is also what pumps the window
     launch_program("/root/pterminal/pterminal");
+    return true;
+  case 'm':
+    //must not block: this runs on the input thread, and in the pway path that
+    //thread is also what pumps the window
+    launch_program("/usr/bin/firefox");
     return true;
   case 'q':
     printf("Closing from keyboard\n");

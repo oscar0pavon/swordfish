@@ -14,6 +14,10 @@ typedef struct TaskInput {
   struct wl_list link;
 }TaskInput;
 
+//milliseconds from CLOCK_MONOTONIC, the timebase every event timestamp the
+//compositor sends is in
+uint32_t get_current_time_msec();
+
 void init_compositor_input();
 
 void handle_focus();

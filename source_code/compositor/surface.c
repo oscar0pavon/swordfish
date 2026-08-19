@@ -17,6 +17,7 @@
 #include "renderer/descriptor_set.h"
 #include "swordfish.h"
 #include "renderer/vk_images.h"
+#include "input.h"
 #include <pthread.h>
 
 Array tasks_for_draw;
@@ -41,10 +42,20 @@ static void surface_destroy(WClient *client, WResource *resource) {
   printf("Surface destroy\n");
 }
 
+//must be called with draw_tasks_mutex held: handle_frame() stores the next
+//callback from the compositor thread while this runs on the render thread, and
+//a store landing between the send and the NULL either destroys a resource the
+//client is still waiting on or drops the new one on the floor. the first is a
+//use-after-free that libwayland reports as "Data too big for buffer" and
+//answers by disconnecting the client
 void send_frame_callback_done(Task *surface){
-  wl_callback_send_done(surface->frame_call_resource, 1);
-  wl_resource_destroy(surface->frame_call_resource);
+  WResource *callback = surface->frame_call_resource;
+
+  //cleared first, so nothing can see a resource that is about to be destroyed
   surface->frame_call_resource = NULL;
+
+  wl_callback_send_done(callback, get_current_time_msec());
+  wl_resource_destroy(callback);
 }
 
 void surface_attach(WClient *client, WResource *resource,
@@ -89,8 +100,6 @@ void surface_commit(WClient *client, WResource *resource) {
 
 void handle_frame(WClient *client, WResource *resource, uint32_t callback_id){
 
-  printf("Client requested frame callback with ID %u\n", callback_id);
-
   WResource *callback_resource = 
     wl_resource_create(client, &wl_callback_interface, 1, callback_id);
 
@@ -101,7 +110,20 @@ void handle_frame(WClient *client, WResource *resource, uint32_t callback_id){
   }
 
   Task *surface = wl_resource_get_user_data(resource);
+
+  //the render thread reads this field in end_frame() and destroys what it
+  //finds, so the store has to be under the same lock or the two threads race
+  //over the same wl_resource
+  pthread_mutex_lock(&draw_tasks_mutex);
+
+  //a client asking twice before a frame went out would otherwise leak the
+  //first callback and leave it unanswered forever
+  if (surface->frame_call_resource)
+    send_frame_callback_done(surface);
+
   surface->frame_call_resource = callback_resource;
+
+  pthread_mutex_unlock(&draw_tasks_mutex);
 
 }
 
