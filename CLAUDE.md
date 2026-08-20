@@ -56,6 +56,14 @@ into pengine's `include.make`. They apply to pengine only; swordfish's own
 objects are built without them, exactly as before. Keep cglm math on pengine's
 side so the depth and handedness conventions stay consistent.
 
+The shm upload (`compositor/shared_memory.c`) assembles its own version of
+`pe_vk_create_texture_from_image()` out of `pe_vk_transition_image_layout()`,
+`pe_vk_image_copy_buffer()` and `pe_vk_create_texture_sampler()`, because that
+function hardcodes `VK_FORMAT_R8G8B8A8_SRGB` and takes a `PImage`. The three were
+already external; they only had to be **declared** in pengine's `vk_images.h`.
+All of them end in `vkQueueWaitIdle` — see **Frame path** for which thread may
+call them.
+
 ### What swordfish hands the renderer
 
 pengine cannot call `swordfish_draw_scene()` by name any more, and three globals
@@ -169,7 +177,16 @@ Two things differ from the old X11 surface and are easy to reintroduce: a Waylan
 
 `swordfish_init()` (also `swordfish.c`) is the counterpart: load textures, create descriptor sets, create shaders/pipelines. `clean_swordfish()` must free whatever it allocates.
 
-`pe_vk_draw_frame()` ends in a `vkQueueWaitIdle()` (`renderer/draw.c`), and two things silently depend on it: `wl_buffer_send_release()` in `draw_surfaces()` is queued during command recording but only flushed after the GPU has drained, and `system_monitor_draw()` / `processes_draw()` rewrite their host-visible instance buffers while the previous frame is assumed finished. Removing that wait — the obvious performance fix — means all of them need gating on the frame fence instead. They are a matched set; fix them together.
+`pe_vk_draw_frame()` ends in a `vkQueueWaitIdle()` (`renderer/draw.c`), and several things silently depend on it: `wl_buffer_send_release()` in `draw_surfaces()` is queued during command recording but only flushed after the GPU has drained, and `system_monitor_draw()` / `processes_draw()` rewrite their host-visible instance buffers while the previous frame is assumed finished. Removing that wait — the obvious performance fix — means all of them need gating on the frame fence instead. They are a matched set; fix them together.
+
+**`end_frame()` (`swordfish.c`) is the frame's second half**, and it is where
+everything that needs an idle GPU goes: `shared_memory_collect_textures()`, then
+per task `send_frame_callback_done()`, `task_upload_shared_memory()` and
+`task_release_old_buffer()`, then `wl_display_flush_clients()`. It holds
+`lock_wayland()` around the lot and `draw_tasks_mutex` inside it, in that order.
+Anything that submits to `vk_queue` on behalf of a client belongs here and
+nowhere else — this is the only point where the render thread owns the queue and
+is not recording.
 
 ### Scene layout
 
@@ -247,18 +264,33 @@ resources are created with `wl_resource_get_version(resource)` rather than a
 hardcoded 1, so a surface or keyboard inherits the version its parent was bound
 at.
 
-Two things the compositor still does **not** advertise: `wl_data_device_manager`
-and `zwp_primary_selection_device_manager_v1`, so there is no clipboard. pway
-tolerates their absence now, but it used to call
-`wl_data_device_manager_get_data_device()` on a NULL proxy, which is a segfault
-inside libwayland-client — a missing global crashes the *client*, silently, with
-no protocol error to read. The same hole was still open on the primary-selection
-side and only showed up once the seat had a pointer: pterminal finishing a mouse
-selection calls `pway_primary_copy()`, which marshalled on the NULL manager and
-died on the button release, so a click in a client looked like swordfish closing
-it. Guarded in pway. **A client that dies the moment it uses a new input path is
-worth suspecting of a missing global before a protocol error** — the protocol
-error at least prints.
+**A missing global is the most expensive bug in this file, and it has cost three
+clients so far.** It produces no protocol error: the client gets a NULL proxy
+back and either segfaults inside libwayland-client or waits forever. pway used
+to call `wl_data_device_manager_get_data_device()` on a NULL proxy and die. The
+same hole on the primary-selection side only showed up once the seat had a
+pointer, because pterminal finishing a mouse selection calls
+`pway_primary_copy()`, which marshalled on the NULL manager and died on the
+button release — so a click in a client looked like swordfish closing it (both
+guarded in pway now). Then firefox: it bound `wl_compositor`, `wl_output` and
+`wl_shm`, created an shm pool, and stopped, printing `gdk_seat_get_keyboard:
+assertion 'GDK_IS_SEAT (seat)' failed`. It never bound `wl_seat` and never
+reached `xdg_wm_base` at all, because **GDK does not build a seat until
+`wl_data_device_manager` exists** — a seat without a clipboard is not something
+it will construct — so it postponed the seat forever. (That last diagnosis is
+read off the log rather than confirmed by a run; if firefox still stalls, check
+`WAYLAND_DEBUG=1` for whether a `wl_registry.bind` of `wl_seat` ever goes out.)
+
+**A client that dies or stalls the moment it uses a new path is worth suspecting
+of a missing global before a protocol error** — the protocol error at least
+prints. The absence shows up as a *gap in swordfish's own log*: every bind
+handler prints, so the missing line is the diagnosis.
+
+Still not advertised: `zwp_primary_selection_device_manager_v1`. GDK degrades
+without it, but pterminal's `pway_primary_copy()` wants it. The XML is at
+`/usr/share/wayland-protocols/unstable/primary-selection/`, so it needs two
+`wayland-scanner` lines in `generate_wayland_protocol_files.sh` and a near-copy
+of `data_device.c` with the drag half removed.
 
 ### xdg-shell
 
@@ -282,6 +314,71 @@ draw a popup into, so `create_popup()` creates the resource and immediately
 sends `xdg_popup.popup_done`. That is the only one of the three options that
 leaves the client alive: a protocol error kills it, and silence hangs a client
 that took a grab.
+
+### The output (`compositor/output.c`)
+
+One `wl_output` at version 4, and its mode is the image swordfish renders:
+`WINDOW_WIDTH`×`WINDOW_HEIGHT` at 60000 mHz, flagged `CURRENT | PREFERRED` since
+there is nothing to switch to. `send_output_state()` is the single place that
+describes it, so a resize has one place to send a new mode from once the swap
+chain can change size. Every event above version 1 is gated on the version the
+client bound at, and `release` — the only request the interface has — has a
+handler.
+
+Two details the protocol is easy to get wrong on. **`done` is not a formality**:
+a client applies the whole burst as one unit, so leaving it out leaves the client
+holding an output it never commits. And a physical size of **zero** is what the
+protocol says to send for an unknown one, but a client that divides by it to get
+a DPI gets an infinity — so the panel is described as an ordinary 96 DPI one and
+the arithmetic lands somewhere.
+
+`wl_surface.enter` goes out from `get_top_level_implementation()`, when a surface
+becomes a window rather than when it is created — the same reason focus is
+claimed there: a bare `wl_surface` may be a cursor image, and a cursor is on no
+output. It assumes the client bound `wl_output` in the same registry pass it
+bound `wl_compositor` in, which is how every client is written. The resources
+live in a `wl_list` (via `wl_resource_get_link()`) because a client may bind the
+global more than once, and enter is owed on each of its own.
+
+pway never binds `wl_output`, so pterminal exercises none of this. It exists for
+the toolkit clients that would otherwise stall.
+
+### The clipboard (`compositor/data_device.c`)
+
+`wl_data_device_manager` at version 3 — see **Advertised global versions** for
+why GDK will not start without it. **None of the data passes through the
+compositor.** It keeps whichever `wl_data_source` last claimed the selection,
+tells the focused client which mime types are on offer, and when that client
+sends `wl_data_offer.receive` it hands the pipe fd straight to the source client
+through `wl_data_source.send`, which does the writing. Our own copy of the fd is
+closed afterwards: libwayland dups it into the source's connection, and holding
+the write end open leaves the reader waiting on an EOF that never comes.
+
+**A `wl_data_offer` belongs to one client**, so sending it once when the
+selection is set is not enough. `send_keyboard_enter()` calls
+`data_device_offer_selection()` on every focus change, and that is what makes a
+copy in one window paste into another. `keyboard_focus_client()` (`input.c`) is
+how the clipboard finds out who to offer to; the reads and the writes of
+`keyboard_focus` both happen under `lock_wayland()`, so it adds no lock.
+
+The source belongs to a client that can destroy it while another client is still
+holding an offer of it, so **every offer carries a `wl_listener` on the source's
+destroy signal** — the same shape as a `wl_buffer` outliving the surface that
+attached it. The handler NULLs the pointer and re-inits the link so the offer's
+own destructor can remove it again. The previous owner gets
+`wl_data_source.cancelled` the moment it stops being the owner; a source that is
+never told goes on believing it holds the clipboard.
+
+There is **no drag** — no icon surface, no grab, no `wl_data_device.enter` to
+send anyone — so `start_drag` answers with `wl_data_source.cancelled`. That is
+the only reply that leaves the client alive and unstuck, exactly as `popup.c`
+answers with `popup_done`; silence hangs a client waiting on a drop. The rest of
+the version 3 drag-and-drop requests are present and do nothing.
+
+`set_selection` does **not** check the serial. It should be matched against the
+input event the client is claiming the clipboard for, and swordfish does not keep
+its serials long enough to tell — refusing on one it cannot verify would mean no
+clipboard at all.
 
 ### The pointer
 
@@ -358,12 +455,84 @@ AMD DCC modifier rather than linear.
 
 ### Wayland client → 3D quad
 
-A client surface becomes a `Task` (`compositor/compositor.h`): it owns the `wl_resource`, the client's buffer, a `PTexture`, and a `PModel` quad. Buffers arrive either through wl_shm (`compositor/shared_memory.c`) or linux-dmabuf (`compositor/dma.c`, imported into a Vulkan image via dmabuf fds). `Task`s live in the `tasks_for_draw` array; each frame `draw_surfaces()` draws them and `end_frame()` sends the frame callbacks (`send_frame_callback_done`) then `wl_display_flush_clients`.
+A client surface becomes a `Task` (`compositor/compositor.h`): it owns the `wl_resource`, the client's buffer, a `PTexture`, and a `PModel` quad. `Task`s live in the `tasks_for_draw` array; each frame `draw_surfaces()` draws them and `end_frame()` sends the frame callbacks (`send_frame_callback_done`), uploads shm pixels, pays owed releases, and then `wl_display_flush_clients`.
+
+#### Both buffer protocols make the same struct
+
+Buffers arrive either through wl_shm (`compositor/shared_memory.c`) or
+linux-dmabuf (`compositor/dma.c`). **Both put a `ClientBuffer`
+(`compositor/client_buffer.h`) behind the `wl_buffer`'s user data**, tagged with
+`type` as its first member, because that user data is all `surface_attach()` has
+to go on. They used to put *different* structs there — a bare `PTexture` on the
+dmabuf side, its own bookkeeping struct on the shm side — and `surface_attach()`
+believed the first unconditionally. A `PTexture` is nearly twice the size, so the
+`memcpy` into the quad ran off the end of the allocation and the quad got a
+`VkImage` handle made of whatever heap followed it. Nothing had hit it because
+pterminal is dmabuf and no shm client had ever got a window up.
+
+`Task.client_buffer` carries it alongside `Task.image`, because nearly everything
+about the two kinds differs from that point on.
+
+#### shm is a copy, dmabuf is not, and everything follows from that
+
+A dmabuf is sampled zero-copy out of the client's own memory. An shm buffer is a
+mapping of the client's memory, so it needs a real copy onto the GPU — and it
+needs one **again every time the client redraws**. A client that draws into a
+buffer it has already attached commits without attaching, which is why
+`surface_commit()` is not empty: it sets `needs_upload`.
+
+**The copy runs on the render thread, out of `end_frame()`.**
+`pe_vk_end_single_time_cmd()` submits to `vk_queue` and waits on it, and a
+`VkQueue` is not something two threads may touch at once — doing the copy where
+the commit arrives would have the compositor thread submitting alongside the
+render loop. `end_frame()` is the one point in the frame where the queue is idle
+and nothing is recording. The cost is that shm pixels land in the *next* frame:
+one frame of latency dmabuf does not pay.
+
+Details in `shared_memory_upload()` that are easy to get wrong:
+
+- The image is created **lazily on the first upload**, not at `create_buffer`,
+  because creating it means a layout transition and that is a queue submit.
+  `can_draw` stays false until then, or the quad binds a `VK_NULL_HANDLE`.
+- Transitioned `UNDEFINED → TRANSFER_DST_OPTIMAL` **once** and left there —
+  pengine samples its own textures in that layout too — so every later upload is
+  a copy and nothing else.
+- The staging buffer is allocated **once per `wl_buffer` and rewritten**, with the
+  rows packed straight into the mapped memory. A window this size is 8 MB and a
+  `vkAllocateMemory` per frame costs more than the copy.
+- `vkCmdCopyBufferToImage` is told nothing about the client's stride, so removing
+  the row padding is what the staging copy is *for*.
+- The image view is built by hand rather than with `pe_vk_create_image_view()`,
+  which has no way to say it: XRGB8888 leaves the fourth byte undefined, so
+  without `VK_COMPONENT_SWIZZLE_ONE` the quad blends with whatever the toolkit
+  left there. `pe_vk_import_image()` answers it the same way.
+- An shm image is destroyed through a **retire list drained in `end_frame()`**,
+  because the client can destroy a buffer while the render thread is recording
+  with its image.
+
+Three more things `shared_memory.c` used to get wrong, all worth not
+reintroducing: `wl_shm.format` was never sent at all (`wl_display_add_shm_format()`
+feeds libwayland's *own* shm implementation, the one `wl_display_init_shm()`
+creates, which swordfish does not use — the events go out on bind now, since a
+client that binds later would hear nothing); destroying a pool munmapped and
+freed it without destroying the resource, so the next request read freed memory,
+and the protocol says the mapping outlives the pool until the last buffer cut
+from it is gone (reference counted now); and the pool's fd was never closed.
 
 Teardown belongs in `destroy_surface()` — the resource destructor, which holds `draw_tasks_mutex` — not in the `wl_surface.destroy` handler, which runs before the `Task` leaves `tasks_for_draw` and so can free a Vulkan image the render thread is still sampling. `task->image` is also **NULL until the first attach**, and `pe_vk_clean_image()` reads straight through the pointer: a client that creates a surface and destroys it without ever drawing used to segfault the compositor. That function destroys the **view before the image** — the other order is a validation error, since an image cannot go while a view of it exists.
 
-`wl_buffer.release` is owed on a buffer **when a newer one replaces it**, and
-not one frame before. This is the part that is easy to get wrong twice over.
+#### When `wl_buffer.release` is owed
+
+The two protocols answer this **in opposite ways**, and both answers matter.
+
+An shm buffer has been copied, so it goes back **immediately** —
+`task_upload_shared_memory()` releases the *current* buffer right after the copy.
+The compositor is reading its own image now, and holding it stalls the client for
+nothing. The `buffer_released` flag keeps `surface_attach()` from owing a release
+on it a second time.
+
+A dmabuf is owed release **when a newer one replaces it**, and not one frame
+before. This is the part that is easy to get wrong twice over.
 Sending it every frame is obviously wrong. But sending it once, the first frame
 the buffer is drawn, is wrong too, and it is the subtler bug: a dmabuf buffer is
 sampled zero-copy out of the client's own memory, and `draw_surface()` samples
@@ -386,9 +555,13 @@ then gone while the `Task` still points at it, so `surface_attach()` registers
 `handle_buffer_destroyed()` on each buffer to NULL `task->buffer_resource`. The
 buffer awaiting release needs its **own** listener (`old_buffer_destroy`),
 because `listen_to_buffer()` moves the first one onto the new buffer and the
-client can destroy the old one inside that one-frame gap. The `PTexture` and its
-Vulkan image still leak: freeing them would destroy an image the render thread
-may be recording with.
+client can destroy the old one inside that one-frame gap.
+
+On the **dmabuf** side the `PTexture` and its Vulkan image still leak, and the
+surface goes on sampling a `PTexture` the `wl_buffer` freed: destroying it where
+the request arrives would destroy an image the render thread is recording with.
+The shm side answers exactly that with its retire list, and the TODO in
+`handle_buffer_destroyed()` says the dma side wants the same treatment.
 
 ### Layer conventions
 
