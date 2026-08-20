@@ -56,6 +56,13 @@ typedef struct Task{
     //resource
     struct wl_listener buffer_destroy;
     bool listening_to_buffer;
+    //the buffer the client attached before the current one. release is owed on
+    //it, but the quad went on sampling it until the moment the new one arrived,
+    //so it cannot be sent until the gpu is finished with the frames that did -
+    //end_frame() is the first point where that is true
+    WResource *old_buffer_resource;
+    struct wl_listener old_buffer_destroy;
+    bool listening_to_old_buffer;
 }Task;
 
 void* run_compositor(void* none);

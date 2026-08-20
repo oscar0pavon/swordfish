@@ -17,5 +17,10 @@ void send_frame_callback_done(Task *surface);
 //out of everything that follows from being in it
 void mark_surface_as_cursor(Task *task);
 
+//hand back the buffer this surface stopped sampling when the client attached
+//the next one. only safe once the gpu has finished the frame that read it, so
+//end_frame() is what calls it
+void task_release_old_buffer(Task *surface);
+
 
 #endif

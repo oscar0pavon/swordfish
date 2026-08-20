@@ -97,6 +97,64 @@ static void listen_to_buffer(Task *surface, WResource *buffer_resource) {
   surface->listening_to_buffer = true;
 }
 
+//the buffer waiting to be handed back is a resource the client may destroy
+//before that happens, exactly like the current one
+static void handle_old_buffer_destroyed(struct wl_listener *listener,
+                                        void *data) {
+
+  Task *surface = wl_container_of(listener, surface, old_buffer_destroy);
+
+  pthread_mutex_lock(&draw_tasks_mutex);
+
+  wl_list_remove(&surface->old_buffer_destroy.link);
+  surface->listening_to_old_buffer = false;
+  surface->old_buffer_resource = NULL;
+
+  pthread_mutex_unlock(&draw_tasks_mutex);
+}
+
+static void stop_listening_to_old_buffer(Task *surface) {
+
+  if (!surface->listening_to_old_buffer)
+    return;
+
+  wl_list_remove(&surface->old_buffer_destroy.link);
+  surface->listening_to_old_buffer = false;
+}
+
+//record that the client is owed this buffer back, without sending it yet
+static void owe_release_on(Task *surface, WResource *buffer_resource) {
+
+  //a client that attaches twice inside one frame leaves two owed. the older of
+  //the two stopped being the sampled one when the second arrived, and the frame
+  //that read it has been through vkQueueWaitIdle by now, so it can go straight
+  //back
+  if (surface->old_buffer_resource) {
+    wl_buffer_send_release(surface->old_buffer_resource);
+    stop_listening_to_old_buffer(surface);
+  }
+
+  surface->old_buffer_resource = buffer_resource;
+
+  surface->old_buffer_destroy.notify = handle_old_buffer_destroyed;
+  wl_resource_add_destroy_listener(buffer_resource,
+                                   &surface->old_buffer_destroy);
+  surface->listening_to_old_buffer = true;
+}
+
+//called from end_frame() on the render thread, after pe_vk_draw_frame() has
+//drained the queue. the caller holds lock_wayland() and draw_tasks_mutex
+void task_release_old_buffer(Task *surface) {
+
+  if (!surface->old_buffer_resource)
+    return;
+
+  wl_buffer_send_release(surface->old_buffer_resource);
+
+  stop_listening_to_old_buffer(surface);
+  surface->old_buffer_resource = NULL;
+}
+
 //a cursor image is never drawn, so nothing in the render loop will ever
 //release its buffer. hand it straight back or the client waits for a buffer it
 //is never getting
@@ -132,6 +190,11 @@ void surface_attach(WClient *client, WResource *resource,
   if (!buffer_resource) {
     pthread_mutex_lock(&draw_tasks_mutex);
 
+    //unmapping does not excuse the compositor from handing the buffer back, and
+    //the surface stops being drawn here rather than when the release goes out
+    if (surface->buffer_resource && !surface->buffer_released)
+      owe_release_on(surface, surface->buffer_resource);
+
     stop_listening_to_buffer(surface);
     surface->buffer_resource = NULL;
     surface->can_draw = false;
@@ -144,6 +207,12 @@ void surface_attach(WClient *client, WResource *resource,
   }
 
   pthread_mutex_lock(&draw_tasks_mutex);
+
+  //the buffer being replaced is the one the quad has been sampling every frame
+  //since it arrived, so it is only now that the client can have it back - and
+  //not even now, because this frame may still be on the gpu
+  if (surface->buffer_resource && !surface->buffer_released)
+    owe_release_on(surface, surface->buffer_resource);
 
   surface->buffer_resource = buffer_resource;
 
@@ -285,6 +354,7 @@ static void destroy_surface(WResource *resource) {
   //the buffer can outlive the surface that attached it, and the listener lives
   //inside the Task that is about to be freed
   stop_listening_to_buffer(surface);
+  stop_listening_to_old_buffer(surface);
 
   //a surface destroyed before it ever attached a buffer has no image, and
   //pe_vk_clean_image() reads straight through the pointer. every client that

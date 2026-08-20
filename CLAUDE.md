@@ -362,14 +362,33 @@ A client surface becomes a `Task` (`compositor/compositor.h`): it owns the `wl_r
 
 Teardown belongs in `destroy_surface()` — the resource destructor, which holds `draw_tasks_mutex` — not in the `wl_surface.destroy` handler, which runs before the `Task` leaves `tasks_for_draw` and so can free a Vulkan image the render thread is still sampling. `task->image` is also **NULL until the first attach**, and `pe_vk_clean_image()` reads straight through the pointer: a client that creates a surface and destroys it without ever drawing used to segfault the compositor. That function destroys the **view before the image** — the other order is a validation error, since an image cannot go while a view of it exists.
 
-`wl_buffer.release` is owed **once per attached buffer**, not once per frame,
-and `task->buffer_released` is what keeps it to one. Sending it every frame
-tells the client the buffer currently being sampled is free to draw into, and —
-worse — the client is entitled to destroy a buffer it has been given back. The
-`wl_resource` is then gone while the `Task` still points at it, so
-`surface_attach()` registers `handle_buffer_destroyed()` on each buffer to NULL
-`task->buffer_resource`. The `PTexture` and its Vulkan image still leak there:
-freeing them would destroy an image the render thread may be recording with.
+`wl_buffer.release` is owed on a buffer **when a newer one replaces it**, and
+not one frame before. This is the part that is easy to get wrong twice over.
+Sending it every frame is obviously wrong. But sending it once, the first frame
+the buffer is drawn, is wrong too, and it is the subtler bug: a dmabuf buffer is
+sampled zero-copy out of the client's own memory, and `draw_surface()` samples
+that same `VkImage` again every frame until the client attaches another one. A
+release the first time it is drawn hands back a buffer that is still on screen.
+After a frame or two **every** buffer in the client's pool is marked free, mesa
+picks the visible one as its next render target, and the frame that lands
+mid-repaint shows the clear instead of the content — a flicker whenever the
+client redraws, which for a terminal means whenever a key is pressed.
+
+So `surface_attach()` calls `owe_release_on()` for the buffer being replaced and
+`end_frame()` pays it through `task_release_old_buffer()`. `end_frame()` is the
+earliest safe point: `pe_vk_draw_frame()` has already run its `vkQueueWaitIdle()`,
+so nothing on the GPU is still reading the old image. Releasing inside
+`surface_attach()` instead would be too early — attach can land between
+`draw_surfaces()` dropping the wayland lock and the queue submit.
+
+A client may destroy a buffer it has been given back, and the `wl_resource` is
+then gone while the `Task` still points at it, so `surface_attach()` registers
+`handle_buffer_destroyed()` on each buffer to NULL `task->buffer_resource`. The
+buffer awaiting release needs its **own** listener (`old_buffer_destroy`),
+because `listen_to_buffer()` moves the first one onto the new buffer and the
+client can destroy the old one inside that one-frame gap. The `PTexture` and its
+Vulkan image still leak: freeing them would destroy an image the render thread
+may be recording with.
 
 ### Layer conventions
 

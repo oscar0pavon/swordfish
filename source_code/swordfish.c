@@ -70,6 +70,11 @@ void end_frame() {
     Task *surface = array_get_pointer(&tasks_for_draw, i);
     if (surface->frame_call_resource != NULL)
       send_frame_callback_done(surface);
+
+    //pe_vk_draw_frame() ended in vkQueueWaitIdle(), so whatever this frame read
+    //has been read. any buffer the client replaced is genuinely finished with
+    //now, and this is the earliest point that is true
+    task_release_old_buffer(surface);
   }
 
 
@@ -91,13 +96,13 @@ void draw_surfaces(VkCommandBuffer *command, uint32_t index) {
     if (task->can_draw) {
       draw_surface(task, command, index);
 
-      //once per attached buffer. sending it every frame told the client the
-      //buffer being sampled was free to draw into, and the resource behind the
-      //pointer is gone the moment the client destroys the buffer
-      if (task->buffer_resource && !task->buffer_released) {
-        wl_buffer_send_release(task->buffer_resource);
-        task->buffer_released = true;
-      }
+      //no release goes out here. a dmabuf buffer is sampled straight out of the
+      //client's memory, and this quad goes on sampling this one every frame
+      //until the client attaches another - so telling the client it is free the
+      //first time it is drawn hands back a buffer that is still on screen. the
+      //client then picks it as its next render target and the frame that lands
+      //mid-repaint shows the clear rather than the content. task_release_old_buffer()
+      //in end_frame() is where it is answered instead
     }
   }
 
