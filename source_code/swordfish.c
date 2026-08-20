@@ -35,7 +35,6 @@
 #include <pthread.h>
 
 pthread_mutex_t draw_tasks_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t focus_task_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 bool can_draw_surfaces = true;
 

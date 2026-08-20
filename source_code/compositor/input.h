@@ -3,17 +3,12 @@
 
 
 #include "types.h"
+#include "tasks.h"
 
-//defined in compositor.h, which includes this header before it gets there
-struct Task;
 
-typedef struct TaskInput {
-  WClient *client;
-  WResource *resource;
-  WResource *keyboard_resource;
-  WResource *pointer_resource;
-  struct wl_list link;
-}TaskInput;
+extern pthread_mutex_t focus_task_mutex;
+extern bool focus_entered;
+extern Task *keyboard_focus;
 
 //milliseconds from CLOCK_MONOTONIC, the timebase every event timestamp the
 //compositor sends is in

@@ -7,7 +7,6 @@
 #include "dma.h"
 #include <engine/images.h>
 #include <engine/model.h>
-#include "input.h"
 
 #include "types.h"
 
@@ -32,61 +31,6 @@ typedef struct SwordfishCompositor{
     // libinput components
 }SwordfishCompositor;
 
-typedef struct Task{
-    WClient *client;
-    WResource *resource;
-    TaskInput* input;
-    SwordfishCompositor *compositor;
-    WResource * frame_call_resource;
-    WResource* buffer_resource;
-    PTexture *image;
-    PModel model;//quad vertices
-    struct wl_list link;
-    int32_t x,y;
-    bool can_draw;
-    //a cursor image the client handed to wl_pointer.set_cursor. it arrived as
-    //an ordinary surface and there is nothing to draw a cursor into yet, so it
-    //is kept out of the scene
-    bool is_cursor;
-    //release is owed once for each buffer the client attaches, not once per
-    //frame: a client told again that a buffer it has already taken back is free
-    //is entitled to draw into the one being sampled
-    bool buffer_released;
-    //the client is free to destroy a wl_buffer while the task still points at
-    //it, and wl_buffer_send_release() would write straight through the freed
-    //resource
-    struct wl_listener buffer_destroy;
-    bool listening_to_buffer;
-    //the buffer the client attached before the current one. release is owed on
-    //it, but the quad went on sampling it until the moment the new one arrived,
-    //so it cannot be sent until the gpu is finished with the frames that did -
-    //end_frame() is the first point where that is true
-    WResource *old_buffer_resource;
-    struct wl_listener old_buffer_destroy;
-    bool listening_to_old_buffer;
-    //the buffer behind image, and the only thing that says which protocol it
-    //came in on. an shm buffer has to be copied onto the gpu every commit and
-    //handed straight back; a dmabuf is sampled where it lies and released only
-    //when a newer one replaces it
-    ClientBuffer *client_buffer;
-    //the rectangle the layout gave this window, in the render target's own
-    //pixels: the space draw_surface() draws in and the space mouse.c reports
-    //the cursor in. nothing to do with x,y above, which is the attach offset.
-    //a zero width means the layout has not reached it yet and the quad falls
-    //back to its own buffer size
-    int32_t tile_x, tile_y, tile_width, tile_height;
-    //the toplevel this surface became a window through, NULL while it is only
-    //a wl_surface - a cursor image never gets one. what the layout counts, and
-    //what a close is sent on
-    struct TopLevel *top_level;
-    //the xdg_toplevel is a resource in its own right and dies on its own
-    //schedule: libwayland tears a disconnecting client's resources down in the
-    //order they were created, so the wl_surface goes first and the toplevel's
-    //destructor cannot reach back through it. the same shape as the wl_buffer
-    //listeners above, and for the same reason
-    struct wl_listener top_level_destroy;
-    bool listening_to_top_level;
-}Task;
 
 void* run_compositor(void* none);
 
@@ -101,7 +45,8 @@ void unlock_wayland(void);
 
 void finish_compositor();
 
-void focus_task(Task *task);
+
+uint32_t next_serial(void);
 
 extern bool is_focus_completed;
 extern bool is_opengl;

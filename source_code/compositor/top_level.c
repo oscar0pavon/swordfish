@@ -12,6 +12,7 @@
 #include <engine/array.h>
 #include "swordfish.h"
 #include <pthread.h>
+#include "input.h"
 
 void destroy_top_level(WClient *client, WResource *resource){
   printf("Destroy top level\n");

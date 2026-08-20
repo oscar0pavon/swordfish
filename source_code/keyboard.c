@@ -14,6 +14,7 @@
 #include <mman.h>
 #include <string.h>
 #include <unistd.h>
+#include "compositor/input.h"
 
 struct xkb_context *xkb_context;
 struct xkb_keymap *xkb_keymap;

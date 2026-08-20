@@ -57,6 +57,12 @@ SwordfishCompositor compositor;
 static pthread_mutex_t wayland_mutex =
     PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 
+//every event a client can correlate needs its own serial. a constant made all
+//of them look like the same event, which is why clients ignored the keys
+uint32_t next_serial(void){
+  return wl_display_next_serial(compositor.display);
+}
+
 void lock_wayland(void) {
   pthread_mutex_lock(&wayland_mutex);
 }
@@ -105,26 +111,6 @@ static void your_error_handler_func(void *data, const char *msg) {
     fprintf(stderr, "Wayland Error: %s\n", msg);
 }
 
-//a surface and the seat are separate objects, so the Task has to be matched up
-//with whichever TaskInput belongs to the same client before it can be sent a
-//key
-void focus_task(Task *task) {
-
-  if(!task)
-    return;
-
-  if(!task->input){
-    TaskInput *temp_input;
-    wl_list_for_each(temp_input, &compositor.tasks_input, link) {
-      if (temp_input->client == wl_resource_get_client(task->resource))
-        task->input = temp_input;
-    }
-  }
-
-  //cheap when nothing changed, and it is what finally sends wl_keyboard.enter
-  //once the client has got round to asking for a keyboard
-  set_keyboard_focus(task);
-}
 
 void* run_compositor(void* none) {
 

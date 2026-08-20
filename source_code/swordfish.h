@@ -11,9 +11,6 @@ extern bool finished_build;
 
 extern bool can_draw_surfaces;
 
-extern pthread_mutex_t draw_tasks_mutex;
-extern pthread_mutex_t focus_task_mutex;
-
 void clean_swordfish();
 
 void swordfish_init();

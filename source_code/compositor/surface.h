@@ -5,7 +5,8 @@
 
 #include <engine/array.h>
 
-extern Task *focused_task;
+#include "tasks.h"
+
 extern Array tasks_for_draw;
 
 void create_surface(WClient *client, WResource *resource,

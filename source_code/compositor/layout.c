@@ -10,6 +10,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include "tasks.h"
+#include "input.h"
+
 //the space between two windows, in render target pixels. the whole point of it
 //is that a tiled window has an edge - without one two terminals side by side
 //read as a single wider terminal
