@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "desktop.h"
+#include "output.h"
 #include "surface.h"
 #include <engine/array.h>
 #include "swordfish.h"
@@ -207,6 +208,13 @@ void get_top_level_implementation(WClient *client,
   focused_task = surface->surface;
   is_focus_completed = false;
   pthread_mutex_unlock(&focus_task_mutex);
+
+  //the surface is a window now, so it is on the output. sent here rather than
+  //in create_surface() for the same reason focus is: a bare wl_surface may be a
+  //cursor image, which is on no output. a client binds wl_output in the same
+  //registry pass it binds wl_compositor and xdg_wm_base in, so its output
+  //resource exists by the time it gets this far
+  output_send_surface_enter(surface->surface->resource);
 
   send_top_level_configure(top_level, 800, 600);
 

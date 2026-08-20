@@ -17,6 +17,7 @@
 #include "compositor/desktop-server.h"
 #include "compositor/desktop.h"
 #include "compositor/input.h"
+#include "compositor/output.h"
 #include "compositor/seat.h"
 #include "surface.h"
 #include "dma.h"
@@ -161,6 +162,8 @@ void* run_compositor(void* none) {
   init_dma();
 
   init_compositor_input();
+
+  init_output();
 
 
   const char *socket = wl_display_add_socket_auto(compositor.display);
