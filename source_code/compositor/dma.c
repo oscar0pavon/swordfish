@@ -15,6 +15,7 @@
 #include "compositor.h"
 
 #include <engine/renderer/vk_images.h>
+#include "client_buffer.h"
 #include "drm_format.h"
 
 #include <xf86drm.h>
@@ -133,14 +134,15 @@ void params_create(struct wl_client *client,
 
 
 void destroy_buffer_immd(WClient *client, WResource *resource){
-  
-  PTexture* image = wl_resource_get_user_data(resource);
-  
-  printf("#### Destroying image size %i %i %p\n",image->width, image->heigth, image);
 
-  pe_vk_clean_image(image);
+  ClientBuffer *buffer = wl_resource_get_user_data(resource);
 
-  free(image);
+  printf("#### Destroying image size %i %i %p\n", buffer->texture.width,
+         buffer->texture.heigth, buffer);
+
+  pe_vk_clean_image(&buffer->texture);
+
+  free(buffer);
 
   wl_resource_destroy(resource);
 
@@ -191,10 +193,13 @@ static void create_immediate(WClient *client,
          (unsigned long)buffer->modifiers[0], buffer->num_planes,
          buffer->strides[0], buffer->offsets[0]);
 
-  PTexture *new_image = calloc(1,sizeof(PTexture));
+  //the same struct shared_memory.c makes, tagged so surface_attach() can tell
+  //a zero-copy import from a buffer it has to upload itself
+  ClientBuffer *new_buffer = calloc(1, sizeof(ClientBuffer));
 
-  new_image->width = width;
-  new_image->heigth = height;
+  new_buffer->type = CLIENT_BUFFER_DMA;
+  new_buffer->texture.width = width;
+  new_buffer->texture.heigth = height;
 
   WResource* buffer_resource = 
     wl_resource_create(client, &wl_buffer_interface, 1, buffer_id);
@@ -217,15 +222,15 @@ static void create_immediate(WClient *client,
     import.strides[i] = buffer->strides[i];
   }
 
-  if (!pe_vk_import_image(new_image, &import)) {
-    free(new_image);
+  if (!pe_vk_import_image(&new_buffer->texture, &import)) {
+    free(new_buffer);
     wl_resource_post_error(resource,
                            ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_DIMENSIONS,
                            "could not import buffer");
     return;
   }
 
-  wl_resource_set_user_data(buffer_resource, new_image);
+  wl_resource_set_user_data(buffer_resource, new_buffer);
 
   //finish
   for (int i = 0; i < buffer->num_planes; i++) {

@@ -4,6 +4,7 @@
 #include "processes.h"
 #include "system_monitor.h"
 #include "compositor/compositor.h"
+#include "compositor/shared_memory.h"
 #include "compositor/surface.h"
 #include <engine/array.h>
 #include <engine/model.h>
@@ -66,10 +67,21 @@ void end_frame() {
   lock_wayland();
   pthread_mutex_lock(&draw_tasks_mutex);
 
+  //shm images whose wl_buffer the client destroyed while a frame was being
+  //recorded with them. the queue is idle here, so nothing is reading them
+  shared_memory_collect_textures();
+
   for (int i = 0; i < tasks_for_draw.count; i++) {
     Task *surface = array_get_pointer(&tasks_for_draw, i);
     if (surface->frame_call_resource != NULL)
       send_frame_callback_done(surface);
+
+    //an shm client's pixels are only its own memory until they are copied, and
+    //the copy is a queue submit - this is the one point in the frame where the
+    //render thread owns the queue and the gpu is idle. it lands in the next
+    //frame rather than this one, which is a frame of latency shm pays and
+    //dmabuf does not
+    task_upload_shared_memory(surface);
 
     //pe_vk_draw_frame() ended in vkQueueWaitIdle(), so whatever this frame read
     //has been read. any buffer the client replaced is genuinely finished with

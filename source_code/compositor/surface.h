@@ -22,5 +22,10 @@ void mark_surface_as_cursor(Task *task);
 //end_frame() is what calls it
 void task_release_old_buffer(Task *surface);
 
+//copy an shm client's pixels onto the gpu, if it has drawn since the last time.
+//submits to the queue, so it belongs on the render thread and nowhere else -
+//end_frame() again, for the same reason
+void task_upload_shared_memory(Task *surface);
+
 
 #endif

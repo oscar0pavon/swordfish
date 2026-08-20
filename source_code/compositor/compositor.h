@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <libseat.h>
+#include "client_buffer.h"
 #include "dma.h"
 #include <engine/images.h>
 #include <engine/model.h>
@@ -63,6 +64,11 @@ typedef struct Task{
     WResource *old_buffer_resource;
     struct wl_listener old_buffer_destroy;
     bool listening_to_old_buffer;
+    //the buffer behind image, and the only thing that says which protocol it
+    //came in on. an shm buffer has to be copied onto the gpu every commit and
+    //handed straight back; a dmabuf is sampled where it lies and released only
+    //when a newer one replaces it
+    ClientBuffer *client_buffer;
 }Task;
 
 void* run_compositor(void* none);

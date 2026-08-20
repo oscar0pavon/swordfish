@@ -18,6 +18,7 @@
 #include "swordfish.h"
 #include <engine/renderer/vk_images.h>
 #include "input.h"
+#include "shared_memory.h"
 #include <pthread.h>
 
 Array tasks_for_draw;
@@ -73,9 +74,25 @@ static void handle_buffer_destroyed(struct wl_listener *listener, void *data) {
   surface->listening_to_buffer = false;
   surface->buffer_resource = NULL;
 
-  //TODO the PTexture and its vulkan image outlive the wl_buffer that owned
-  //them. freeing them here would destroy an image the render thread is still
-  //recording with, so for now the surface keeps sampling what it has
+  //the ClientBuffer is freed with the resource, and the upload path would read
+  //it on the next frame
+  ClientBuffer *buffer = surface->client_buffer;
+  surface->client_buffer = NULL;
+
+  //an shm image belongs to the buffer and is queued for destruction with it, so
+  //the quad has to stop sampling it now. a dmabuf keeps the behaviour it had:
+  //the surface goes on drawing what it has until something replaces it
+  //
+  //TODO which is still reading a PTexture the wl_buffer freed. destroying it
+  //where the request arrives would destroy an image the render thread is
+  //recording with - the shm side answers that with a retire list, and the dma
+  //side wants the same
+  if (buffer && buffer->type == CLIENT_BUFFER_SHARED_MEMORY) {
+    surface->can_draw = false;
+    surface->image = NULL;
+    array_remove_element(&tasks_for_draw, surface);
+  }
+
   pthread_mutex_unlock(&draw_tasks_mutex);
 }
 
@@ -230,24 +247,69 @@ void surface_attach(WClient *client, WResource *resource,
     return;
   }
 
-  PTexture *image_buffer = wl_resource_get_user_data(buffer_resource);
+  ClientBuffer *buffer = wl_resource_get_user_data(buffer_resource);
 
-  printf("Got image with %i %i\n", image_buffer->width, image_buffer->heigth);
-  surface->image = image_buffer;
-  memcpy(&surface->model.texture, image_buffer, sizeof(PTexture));
-
-  surface->can_draw = true;
+  printf("Got image with %i %i\n", buffer->texture.width,
+         buffer->texture.heigth);
 
   pthread_mutex_lock(&draw_tasks_mutex);
+
+  surface->client_buffer = buffer;
+  surface->image = &buffer->texture;
+  memcpy(&surface->model.texture, &buffer->texture, sizeof(PTexture));
+
+  //a dmabuf is already on the gpu. an shm buffer is a mapping of the client's
+  //own memory and there is nothing to sample until end_frame() has copied it,
+  //so the quad stays out of the picture until then rather than binding the
+  //VK_NULL_HANDLE the texture still holds
+  if (buffer->type == CLIENT_BUFFER_SHARED_MEMORY) {
+    buffer->needs_upload = true;
+    surface->can_draw = buffer->texture.image != VK_NULL_HANDLE;
+  } else {
+    surface->can_draw = true;
+  }
+
   array_add_pointer(&tasks_for_draw, surface);
 
   pthread_mutex_unlock(&draw_tasks_mutex);
-  
 
   surface->x = x;
   surface->y = y;
 
   printf("Surface attached\n");
+}
+
+//the copy, and the release that goes with it. called from end_frame() on the
+//render thread with lock_wayland() and draw_tasks_mutex held, which is the one
+//place where the queue is idle and nothing is recording
+void task_upload_shared_memory(Task *surface) {
+
+  ClientBuffer *buffer = surface->client_buffer;
+
+  if (!buffer || buffer->type != CLIENT_BUFFER_SHARED_MEMORY ||
+      !buffer->needs_upload)
+    return;
+
+  if (!shared_memory_upload(buffer)) {
+    surface->can_draw = false;
+    return;
+  }
+
+  //the image handle only appears on the first upload, so the quad's copy of the
+  //texture is stale exactly once
+  memcpy(&surface->model.texture, &buffer->texture, sizeof(PTexture));
+  surface->can_draw = true;
+
+  //an shm buffer is handed back as soon as it has been copied, and it is the
+  //current one rather than the previous one: the compositor is sampling its own
+  //image now, not the client's memory, so the client is free to draw into it
+  //again. this is the whole difference from the dmabuf path, where the quad
+  //goes on reading the client's pages every frame and the release has to wait
+  //for a newer buffer to replace this one
+  if (surface->buffer_resource && !surface->buffer_released) {
+    wl_buffer_send_release(surface->buffer_resource);
+    surface->buffer_released = true;
+  }
 }
 
 
@@ -256,8 +318,17 @@ void surface_commit(WClient *client, WResource *resource) {
 
   Task *surface = wl_resource_get_user_data(resource);
 
+  //a client that redraws into a buffer it has already attached commits without
+  //attaching again, and an shm buffer is a copy - nothing the client writes
+  //reaches the gpu until end_frame() copies it a second time. a dmabuf needs
+  //nothing here, because the quad is reading the client's pages directly
+  pthread_mutex_lock(&draw_tasks_mutex);
 
+  if (surface->client_buffer &&
+      surface->client_buffer->type == CLIENT_BUFFER_SHARED_MEMORY)
+    surface->client_buffer->needs_upload = true;
 
+  pthread_mutex_unlock(&draw_tasks_mutex);
 
   printf("Surface committed! Ready to draw.\n");
 }
@@ -359,8 +430,12 @@ static void destroy_surface(WResource *resource) {
   //a surface destroyed before it ever attached a buffer has no image, and
   //pe_vk_clean_image() reads straight through the pointer. every client that
   //shuts down cleanly without drawing came through here and took the
-  //compositor with it
-  if (surface->image)
+  //compositor with it.
+  //
+  //an shm image is the ClientBuffer's, not the surface's - the buffer usually
+  //outlives the window it was last drawn into, and retires its image itself
+  if (surface->image && surface->client_buffer &&
+      surface->client_buffer->type == CLIENT_BUFFER_DMA)
     pe_vk_clean_image(surface->image);
 
   free(surface);
