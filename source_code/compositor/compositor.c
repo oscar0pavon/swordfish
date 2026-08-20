@@ -16,6 +16,7 @@
 #include <wayland-util.h>
 #include "compositor/desktop-server.h"
 #include "compositor/desktop.h"
+#include "compositor/data_device.h"
 #include "compositor/input.h"
 #include "compositor/output.h"
 #include "compositor/seat.h"
@@ -164,6 +165,10 @@ void* run_compositor(void* none) {
   init_compositor_input();
 
   init_output();
+
+  //GDK will not build a seat until this global exists, so a GTK client hangs
+  //in its registry roundtrip with no keyboard and no pointer without it
+  init_data_device();
 
 
   const char *socket = wl_display_add_socket_auto(compositor.display);

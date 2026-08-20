@@ -8,6 +8,7 @@
 #include <wayland-server-protocol.h>
 #include <wayland-server-core.h>
 #include "../keyboard.h"
+#include "data_device.h"
 #include "surface.h"
 #include <libinput.h>
 #include <time.h>
@@ -119,7 +120,21 @@ static void send_keyboard_enter(void){
   //the client's idea of shift and ctrl starts empty, so tell it straight away
   send_wayland_modifiers();
 
+  //the clipboard follows the keyboard: a wl_data_offer belongs to one client,
+  //so whatever is on the selection has to be offered again to this one
+  data_device_offer_selection(wl_resource_get_client(keyboard_focus->resource));
+
   printf("Keyboard focus entered\n");
+}
+
+//the client holding the keyboard, which is who the selection is offered to.
+//NULL until some window has actually been entered
+WClient *keyboard_focus_client(void){
+
+  if(!keyboard_focus || !focus_entered)
+    return NULL;
+
+  return wl_resource_get_client(keyboard_focus->resource);
 }
 
 void set_keyboard_focus(Task *task){

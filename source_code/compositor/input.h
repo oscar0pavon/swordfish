@@ -42,6 +42,10 @@ void send_wayland_pointer_axis(double value);
 //called with focus_task_mutex held - focus_task() is its only caller
 void set_keyboard_focus(struct Task *task);
 
+//the client holding the keyboard, or NULL if no window has been entered yet.
+//the selection goes to whoever this is
+WClient *keyboard_focus_client(void);
+
 //called before a Task or a TaskInput is freed, so nothing keeps a pointer to it
 void forget_task(struct Task *task);
 void forget_task_input(TaskInput *input);
