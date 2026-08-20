@@ -117,7 +117,7 @@ the *compositor's* — every client that calls `wl_seat.get_keyboard` is sent it
 so it cannot live behind the libinput branch that the pway path returns before
 reaching, or serving a client dereferences a NULL `xkb_keymap`.
 
-`draw_tasks_mutex` and `focus_task_mutex` (`swordfish.c`) guard the `tasks_for_draw` array shared between the compositor thread and the render loop. Anything touching client surfaces from the render side must take `draw_tasks_mutex`.
+`draw_tasks_mutex` and `focus_task_mutex` (`swordfish.c`) guard the `tasks_for_draw` array shared between the compositor thread and the render loop. Anything touching client surfaces from the render side must take `draw_tasks_mutex`. It also covers the tile rectangles the layout writes, since the render thread reads those in `draw_surface()`.
 
 #### Sending to a client is single-threaded — `lock_wayland()`
 
@@ -302,7 +302,15 @@ title, app id and size limits and no-ops the rest; `set_maximized`,
 with a configure even though swordfish declines them, because a client blocks
 waiting for that configure before it will draw again. `reconfigure()` sends the
 size the client already has and an empty state array, which is the protocol's
-way of saying no.
+way of saying no — and since the layout is what keeps `TopLevel.width/height`
+up to date, that is automatically the window's own tile rather than a stale
+guess. A tiled window is already the only size it is going to get, so declining
+is the honest answer to all four.
+
+The **initial** configure comes out of `layout_apply()` too, not from
+`get_top_level_implementation()` itself. It is the only configure a client gets
+before it is allowed to draw, so the layout has to have run by the time that
+function returns.
 
 Configure serials come from `wl_display_next_serial()` and are stored in
 `DesktopSurface.pending_serial`, so `do_desktop_ack()` can tell a real ack from
@@ -314,6 +322,70 @@ draw a popup into, so `create_popup()` creates the resource and immediately
 sends `xdg_popup.popup_done`. That is the only one of the three options that
 leaves the client alive: a protocol error kills it, and silence hangs a client
 that took a grab.
+
+### The tiling layout (`compositor/layout.c`)
+
+The window manager half, and deliberately **policy only**: it writes a rectangle
+onto every `Task` and `draw_surface()` puts the quad where it says. Nothing in
+it touches the GPU, which is what lets it run on the compositor thread where the
+requests arrive.
+
+The layout is a **spiral**. Each window takes half of what is left and the split
+direction cycles right, down, left, up, so the free area winds inward — the
+oldest window keeps the biggest cell and a new one always appears beside the one
+before it. `LAYOUT_SPIRAL 0` switches it to dwindle, where the free area only
+ever walks toward the bottom right. The arithmetic is worth checking against a
+pixel-counting harness when it changes: at one through seven windows the cells
+must cover the output exactly, with no overlap and no hole. `LAYOUT_GAP` is the
+space *between* two windows; every cell gives up half of it on each side and the
+output starts out short of the same half, so the margin at the screen edge comes
+out the same width as the gap between neighbours.
+
+**There is no window list of its own.** `compositor.surfaces` already holds every
+`Task` with lifetimes that are known to be right, so the layout walks that and
+skips whatever is not a window. A second list would be another thing to keep in
+step with client teardown, and teardown is where this file's bugs live. Surfaces
+are inserted at the **head** in `create_surface()`, so the walk is
+`wl_list_for_each_reverse` to get map order.
+
+A window is only sent a configure when its size actually **changed** — a
+relayout that reaches every client on every map would have all of them repaint
+for nothing.
+
+`Task.top_level` is what says a surface is a window rather than a cursor image
+or a bare `wl_surface`, and it is what a close is sent on. **That pointer needs
+a destroy listener**, exactly like the `wl_buffer` ones beside it. Having the
+toplevel's destructor clear it the other way round — through
+`top_level->surface->surface` — killed the compositor every time a window
+closed: libwayland tears a disconnecting client's resources down in the order
+they were **created**, so the `wl_surface` and its `Task` are already freed by
+the time the `xdg_toplevel` destructor runs. `handle_top_level_destroyed()` and
+`task_stop_listening_to_top_level()` are the two halves, so whichever object
+dies first lets go of the other.
+
+`Task.tile_*` is written under `draw_tasks_mutex` because `draw_surface()` reads
+it on the render thread, and the configures go out under `lock_wayland()` — the
+outer of the two, as everywhere else. `layout_focus_next()` and
+`layout_close_focused()` run on the **input** thread and take `lock_wayland()`
+then `focus_task_mutex`, the order `handle_focus()` takes them in. Focus cycling
+only stores a different `Task` in `focused_task`; `handle_focus()` on the render
+thread already turns that into `wl_keyboard.leave`, `enter` and a fresh
+clipboard offer. The close has to `wl_display_flush_clients()` by hand, since
+the input thread is not the one pumping the event loop.
+
+Shortcuts live in `handle_swordfish_key()` (`keyboard.c`) with the rest:
+**super+j / super+k** cycle the focus, **super+c** closes the focused window —
+`q` is already the compositor's own exit. `xdg_toplevel.close` is a *request*; a
+client with unsaved work may put up a dialog and stay.
+
+An **unmap** (`surface_attach()` with a NULL buffer) keeps its cell rather than
+reflowing. Reflowing there costs the window its place to whoever is behind it
+and hands it a different one when it maps again, which is worse until the layout
+keeps a stable order of its own — the `//TODO` says so rather than leaving it
+looking like an oversight.
+
+`move`, `resize` and `show_window_menu` stay no-ops: a tiled window's size is
+not the client's to ask for.
 
 ### The output (`compositor/output.c`)
 
@@ -391,19 +463,30 @@ events on the DRM one. `compositor/input.c` turns a cursor position into
 
 Three things about that are easy to get wrong. The host reports the cursor in
 the **window's** pixels and swordfish renders at a fixed `WINDOW_WIDTH`
-×`WINDOW_HEIGHT` that a tiled window is only scaled into, so the position has
-to be scaled the same way the image is or the cursor lands somewhere other than
-where the user is pointing. pway hands over which of *its* buttons moved rather
+×`WINDOW_HEIGHT` that the host's own window is only scaled into, so the position
+has to be scaled the same way the image is or the cursor lands somewhere other
+than where the user is pointing. (That is the *outer* scale, swordfish inside
+the host compositor's window. The layout adds an inner one — see below.) pway hands over which of *its* buttons moved rather
 than an evdev code, and labels the wheel by the opposite sign convention from
 the protocol's, so `pway_window_click_release()` translates both. And libinput
 sends the deprecated `LIBINPUT_EVENT_POINTER_AXIS` **as well as** the typed
 `..._SCROLL_WHEEL`/`_FINGER`/`_CONTINUOUS` events, so handling both counts every
 scroll twice.
 
-`pointer_hit_task()` is the whole hit test: every client quad is drawn in screen
-space at the top left corner by `draw_surface()`, so it is the focused task's
-own rectangle. When the quads move into the 3D world this becomes a ray cast and
-it is the only thing that has to change.
+`pointer_hit_task()` is the whole hit test: it walks `compositor.surfaces` and
+takes the first window whose **tile** the cursor is inside. Order does not
+matter while the cells cannot overlap. It skips anything without a
+`top_level` — a cursor image or a surface still on its way to being a window
+would otherwise take the pointer over the whole rectangle it would be drawn at.
+When the quads move into the 3D world this becomes a ray cast, and it is still
+the only thing that has to change.
+
+The **second scale** lives here. `draw_surface()` stretches a client's buffer
+into its tile, so the buffer is not the size of the rectangle on screen and
+`pointer_inside()` has to divide the position back into buffer coordinates —
+a client told the cursor is at the tile's own coordinates draws its cursor
+somewhere other than where the user is pointing, which is the same bug as the
+outer scale one level up.
 
 A client's **cursor image is a surface like any other** — it comes through
 `wl_compositor.create_surface` and would otherwise be drawn as a full quad in
@@ -455,7 +538,7 @@ AMD DCC modifier rather than linear.
 
 ### Wayland client → 3D quad
 
-A client surface becomes a `Task` (`compositor/compositor.h`): it owns the `wl_resource`, the client's buffer, a `PTexture`, and a `PModel` quad. `Task`s live in the `tasks_for_draw` array; each frame `draw_surfaces()` draws them and `end_frame()` sends the frame callbacks (`send_frame_callback_done`), uploads shm pixels, pays owed releases, and then `wl_display_flush_clients`.
+A client surface becomes a `Task` (`compositor/compositor.h`): it owns the `wl_resource`, the client's buffer, a `PTexture`, and a `PModel` quad — plus, once the client gives it a toplevel role, the tile the layout put it in and a listener-backed pointer to its `TopLevel`. `Task`s live in the `tasks_for_draw` array; each frame `draw_surfaces()` draws them and `end_frame()` sends the frame callbacks (`send_frame_callback_done`), uploads shm pixels, pays owed releases, and then `wl_display_flush_clients`.
 
 #### Both buffer protocols make the same struct
 
@@ -567,7 +650,11 @@ The shm side answers exactly that with its retire list, and the TODO in
 
 - **`renderer/`** (in pengine) — thin Vulkan wrapper, everything prefixed `pe_vk_`. `pe_vk_init()` in `renderer/vulkan.c` is the authoritative, order-sensitive init sequence; `pe_vk_end()` is its mirror.
 - **`engine/`** (in pengine) — reusable engine (hence the `pe_` prefix): custom allocator, `Array` container, glTF/PNG loading, camera, 2D/text.
-- **`compositor/`** — Wayland server implementation.
+- **`compositor/`** — Wayland server implementation, plus the one piece of
+  window-manager *policy* (`layout.c`): which window gets which piece of the
+  output. It is in here rather than at the top level because it is written
+  against `Task` and `TopLevel` and sends configures, not because it draws
+  anything.
 - Top-level `*.c` — app glue: the pway window (`window.c`), input, keyboard/xkb, child-process build invocation (`build.c`), the scene (`swordfish.c`), the directory city (`city.c`), the process ring (`processes.c`), the CPU monitor (`system_monitor.c`), and the 2D overlay (`hud.c`).
 
 ### Memory

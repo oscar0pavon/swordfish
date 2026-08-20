@@ -74,10 +74,10 @@ void top_level_close(TopLevel *top_level){
   xdg_toplevel_send_close(top_level->resource);
 }
 
-//swordfish draws every client at the size it already has, so a request to
-//change state is answered with a configure carrying the current size and no
-//states - "declined". leaving it unanswered is what hangs a client: it waits
-//for the configure before it will draw anything again
+//a tiled window is already the only size it is going to get, so a request to
+//change state is answered with a configure carrying the size the layout gave
+//it and no states - "declined". leaving it unanswered is what hangs a client:
+//it waits for the configure before it will draw anything again
 static void reconfigure(WResource *resource){
   TopLevel *top_level = wl_resource_get_user_data(resource);
   send_top_level_configure(top_level, top_level->width, top_level->height);
@@ -123,9 +123,10 @@ static void set_parent(WClient *client, WResource *resource,
                        WResource *parent){}
 
 //the three requests a client makes on behalf of the pointer. the seat does
-//advertise one now, so these do arrive - and there is nothing to do with them
-//while every window is a quad drawn at the same place: a move or a resize
-//needs a window position and a swapchain that can change size
+//advertise one now, so these do arrive - and a tiled window's position and
+//size are not the client's to ask for. dragging one somewhere else would mean
+//a layout that remembers a window was pulled out of the tiling, which is a
+//floating layer and does not exist
 static void show_window_menu(WClient *client, WResource *resource,
                              WResource *seat, uint32_t serial, int32_t x,
                              int32_t y){}
