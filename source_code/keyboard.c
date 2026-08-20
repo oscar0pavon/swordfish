@@ -3,6 +3,7 @@
 #include "keyboard.h"
 #include "build.h"
 #include "compositor/compositor.h"
+#include "compositor/layout.h"
 #include "input.h"
 #include "swordfish.h"
 #include <complex.h>
@@ -104,6 +105,16 @@ static bool handle_swordfish_key(uint32_t unicode) {
     //must not block: this runs on the input thread, and in the pway path that
     //thread is also what pumps the window
     launch_program("/usr/bin/firefox");
+    return true;
+  case 'j':
+    layout_focus_next(1);
+    return true;
+  case 'k':
+    layout_focus_next(-1);
+    return true;
+  case 'c':
+    //the focused window, not the compositor - q below is what closes that
+    layout_close_focused();
     return true;
   case 'q':
     printf("Closing from keyboard\n");

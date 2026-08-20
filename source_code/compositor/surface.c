@@ -18,7 +18,9 @@
 #include "swordfish.h"
 #include <engine/renderer/vk_images.h>
 #include "input.h"
+#include "layout.h"
 #include "shared_memory.h"
+#include "top_level.h"
 #include <pthread.h>
 
 Array tasks_for_draw;
@@ -219,6 +221,10 @@ void surface_attach(WClient *client, WResource *resource,
     array_remove_element(&tasks_for_draw, surface);
     pthread_mutex_unlock(&draw_tasks_mutex);
 
+    //TODO this is an unmap, and the window keeps its cell in the layout while
+    //it draws nothing. relayouting here means it loses its place to whoever is
+    //behind it and takes a different one when it maps again, which is worse
+    //until the layout keeps windows in a stable order of its own
     printf("Surface detached\n");
     return;
   }
@@ -427,6 +433,9 @@ static void destroy_surface(WResource *resource) {
   stop_listening_to_buffer(surface);
   stop_listening_to_old_buffer(surface);
 
+  //so can the xdg_toplevel, whenever the client destroys the surface first
+  task_stop_listening_to_top_level(surface);
+
   //a surface destroyed before it ever attached a buffer has no image, and
   //pe_vk_clean_image() reads straight through the pointer. every client that
   //shuts down cleanly without drawing came through here and took the
@@ -441,6 +450,10 @@ static void destroy_surface(WResource *resource) {
   free(surface);
 
   pthread_mutex_unlock(&draw_tasks_mutex);
+
+  //one cell fewer to divide the output into. after the unlock, because
+  //layout_apply() takes draw_tasks_mutex itself to write the new rectangles
+  layout_apply();
 
   printf("Destroyed surface\n");
 }

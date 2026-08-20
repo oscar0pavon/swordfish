@@ -289,29 +289,75 @@ static void send_pointer_enter(void){
          pointer_local_y);
 }
 
-//which surface the cursor is over. every client quad is drawn in screen space
-//at the top left corner by draw_surface(), so this is the focused task's own
-//rectangle - task->x and task->y are the attach offset, not a position, and
-//nothing draws with them. once the quads move into the 3d world this becomes a
-//ray cast, and it is the only thing that has to change
+//is the cursor inside this window's cell, and where in the client's own buffer
+//does that land. the quad is stretched into the cell it was given, so the
+//buffer is not the same size as the rectangle on screen and the position has
+//to be scaled back - a client told the pointer is at the tile's coordinates
+//puts its cursor somewhere other than where the user is pointing
+static bool pointer_inside(Task *task){
+
+  int32_t x = task->tile_x;
+  int32_t y = task->tile_y;
+  int32_t width = task->tile_width;
+  int32_t height = task->tile_height;
+
+  //a surface the layout never reached is drawn at the corner at its own size
+  if(width == 0){
+    x = 0;
+    y = 0;
+    width = task->image->width;
+    height = task->image->heigth;
+  }
+
+  if(pointer_x < x || pointer_y < y)
+    return false;
+
+  if(pointer_x >= x + width || pointer_y >= y + height)
+    return false;
+
+  pointer_local_x = (pointer_x - x) * (double)task->image->width / width;
+  pointer_local_y = (pointer_y - y) * (double)task->image->heigth / height;
+
+  return true;
+}
+
+//which surface the cursor is over. every window has its own cell now, so this
+//walks them and takes the first one the cursor is inside - front to back,
+//which for a tiling layout is any order at all since the cells do not overlap.
+//once the quads move into the 3d world this becomes a ray cast, and it is the
+//only thing that has to change
 static Task *pointer_hit_task(void){
-
-  Task *task = focused_task;
-
-  //no buffer means no size to test against, and a cursor image is not a window
-  if(!task || !task->can_draw || task->is_cursor || !task->image)
-    return NULL;
 
   if(pointer_x < 0 || pointer_y < 0)
     return NULL;
 
-  if(pointer_x >= task->image->width || pointer_y >= task->image->heigth)
-    return NULL;
+  Task *task;
 
-  pointer_local_x = pointer_x;
-  pointer_local_y = pointer_y;
+  //the render thread walks the same tiles in draw_surface(). lock_wayland()
+  //and focus_task_mutex are both held by the caller, and this is the innermost
+  //of the three
+  pthread_mutex_lock(&draw_tasks_mutex);
 
-  return task;
+  Task *hit = NULL;
+
+  wl_list_for_each(task, &compositor.surfaces, link){
+
+    //no buffer means no size to test against, and only a surface the client
+    //made a toplevel out of has a cell to be inside - a cursor image or a
+    //surface still on its way to being a window would otherwise take the
+    //pointer over the whole rectangle it would be drawn at
+    if(!task->can_draw || !task->top_level || task->is_cursor || !task->image)
+      continue;
+
+    if(pointer_inside(task)){
+      hit = task;
+      break;
+    }
+  }
+
+  pthread_mutex_unlock(&draw_tasks_mutex);
+
+  return hit;
 }
 
 //must be called with focus_task_mutex held

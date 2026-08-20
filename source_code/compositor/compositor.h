@@ -69,6 +69,23 @@ typedef struct Task{
     //handed straight back; a dmabuf is sampled where it lies and released only
     //when a newer one replaces it
     ClientBuffer *client_buffer;
+    //the rectangle the layout gave this window, in the render target's own
+    //pixels: the space draw_surface() draws in and the space mouse.c reports
+    //the cursor in. nothing to do with x,y above, which is the attach offset.
+    //a zero width means the layout has not reached it yet and the quad falls
+    //back to its own buffer size
+    int32_t tile_x, tile_y, tile_width, tile_height;
+    //the toplevel this surface became a window through, NULL while it is only
+    //a wl_surface - a cursor image never gets one. what the layout counts, and
+    //what a close is sent on
+    struct TopLevel *top_level;
+    //the xdg_toplevel is a resource in its own right and dies on its own
+    //schedule: libwayland tears a disconnecting client's resources down in the
+    //order they were created, so the wl_surface goes first and the toplevel's
+    //destructor cannot reach back through it. the same shape as the wl_buffer
+    //listeners above, and for the same reason
+    struct wl_listener top_level_destroy;
+    bool listening_to_top_level;
 }Task;
 
 void* run_compositor(void* none);

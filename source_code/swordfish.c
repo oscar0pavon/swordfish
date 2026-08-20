@@ -45,7 +45,22 @@ bool finished_build = false;
 
 void draw_surface(Task* surface, VkCommandBuffer *cmd_buffer, uint32_t index){
 
-  pe_2d_draw(&surface->model, index, VEC2(0,0), VEC2(surface->image->width,surface->image->heigth));
+  //the cell the layout gave this window. the buffer is stretched into it
+  //rather than drawn at its own size, so the tiling has no hole in it during
+  //the frame or two between the configure and the client repainting at the new
+  //size. a surface the layout has not reached - one that never became a
+  //toplevel - keeps the old behaviour and is drawn at the corner
+  vec2 position = {surface->tile_x, surface->tile_y};
+  vec2 size = {surface->tile_width, surface->tile_height};
+
+  if (surface->tile_width == 0) {
+    position[0] = 0;
+    position[1] = 0;
+    size[0] = surface->image->width;
+    size[1] = surface->image->heigth;
+  }
+
+  pe_2d_draw(&surface->model, index, position, size);
 
   pe_vk_descriptor_with_image_update(&surface->model);//TODO
 

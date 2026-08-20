@@ -6,29 +6,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include "desktop.h"
+#include "layout.h"
 #include "output.h"
 #include "surface.h"
 #include <engine/array.h>
 #include "swordfish.h"
 #include <pthread.h>
-
-typedef struct TopLevel{
-  DesktopSurface *surface;
-  WResource *resource;
-  char *title;
-  char *app_id;
-  //what the client was last configured at, so a state request can be answered
-  //with the size it already has
-  int32_t width;
-  int32_t height;
-  //the client's own limits. recorded because the protocol calls them state,
-  //not because anything sizes a window from them yet
-  int32_t min_width;
-  int32_t min_height;
-  int32_t max_width;
-  int32_t max_height;
-}TopLevel;
-
 
 void destroy_top_level(WClient *client, WResource *resource){
   printf("Destroy top level\n");
@@ -82,6 +65,13 @@ void send_top_level_configure(TopLevel* toplevel, int width, int height){
 
   xdg_surface_send_configure(toplevel->surface->resource, serial);
 
+}
+
+//the protocol has no way to make a client go away - xdg_toplevel.close is a
+//request, and a client with unsaved work is entitled to answer it with a
+//dialog instead
+void top_level_close(TopLevel *top_level){
+  xdg_toplevel_send_close(top_level->resource);
 }
 
 //swordfish draws every client at the size it already has, so a request to
@@ -164,12 +154,47 @@ const struct xdg_toplevel_interface top_level_implementation = {
   .set_minimized = set_minimized
 };
 
+//the window is gone but its wl_surface may not be - a client is free to drop
+//the toplevel role and keep the surface. the task stops counting as a window
+//from here
+static void handle_top_level_destroyed(struct wl_listener *listener,
+                                       void *data){
+
+  Task *task = wl_container_of(listener, task, top_level_destroy);
+
+  task->top_level = NULL;
+  task->listening_to_top_level = false;
+
+  //re-inited rather than just removed, so task_stop_listening_to_top_level()
+  //can remove it again without walking a stale link
+  wl_list_remove(&task->top_level_destroy.link);
+  wl_list_init(&task->top_level_destroy.link);
+}
+
+void task_stop_listening_to_top_level(Task *task){
+
+  if(!task->listening_to_top_level)
+    return;
+
+  wl_list_remove(&task->top_level_destroy.link);
+  task->listening_to_top_level = false;
+}
+
 static void destroy_top_level_resource(WResource *resource){
   TopLevel *top_level = wl_resource_get_user_data(resource);
+
+  //nothing is reached back through here. the task's pointer to this toplevel
+  //is cleared by handle_top_level_destroyed(), which libwayland has already
+  //called - going the other way round dereferenced a wl_surface that a
+  //disconnecting client had taken with it, and killed the compositor every
+  //time a window closed
 
   free(top_level->title);
   free(top_level->app_id);
   free(top_level);
+
+  //one window fewer, so the survivors grow into what it had
+  layout_apply();
 
   printf("Destroyed top level\n");
 }
@@ -209,6 +234,15 @@ void get_top_level_implementation(WClient *client,
   is_focus_completed = false;
   pthread_mutex_unlock(&focus_task_mutex);
 
+  //this is the point where a wl_surface becomes a window, and so the point
+  //where it starts counting for the layout. the listener is what makes the
+  //pointer safe to keep: either side may be destroyed first
+  surface->surface->top_level = top_level;
+  surface->surface->top_level_destroy.notify = handle_top_level_destroyed;
+  wl_resource_add_destroy_listener(top_level->resource,
+                                   &surface->surface->top_level_destroy);
+  surface->surface->listening_to_top_level = true;
+
   //the surface is a window now, so it is on the output. sent here rather than
   //in create_surface() for the same reason focus is: a bare wl_surface may be a
   //cursor image, which is on no output. a client binds wl_output in the same
@@ -216,6 +250,10 @@ void get_top_level_implementation(WClient *client,
   //resource exists by the time it gets this far
   output_send_surface_enter(surface->surface->resource);
 
-  send_top_level_configure(top_level, 800, 600);
+  //the initial configure comes out of the layout like every other one: the new
+  //window is given a cell and everything already on screen is told to make
+  //room for it. this is the only configure a client gets before it may draw,
+  //so the layout has to run here and not on the first commit
+  layout_apply();
 
 }
