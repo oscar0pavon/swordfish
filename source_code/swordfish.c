@@ -1,5 +1,6 @@
 #include "swordfish.h"
 #include "city.h"
+#include "cursor.h"
 #include "hud.h"
 #include "processes.h"
 #include "system_monitor.h"
@@ -223,6 +224,11 @@ void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
 
   //flat overlay last, so the numbers sit over the scene
   hud_draw(&hud, cmd_buffer, index);
+
+  //and the pointer over that. no client has ever handed over a cursor image -
+  //set_cursor keeps the surface out of the draw list - so this arrow is the
+  //only pointer there is
+  cursor_draw(&cursor, cmd_buffer, index);
 }
 
 
@@ -231,6 +237,8 @@ void clean_swordfish(){
   system_monitor_clean(&system_monitor);
 
   hud_clean(&hud);
+
+  cursor_clean(&cursor);
 
   processes_clean(&processes);
 
@@ -265,6 +273,9 @@ void swordfish_init(){
   system_monitor_init(&system_monitor);
 
   hud_init(&hud);
+
+  //after pe_2d_init(), which is what fills in the ortho projection it copies
+  cursor_init(&cursor);
 
 
 
