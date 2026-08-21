@@ -5,8 +5,10 @@
 #include "processes.h"
 #include "system_monitor.h"
 #include "compositor/compositor.h"
+#include "compositor/retire.h"
 #include "compositor/shared_memory.h"
 #include "compositor/surface.h"
+#include <engine/renderer/sync.h>
 #include <engine/array.h>
 #include <engine/model.h>
 
@@ -82,9 +84,30 @@ void end_frame() {
   lock_wayland();
   pthread_mutex_lock(&draw_tasks_mutex);
 
-  //shm images whose wl_buffer the client destroyed while a frame was being
-  //recorded with them. the queue is idle here, so nothing is reading them
-  shared_memory_collect_textures();
+  //vulkan objects whose wl_buffer the client destroyed while a frame was
+  //still using them. retire.c counts frames in flight, so only what no frame
+  //can still be reading is destroyed here
+  retire_collect();
+
+  //an shm upload rewrites an image a frame in flight may still be sampling,
+  //and the single-time commands it is made of carry no barrier against that.
+  //pe_vk_draw_frame() used to end in vkQueueWaitIdle() and made every frame
+  //safe for free; now the wait is paid explicitly, and only on the frames
+  //where an shm client actually redrew
+  bool any_upload = false;
+  for (int i = 0; i < tasks_for_draw.count; i++) {
+    Task *surface = array_get_pointer(&tasks_for_draw, i);
+    if (surface->client_buffer &&
+        surface->client_buffer->type == CLIENT_BUFFER_SHARED_MEMORY &&
+        surface->client_buffer->needs_upload) {
+      any_upload = true;
+      break;
+    }
+  }
+
+  if (any_upload)
+    vkWaitForFences(vk_device, PE_VK_FRAMES_IN_FLIGHT, pe_vk_fence_in_flight,
+                    VK_TRUE, UINT64_MAX);
 
   for (int i = 0; i < tasks_for_draw.count; i++) {
     Task *surface = array_get_pointer(&tasks_for_draw, i);
@@ -92,15 +115,15 @@ void end_frame() {
       send_frame_callback_done(surface);
 
     //an shm client's pixels are only its own memory until they are copied, and
-    //the copy is a queue submit - this is the one point in the frame where the
-    //render thread owns the queue and the gpu is idle. it lands in the next
-    //frame rather than this one, which is a frame of latency shm pays and
-    //dmabuf does not
+    //the copy is a queue submit - end_frame() is the one point in the frame
+    //where the render thread owns the queue and is not recording. it lands in
+    //the next frame rather than this one, which is a frame of latency shm pays
+    //and dmabuf does not
     task_upload_shared_memory(surface);
 
-    //pe_vk_draw_frame() ended in vkQueueWaitIdle(), so whatever this frame read
-    //has been read. any buffer the client replaced is genuinely finished with
-    //now, and this is the earliest point that is true
+    //any buffer the client replaced goes back once the gpu is provably past
+    //the last frame that sampled it - task_release_old_buffer() counts the
+    //frames itself now that pe_vk_draw_frame() no longer drains the queue
     task_release_old_buffer(surface);
   }
 
@@ -188,7 +211,7 @@ static void swordfish_update_camera(void) {
   init_vec3(cosf(angle) * ORBIT_RADIUS, sinf(angle) * ORBIT_RADIUS,
             ORBIT_HEIGHT, main_camera.position);
 
-  pe_camera_look_at((Camera *)&main_camera, VEC3(0, 0, ORBIT_LOOK_Z));
+  pe_camera_look_at(&main_camera, VEC3(0, 0, ORBIT_LOOK_Z));
 }
 
 void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){

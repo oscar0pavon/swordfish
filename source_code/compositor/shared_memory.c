@@ -4,6 +4,7 @@
 #include "shared_memory.h"
 #include "compositor.h"
 #include "drm_format.h"
+#include "retire.h"
 #include <drm/drm_fourcc.h>
 #include <engine/array.h>
 #include <engine/renderer/vk_buffer.h>
@@ -36,20 +37,6 @@ typedef struct SharedMemoryPool {
   //buffers still alive, plus one for the pool resource itself while it lives
   int reference_count;
 } SharedMemoryPool;
-
-//what an shm buffer leaves behind on the gpu. the client is free to destroy a
-//buffer in the middle of a frame the render thread is recording, so none of it
-//can be destroyed where the request arrives
-typedef struct DeadTexture {
-  PTexture texture;
-  PBuffer staging;
-  bool has_staging;
-} DeadTexture;
-
-#define SHARED_MEMORY_MAX_DEAD_TEXTURES 64
-static DeadTexture dead_textures[SHARED_MEMORY_MAX_DEAD_TEXTURES];
-static int dead_texture_count;
-static pthread_mutex_t dead_textures_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void pool_reference(SharedMemoryPool *pool) { pool->reference_count++; }
 
@@ -194,46 +181,6 @@ bool shared_memory_upload(ClientBuffer *buffer) {
   return true;
 }
 
-//queued rather than destroyed: this runs on the compositor thread, and the
-//render thread may be recording a draw that samples this image right now
-static void retire_buffer_texture(ClientBuffer *buffer) {
-
-  if (buffer->texture.image == VK_NULL_HANDLE)
-    return;
-
-  pthread_mutex_lock(&dead_textures_mutex);
-
-  if (dead_texture_count < SHARED_MEMORY_MAX_DEAD_TEXTURES) {
-    DeadTexture *dead = &dead_textures[dead_texture_count++];
-    dead->texture = buffer->texture;
-    dead->staging = buffer->staging;
-    dead->has_staging = buffer->has_staging;
-  } else {
-    printf("Too many dead shared memory textures, leaking one\n");
-  }
-
-  pthread_mutex_unlock(&dead_textures_mutex);
-}
-
-void shared_memory_collect_textures(void) {
-
-  pthread_mutex_lock(&dead_textures_mutex);
-
-  for (int i = 0; i < dead_texture_count; i++) {
-    pe_vk_clean_image(&dead_textures[i].texture);
-
-    if (!dead_textures[i].has_staging)
-      continue;
-
-    vkDestroyBuffer(vk_device, dead_textures[i].staging.buffer, NULL);
-    vkFreeMemory(vk_device, dead_textures[i].staging.memory, NULL);
-  }
-
-  dead_texture_count = 0;
-
-  pthread_mutex_unlock(&dead_textures_mutex);
-}
-
 static void destroy_buffer(WClient *client, WResource *resource) {
   wl_resource_destroy(resource);
 }
@@ -244,7 +191,16 @@ static void destroy_buffer_function(WResource *resource) {
   if (!buffer)
     return;
 
-  retire_buffer_texture(buffer);
+  //queued rather than destroyed: this runs on the compositor thread, and the
+  //render thread may have this image in a frame that is still in flight. the
+  //retire list used to be this file's own and freed everything one frame
+  //later, which stopped being enough when pe_vk_draw_frame() stopped draining
+  //the queue - retire.c counts the frames instead, for shm and dma both
+  retire_texture(&buffer->texture);
+
+  if (buffer->has_staging)
+    retire_buffer(&buffer->staging);
+
   pool_unreference(buffer->pool);
 
   free(buffer);

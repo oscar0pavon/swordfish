@@ -17,6 +17,7 @@
 #include <engine/renderer/vk_images.h>
 #include "client_buffer.h"
 #include "drm_format.h"
+#include "retire.h"
 
 #include <xf86drm.h>
 
@@ -122,46 +123,57 @@ void params_add(WClient *client,
   printf("Added DMA buffer plane %u with FD %d\n", plane_idx, fd);
 }
 
-void params_create(struct wl_client *client,
-		       struct wl_resource *resource,
-		       int32_t width,
-		       int32_t height,
-		       uint32_t format,
-           uint32_t flags){
-
-  printf("params create\n");
-}
-
-
-void destroy_buffer_immd(WClient *client, WResource *resource){
-
-  ClientBuffer *buffer = wl_resource_get_user_data(resource);
-
-  printf("#### Destroying image size %i %i %p\n", buffer->texture.width,
-         buffer->texture.heigth, buffer);
-
-  pe_vk_clean_image(&buffer->texture);
-
-  free(buffer);
-
+static void buffer_destroy(WClient *client, WResource *resource) {
   wl_resource_destroy(resource);
-
-  printf("Destroyed buffer and image\n");
 }
 
 struct wl_buffer_interface buffer_implementation = {
-  .destroy = destroy_buffer_immd
+  .destroy = buffer_destroy
 };
 
+//the resource destructor rather than only the destroy request handler, so it
+//also runs when the client disconnects without asking - the request-only
+//version leaked every imported image a dying client left behind. the image
+//goes through the retire list, not pe_vk_clean_image(): this is the compositor
+//thread, and the render thread can have the image recorded into a frame that
+//is still in flight - destroying it where the request arrives is what the
+//validation layer reported as destroying a view still in use by a descriptor
+//set
+static void destroy_buffer_resource(WResource *resource) {
 
-static void create_immediate(WClient *client,
-                               WResource *resource,
-                               uint32_t buffer_id, 
-                               int32_t width, int32_t height,
-                               uint32_t format, uint32_t flags) {
+  ClientBuffer *buffer = wl_resource_get_user_data(resource);
 
+  if (!buffer)
+    return;
+
+  printf("#### Retiring image size %i %i %p\n", buffer->texture.width,
+         buffer->texture.heigth, buffer);
+
+  retire_texture(&buffer->texture);
+
+  free(buffer);
+}
+
+//the import shared by create_immed and create. on success the plane fds have
+//been consumed - plane 0 belongs to vulkan now, the rest are closed - and the
+//returned wl_buffer carries the ClientBuffer surface_attach() reads. on
+//failure the caller answers, because the two requests answer differently:
+//create_immed with a protocol error, create with the failed event
+static WResource *params_import(WClient *client, WResource *resource,
+                                uint32_t buffer_id, int32_t width,
+                                int32_t height, uint32_t format) {
 
   DMAParams *buffer = wl_resource_get_user_data(resource);
+
+  //a params object makes one buffer and is done - the protocol calls a second
+  //create on the same params ALREADY_USED
+  if (buffer->used) {
+    wl_resource_post_error(resource,
+                           ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_ALREADY_USED,
+                           "params already used to create a buffer");
+    return NULL;
+  }
+
   buffer->width = width;
   buffer->height = height;
   buffer->format = format;
@@ -177,14 +189,14 @@ static void create_immediate(WClient *client,
     wl_resource_post_error(resource,
                            ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT,
                            "unsupported format");
-    return;
+    return NULL;
   }
 
   if (buffer->num_planes == 0) {
     wl_resource_post_error(resource,
                            ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE,
                            "no planes added");
-    return;
+    return NULL;
   }
 
   printf("Creatig buffer with %i %i format %s modifier 0x%016lx planes %i "
@@ -200,12 +212,6 @@ static void create_immediate(WClient *client,
   new_buffer->type = CLIENT_BUFFER_DMA;
   new_buffer->texture.width = width;
   new_buffer->texture.heigth = height;
-
-  WResource* buffer_resource = 
-    wl_resource_create(client, &wl_buffer_interface, 1, buffer_id);
-
-  wl_resource_set_implementation(buffer_resource, &buffer_implementation, NULL,
-                                 NULL);
 
   PImageImportInfo import = {
       .width = width,
@@ -224,20 +230,77 @@ static void create_immediate(WClient *client,
 
   if (!pe_vk_import_image(&new_buffer->texture, &import)) {
     free(new_buffer);
-    wl_resource_post_error(resource,
-                           ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_DIMENSIONS,
-                           "could not import buffer");
+    //the fds are still the params' own: an import that did not happen consumed
+    //nothing, and destroy_params closes them
+    return NULL;
+  }
+
+  buffer->used = true;
+
+  //vulkan owns plane 0's fd from the moment the import succeeds - closing it
+  //here closed an fd the driver was still using, and destroy_params closed the
+  //same number a second time after that, onto whatever file it had been reused
+  //for by then. the extra planes were never handed to anyone, so they do close;
+  //everything is marked consumed so destroy_params has nothing left to touch
+  for (int i = 0; i < buffer->num_planes; i++) {
+    if (i > 0 && buffer->fds[i] != -1)
+      close(buffer->fds[i]);
+    buffer->fds[i] = -1;
+  }
+
+  //buffer_id 0 is the non-immediate path asking libwayland for a server
+  //allocated id, which is the object the created event announces
+  WResource *buffer_resource =
+      wl_resource_create(client, &wl_buffer_interface, 1, buffer_id);
+  if (!buffer_resource) {
+    retire_texture(&new_buffer->texture);
+    free(new_buffer);
+    wl_client_post_no_memory(client);
+    return NULL;
+  }
+
+  wl_resource_set_implementation(buffer_resource, &buffer_implementation,
+                                 new_buffer, destroy_buffer_resource);
+
+  return buffer_resource;
+}
+
+void params_create(struct wl_client *client,
+		       struct wl_resource *resource,
+		       int32_t width,
+		       int32_t height,
+		       uint32_t format,
+           uint32_t flags){
+
+  //the non-immediate path. it used to be a stub that printed and returned, so
+  //a client using it - the protocol's original form - waited forever for a
+  //created event that never came
+  WResource *buffer_resource =
+      params_import(client, resource, 0, width, height, format);
+
+  if (!buffer_resource) {
+    //also sent after a protocol error, where the client is already dead and
+    //one more event changes nothing
+    zwp_linux_buffer_params_v1_send_failed(resource);
     return;
   }
 
-  wl_resource_set_user_data(buffer_resource, new_buffer);
+  zwp_linux_buffer_params_v1_send_created(resource, buffer_resource);
+}
 
-  //finish
-  for (int i = 0; i < buffer->num_planes; i++) {
-    if (buffer->fds[i] != -1)
-      close(buffer->fds[i]);
+static void create_immediate(WClient *client,
+                               WResource *resource,
+                               uint32_t buffer_id,
+                               int32_t width, int32_t height,
+                               uint32_t format, uint32_t flags) {
+
+  if (!params_import(client, resource, buffer_id, width, height, format)) {
+    //a repeat if the parameter checks already posted a more specific one,
+    //which libwayland ignores; the import failure itself posts nothing
+    wl_resource_post_error(resource,
+                           ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_WL_BUFFER,
+                           "could not import buffer");
   }
-
 }
 
 static void destroy_params_resource(WClient *client, WResource *resource) {

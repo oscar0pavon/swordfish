@@ -45,6 +45,10 @@ typedef struct Task{
     WResource *old_buffer_resource;
     struct wl_listener old_buffer_destroy;
     bool listening_to_old_buffer;
+    //the retire frame counter at the moment the buffer was replaced, which is
+    //the last frame that can have sampled it. the release waits until the gpu
+    //is past that frame - see task_release_old_buffer()
+    uint64_t old_buffer_frame;
     //the buffer behind image, and the only thing that says which protocol it
     //came in on. an shm buffer has to be copied onto the gpu every commit and
     //handed straight back; a dmabuf is sampled where it lies and released only

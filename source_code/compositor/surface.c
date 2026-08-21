@@ -19,6 +19,7 @@
 #include <engine/renderer/vk_images.h>
 #include "input.h"
 #include "layout.h"
+#include "retire.h"
 #include "shared_memory.h"
 #include "top_level.h"
 #include <pthread.h>
@@ -81,15 +82,12 @@ static void handle_buffer_destroyed(struct wl_listener *listener, void *data) {
   ClientBuffer *buffer = surface->client_buffer;
   surface->client_buffer = NULL;
 
-  //an shm image belongs to the buffer and is queued for destruction with it, so
-  //the quad has to stop sampling it now. a dmabuf keeps the behaviour it had:
-  //the surface goes on drawing what it has until something replaces it
-  //
-  //TODO which is still reading a PTexture the wl_buffer freed. destroying it
-  //where the request arrives would destroy an image the render thread is
-  //recording with - the shm side answers that with a retire list, and the dma
-  //side wants the same
-  if (buffer && buffer->type == CLIENT_BUFFER_SHARED_MEMORY) {
+  //the image belongs to the wl_buffer and is queued for destruction with it -
+  //shm and dma alike go through the retire list now - so the quad has to stop
+  //sampling it, whichever protocol it came in on. the dma side used to keep
+  //drawing "what it had", which was a PTexture the buffer's destructor had
+  //already freed
+  if (buffer) {
     surface->can_draw = false;
     surface->image = NULL;
     array_remove_element(&tasks_for_draw, surface);
@@ -144,10 +142,10 @@ static void stop_listening_to_old_buffer(Task *surface) {
 //record that the client is owed this buffer back, without sending it yet
 static void owe_release_on(Task *surface, WResource *buffer_resource) {
 
-  //a client that attaches twice inside one frame leaves two owed. the older of
-  //the two stopped being the sampled one when the second arrived, and the frame
-  //that read it has been through vkQueueWaitIdle by now, so it can go straight
-  //back
+  //a client that attaches twice inside one frame leaves two owed, and there is
+  //only room to remember one. the older goes straight back - with frames in
+  //flight that can be a frame early, but a double attach means the client has
+  //already stopped caring what either buffer shows
   if (surface->old_buffer_resource) {
     wl_buffer_send_release(surface->old_buffer_resource);
     stop_listening_to_old_buffer(surface);
@@ -155,17 +153,31 @@ static void owe_release_on(Task *surface, WResource *buffer_resource) {
 
   surface->old_buffer_resource = buffer_resource;
 
+  //the frame being drawn while this lands is the last one that can have
+  //recorded a sample of the old buffer, and task_release_old_buffer() holds
+  //the release until the gpu is provably past it - pe_vk_draw_frame() keeps
+  //PE_VK_FRAMES_IN_FLIGHT frames going now and no longer drains the queue, so
+  //"the frame that read it is finished" became a counted condition
+  surface->old_buffer_frame = retire_frame_number();
+
   surface->old_buffer_destroy.notify = handle_old_buffer_destroyed;
   wl_resource_add_destroy_listener(buffer_resource,
                                    &surface->old_buffer_destroy);
   surface->listening_to_old_buffer = true;
 }
 
-//called from end_frame() on the render thread, after pe_vk_draw_frame() has
-//drained the queue. the caller holds lock_wayland() and draw_tasks_mutex
+//called from end_frame() on the render thread. the caller holds
+//lock_wayland() and draw_tasks_mutex
 void task_release_old_buffer(Task *surface) {
 
   if (!surface->old_buffer_resource)
+    return;
+
+  //not owed yet: a frame that sampled this buffer can still be on the gpu.
+  //releasing it there is the flicker bug all over again - the client takes the
+  //buffer as free, mesa picks it as the next render target, and the repaint
+  //shows the clear
+  if (!retire_frame_is_finished(surface->old_buffer_frame))
     return;
 
   wl_buffer_send_release(surface->old_buffer_resource);
@@ -436,16 +448,12 @@ static void destroy_surface(WResource *resource) {
   //so can the xdg_toplevel, whenever the client destroys the surface first
   task_stop_listening_to_top_level(surface);
 
-  //a surface destroyed before it ever attached a buffer has no image, and
-  //pe_vk_clean_image() reads straight through the pointer. every client that
-  //shuts down cleanly without drawing came through here and took the
-  //compositor with it.
-  //
-  //an shm image is the ClientBuffer's, not the surface's - the buffer usually
-  //outlives the window it was last drawn into, and retires its image itself
-  if (surface->image && surface->client_buffer &&
-      surface->client_buffer->type == CLIENT_BUFFER_DMA)
-    pe_vk_clean_image(surface->image);
+  //the image is the ClientBuffer's, not the surface's - shm and dma alike.
+  //the buffer usually outlives the window it was last drawn into, and its
+  //resource destructor retires the image when the client finally lets go of
+  //it. cleaning the dma image here destroyed a view a frame in flight was
+  //still sampling - the validation error behind every closed window - and
+  //destroyed it a second time when the buffer's own teardown reached it
 
   free(surface);
 
@@ -454,6 +462,11 @@ static void destroy_surface(WResource *resource) {
   //one cell fewer to divide the output into. after the unlock, because
   //layout_apply() takes draw_tasks_mutex itself to write the new rectangles
   layout_apply();
+
+  //forget_task() above dropped the focus if it was on this window, and it is
+  //the only one that could: the Task was about to be freed. somebody still has
+  //to be given the keyboard afterwards
+  layout_focus_fallback();
 
   printf("Destroyed surface\n");
 }

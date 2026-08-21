@@ -95,7 +95,7 @@ int main(){
   //calls back into this in the middle of it
   pe_vk_draw_scene = swordfish_draw_scene;
 
-  camera_init((Camera *)&main_camera);
+  camera_init(&main_camera);
 
   //camera_set_position(&main_camera, VEC3(-10,0,0));
   //the position set here would never be seen: swordfish_update_camera() runs

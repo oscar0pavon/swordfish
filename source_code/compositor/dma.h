@@ -22,6 +22,9 @@ typedef struct DMAParams{
     uint32_t height;
     uint32_t format;
     int num_planes;
+    //a params object creates one buffer and is spent - a second create on it
+    //is the ALREADY_USED protocol error
+    bool used;
 }DMAParams;
 
 extern uint64_t main_device_id;
