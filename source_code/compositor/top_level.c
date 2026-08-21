@@ -198,6 +198,11 @@ static void destroy_top_level_resource(WResource *resource){
   //one window fewer, so the survivors grow into what it had
   layout_apply();
 
+  //a client that destroys its xdg_toplevel and keeps the wl_surface leaves the
+  //Task alive but no longer a window, so the focus has to move even though
+  //nothing was freed
+  layout_focus_fallback();
+
   printf("Destroyed top level\n");
 }
 

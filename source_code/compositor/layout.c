@@ -242,6 +242,51 @@ void layout_focus_next(int direction){
   unlock_wayland();
 }
 
+//a window going away takes the keyboard with it: forget_task() drops the
+//pointer because the memory is about to be freed, and nothing else ever picks
+//one up, so after super+c the next key went nowhere. hand the focus to a
+//survivor instead
+void layout_focus_fallback(void){
+
+  lock_wayland();
+  pthread_mutex_lock(&focus_task_mutex);
+
+  //still on a live window means the one that closed was not the focused one,
+  //and moving the focus off it would be the bug rather than the fix.
+  //task_is_window() is what catches a surface whose xdg_toplevel is gone but
+  //whose wl_surface is not - it is no longer a window, so it cannot hold the
+  //keyboard
+  if(!focused_task || !task_is_window(focused_task)){
+
+    Task *task;
+    Task *next = NULL;
+
+    //surfaces are inserted at the head, so this walks newest first: the focus
+    //lands on the window the closed one was mapped on top of rather than on
+    //the oldest one on screen
+    wl_list_for_each(task, &compositor.surfaces, link){
+
+      if(!task_is_window(task))
+        continue;
+
+      next = task;
+      break;
+    }
+
+    focused_task = next;
+
+    //handle_focus() on the render thread is what turns this into
+    //wl_keyboard.leave, enter and a fresh clipboard offer
+    is_focus_completed = false;
+
+    if(next)
+      printf("Focus fell back to another window\n");
+  }
+
+  pthread_mutex_unlock(&focus_task_mutex);
+  unlock_wayland();
+}
+
 void layout_close_focused(void){
 
   lock_wayland();

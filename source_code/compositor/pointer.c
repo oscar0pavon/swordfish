@@ -166,6 +166,21 @@ void send_wayland_pointer_button(uint32_t button, bool pressed){
   lock_wayland();
   pthread_mutex_lock(&focus_task_mutex);
 
+  //click to focus. the pointer already goes to whatever cell the cursor is in,
+  //but the keyboard follows focused_task, which until now only super+j/k and a
+  //new window ever moved - so clicking a terminal left the keys going to the
+  //one that happened to be focused. only on the press: a release belongs to
+  //whoever took the press, and pointer_hit_task() has already ruled out
+  //anything that is not a window
+  if(pressed && pointer_focus && pointer_focus != focused_task){
+    focused_task = pointer_focus;
+
+    //handle_focus() on the render thread is what turns this into
+    //wl_keyboard.leave, enter and a fresh clipboard offer
+    is_focus_completed = false;
+    printf("Focus moved to the clicked window\n");
+  }
+
   WResource *pointer = focused_pointer();
   if(pointer && pointer_entered){
     wl_pointer_send_button(pointer, next_serial(), get_current_time_msec(),

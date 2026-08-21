@@ -373,6 +373,20 @@ thread already turns that into `wl_keyboard.leave`, `enter` and a fresh
 clipboard offer. The close has to `wl_display_flush_clients()` by hand, since
 the input thread is not the one pumping the event loop.
 
+**Nothing hands the focus on by itself when a window dies.** `forget_task()`
+(`input.c`) has to NULL `focused_task` — the `Task` is about to be freed — and
+that used to be the end of it: after super+c the keyboard belonged to nobody and
+the next key went nowhere. `layout_focus_fallback()` is the other half, called
+from both teardown paths, since either object may die first: `destroy_surface()`
+after its `layout_apply()`, and `destroy_top_level_resource()` after its, for the
+client that destroys the `xdg_toplevel` and keeps the `wl_surface` — that `Task`
+is still alive but is no longer a window, so it cannot hold the keyboard. It is a
+no-op while `focused_task` is still a live window, which is what makes it safe on
+a path where the window that closed was not the focused one. It walks
+`compositor.surfaces` **forwards**, unlike the layout: surfaces go in at the
+head, so that is newest first and the focus lands on the window the closed one
+was mapped over rather than on the oldest one on screen.
+
 Shortcuts live in `handle_swordfish_key()` (`keyboard.c`) with the rest:
 **super+j / super+k** cycle the focus, **super+c** closes the focused window —
 `q` is already the compositor's own exit. `xdg_toplevel.close` is a *request*; a
@@ -480,6 +494,17 @@ matter while the cells cannot overlap. It skips anything without a
 would otherwise take the pointer over the whole rectangle it would be drawn at.
 When the quads move into the 3D world this becomes a ray cast, and it is still
 the only thing that has to change.
+
+**Click to focus** is in `send_wayland_pointer_button()`. The pointer and the
+keyboard are two separate focuses: `pointer_focus` follows the cursor by itself,
+but the keyboard follows `focused_task`, which only a new window and super+j/k
+ever moved — so clicking a terminal sent the pointer there and left the keys
+going wherever they already went. A **press** stores `pointer_focus` in
+`focused_task` and `handle_focus()` on the render thread turns that into
+`wl_keyboard.leave`, `enter` and a fresh clipboard offer, exactly as it does for
+`layout_focus_next()`. Only the press: a release belongs to whoever took the
+press, and moving the focus on it would hand the keyboard away when the button
+comes up over a different tile.
 
 The **second scale** lives here. `draw_surface()` stretches a client's buffer
 into its tile, so the buffer is not the size of the rectangle on screen and

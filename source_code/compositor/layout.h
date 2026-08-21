@@ -12,6 +12,11 @@ void layout_apply(void);
 //cell while the focus walks over it is the point
 void layout_focus_next(int direction);
 
+//give the keyboard to a surviving window when the one holding it is gone.
+//a no-op while the focus is still on a live window, so it is safe to call from
+//every teardown path
+void layout_focus_fallback(void);
+
 void layout_close_focused(void);
 
 #endif
