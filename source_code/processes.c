@@ -430,11 +430,12 @@ void processes_init(Processes *target) {
   pe_vk_create_texture(&target->model.texture,
                        "/usr/libexec/swordfish/images/font.png");
 
-  pe_vk_create_uniform_buffers(&target->model);
-  pe_vk_descriptor_pool_create(&target->model);
+  pe_vk_create_uniform_buffers(&target->model, &main_render_target);
+  pe_vk_descriptor_pool_create(&target->model, &main_render_target);
   pe_vk_create_descriptor_sets(&target->model,
-                               pe_vk_descriptor_set_layout_with_texture);
-  pe_vk_descriptor_with_image_update(&target->model);
+                               pe_vk_descriptor_set_layout_with_texture,
+                               &main_render_target);
+  pe_vk_descriptor_with_image_update(&target->model, &main_render_target);
 
   glm_mat4_identity(target->model.model_mat);
   glm_mat4_copy(target->model.model_mat,

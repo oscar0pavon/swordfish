@@ -22,6 +22,7 @@
 #include <engine/memory.h>
 
 #include <engine/renderer/draw.h>
+#include <engine/renderer/render_thread.h>
 #include <engine/renderer/renderer.h>
 
 #include <engine/utils.h>
@@ -95,6 +96,11 @@ int main(){
   //calls back into this in the middle of it
   pe_vk_draw_scene = swordfish_draw_scene;
 
+  pe_vk_init();
+
+  //INFO after pe_vk_init(), not before: under DRM it is what corrects
+  //pe_window_width/height from the fixed WINDOW_WIDTH/HEIGHT above to the
+  //display's real mode, and camera_init() reads them for the aspect ratio
   camera_init(&main_camera);
 
   //camera_set_position(&main_camera, VEC3(-10,0,0));
@@ -102,8 +108,6 @@ int main(){
   //the dolly and rewrites it every frame before anything reads the view
   //matrix. the DOLLY_ constants in swordfish.c are what frames the scene
 
-  pe_vk_init();
-  
   swordfish_init();
 
   //the socket goes up only now. everything a client touches on the compositor
@@ -128,7 +132,7 @@ int main(){
     //start_render_time();
 
 
-    pe_vk_draw_frame();
+    pe_frame_draw();
 
     usleep(16667);//16.6ms
     update_delta_time();

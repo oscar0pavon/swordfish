@@ -10,6 +10,7 @@
 #include <engine/renderer/pipeline.h>
 #include <engine/renderer/uniform_buffer.h>
 #include <engine/renderer/vk_buffer.h>
+#include <engine/renderer/vulkan.h>
 
 #include "mouse.h"
 
@@ -77,11 +78,12 @@ void cursor_init(Cursor *target) {
   glm_mat4_copy(orthogonal_projection,
                 target->model.uniform_buffer_object.projection);
 
-  pe_vk_create_uniform_buffers(&target->model);
-  pe_vk_descriptor_pool_create(&target->model);
+  pe_vk_create_uniform_buffers(&target->model, &main_render_target);
+  pe_vk_descriptor_pool_create(&target->model, &main_render_target);
 
-  pe_vk_create_descriptor_sets(&target->model, pe_vk_descriptor_set_layout);
-  pe_vk_descriptor_update(&target->model);
+  pe_vk_create_descriptor_sets(&target->model, pe_vk_descriptor_set_layout,
+                               &main_render_target);
+  pe_vk_descriptor_update(&target->model, &main_render_target);
 
   PCreateShaderInfo cursor_shader = {
       .transparency = true,

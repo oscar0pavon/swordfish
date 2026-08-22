@@ -64,7 +64,7 @@ void draw_surface(Task* surface, VkCommandBuffer *cmd_buffer, uint32_t index){
 
   pe_2d_draw(&surface->model, index, position, size);
 
-  pe_vk_descriptor_with_image_update(&surface->model);//TODO
+  pe_vk_descriptor_with_image_update(&surface->model, &main_render_target);//TODO
 
   PDrawModelCommand draw = {
     .model = &surface->model,
@@ -105,9 +105,14 @@ void end_frame() {
     }
   }
 
+  //INFO the fences moved onto PRenderTarget with multimonitor - wait on every
+  //target's, since an shm upload has no way to know which one last drew the
+  //surface it is about to overwrite
   if (any_upload)
-    vkWaitForFences(vk_device, PE_VK_FRAMES_IN_FLIGHT, pe_vk_fence_in_flight,
-                    VK_TRUE, UINT64_MAX);
+    for (u32 t = 0; t < pe_render_targets_count; t++)
+      vkWaitForFences(vk_device, PE_VK_FRAMES_IN_FLIGHT,
+                      pe_render_targets[t].fence_in_flight, VK_TRUE,
+                      UINT64_MAX);
 
   for (int i = 0; i < tasks_for_draw.count; i++) {
     Task *surface = array_get_pointer(&tasks_for_draw, i);
@@ -214,7 +219,7 @@ static void swordfish_update_camera(void) {
   pe_camera_look_at(&main_camera, VEC3(0, 0, ORBIT_LOOK_Z));
 }
 
-void swordfish_draw_scene(VkCommandBuffer *cmd_buffer, uint32_t index){
+void swordfish_draw_scene(PRenderTarget *target, VkCommandBuffer *cmd_buffer, uint32_t index){
 
   //before anything copies the view matrix out of main_camera
   swordfish_update_camera();

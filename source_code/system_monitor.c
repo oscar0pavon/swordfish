@@ -532,11 +532,12 @@ void system_monitor_init(SystemMonitor *monitor) {
   pe_vk_create_texture(&monitor->model.texture,
                        "/usr/libexec/swordfish/images/font.png");
 
-  pe_vk_create_uniform_buffers(&monitor->model);
-  pe_vk_descriptor_pool_create(&monitor->model);
+  pe_vk_create_uniform_buffers(&monitor->model, &main_render_target);
+  pe_vk_descriptor_pool_create(&monitor->model, &main_render_target);
   pe_vk_create_descriptor_sets(&monitor->model,
-                               pe_vk_descriptor_set_layout_with_texture);
-  pe_vk_descriptor_with_image_update(&monitor->model);
+                               pe_vk_descriptor_set_layout_with_texture,
+                               &main_render_target);
+  pe_vk_descriptor_with_image_update(&monitor->model, &main_render_target);
 
   glm_mat4_identity(monitor->model.model_mat);
   glm_mat4_copy(monitor->model.model_mat,

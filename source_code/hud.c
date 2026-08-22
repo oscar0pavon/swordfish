@@ -207,7 +207,7 @@ void hud_init(Hud *target) {
                        "/usr/libexec/swordfish/images/font.png");
 
   pe_2d_init_vulkan_buffers(&target->model);
-  pe_vk_descriptor_with_image_update(&target->model);
+  pe_vk_descriptor_with_image_update(&target->model, &main_render_target);
 
   PCreateShaderInfo hud_shader = {
       .transparency = true,
