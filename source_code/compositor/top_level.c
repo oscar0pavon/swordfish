@@ -13,6 +13,8 @@
 #include "swordfish.h"
 #include <pthread.h>
 #include "input.h"
+#include "mouse.h"
+#include "outputs.h"
 
 void destroy_top_level(WClient *client, WResource *resource){
   printf("Destroy top level\n");
@@ -255,7 +257,13 @@ void get_top_level_implementation(WClient *client,
   //cursor image, which is on no output. a client binds wl_output in the same
   //registry pass it binds wl_compositor and xdg_wm_base in, so its output
   //resource exists by the time it gets this far
-  output_send_surface_enter(surface->surface->resource);
+  //
+  //which output is wherever the cursor happened to be when the window was
+  //created - there is no other signal to place it by, and it stays put after
+  //this: nothing currently moves a mapped window to a different output
+  surface->surface->output_index = swordfish_output_index_at(cursor_x);
+  output_send_surface_enter(surface->surface->resource,
+                            surface->surface->output_index);
 
   //the initial configure comes out of the layout like every other one: the new
   //window is given a cell and everything already on screen is told to make

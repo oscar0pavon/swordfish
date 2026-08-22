@@ -13,6 +13,7 @@
 #include <engine/renderer/vulkan.h>
 
 #include "mouse.h"
+#include "outputs.h"
 
 Cursor cursor;
 
@@ -97,17 +98,22 @@ void cursor_init(Cursor *target) {
   LOG("Cursor: %.0f pixels\n", CURSOR_SIZE);
 }
 
-void cursor_draw(Cursor *target, VkCommandBuffer *cmd_buffer, u32 image_index) {
+void cursor_draw(Cursor *target, PRenderTarget *render_target,
+                 VkCommandBuffer *cmd_buffer, u32 image_index) {
 
-  //the input thread owns these, so they are taken once here rather than read
-  //again further down: a fast move must not put a new x with an old y. the
-  //arrow's tip is the quad's own origin, so the position needs no hotspot
-  //subtracted from it, and it is already in the render target's pixels - the
-  //same space this projection is in
-  vec2 position = {(float)cursor_x, (float)cursor_y};
+  SwordfishOutput *out =
+      &swordfish_outputs[render_target - pe_render_targets];
 
-  pe_2d_draw(&target->model, image_index, position,
-             VEC2(CURSOR_SIZE, CURSOR_SIZE));
+  //the input thread owns cursor_x/y, so they are taken once here rather than
+  //read again further down: a fast move must not put a new x with an old y.
+  //cursor_x/y are in the virtual desktop, and this target only draws its own
+  //output's slice of it, so the output's origin comes back out. the arrow's
+  //tip is the quad's own origin, so the position needs no hotspot subtracted
+  //from it
+  vec2 position = {(float)(cursor_x - out->x), (float)(cursor_y - out->y)};
+
+  pe_2d_draw_on_target(&target->model, render_target, image_index, position,
+                       VEC2(CURSOR_SIZE, CURSOR_SIZE));
 
   PDrawModelCommand draw = {.model = &target->model,
                             .command_buffer = *cmd_buffer,

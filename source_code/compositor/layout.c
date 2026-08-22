@@ -3,7 +3,7 @@
 #include "compositor.h"
 #include "surface.h"
 #include "top_level.h"
-#include "window.h"
+#include "outputs.h"
 #include "swordfish.h"
 
 #include <pthread.h>
@@ -100,6 +100,8 @@ static LayoutRect layout_inset(LayoutRect cell){
   return cell;
 }
 
+//with no output_index filter, every window everywhere - used by the focus
+//cycling below, which walks across outputs on purpose
 static int count_windows(void){
 
   int count = 0;
@@ -113,34 +115,47 @@ static int count_windows(void){
   return count;
 }
 
-void layout_apply(void){
+static int count_windows_on_output(int output_index){
 
-  //this sends configures, so it takes the outermost lock first. it is
-  //recursive and every caller so far is already inside it, on the compositor
-  //thread
-  lock_wayland();
+  int count = 0;
+  Task *task;
 
-  int count = count_windows();
-
-  if(count == 0){
-    unlock_wayland();
-    return;
+  wl_list_for_each(task, &compositor.surfaces, link){
+    if(task_is_window(task) && task->output_index == output_index)
+      count++;
   }
 
-  //the image swordfish renders, which is also what the wl_output advertises as
-  //its mode. a resize would come through here once the swap chain can change
-  //size
-  LayoutRect free = {LAYOUT_HALF_GAP, LAYOUT_HALF_GAP,
-                     WINDOW_WIDTH - LAYOUT_GAP, WINDOW_HEIGHT - LAYOUT_GAP};
+  return count;
+}
+
+//tiles each output's windows into that output's own area, in virtual desktop
+//coordinates - draw_surface() subtracts the output's origin back out, and
+//pointer_inside() compares against the cursor, which is in the same virtual
+//space, so neither has to know outputs exist
+static void layout_apply_output(int output_index){
+
+  SwordfishOutput *out = &swordfish_outputs[output_index];
+
+  int count = count_windows_on_output(output_index);
+
+  if(count == 0)
+    return;
+
+  //the image this render target draws, which is also what its wl_output
+  //advertises as its mode. a resize would come through here once the swap
+  //chain can change size
+  LayoutRect free = {out->x + LAYOUT_HALF_GAP, out->y + LAYOUT_HALF_GAP,
+                     out->width - LAYOUT_GAP, out->height - LAYOUT_GAP};
 
   //surfaces are inserted at the head of the list, so walking it backwards is
-  //map order: the oldest window is the one holding the biggest cell
+  //map order: the oldest window on this output is the one holding the
+  //biggest cell
   Task *task;
   int index = 0;
 
   wl_list_for_each_reverse(task, &compositor.surfaces, link){
 
-    if(!task_is_window(task))
+    if(!task_is_window(task) || task->output_index != output_index)
       continue;
 
     //the last window is not split off anything, it takes whatever is left
@@ -168,6 +183,17 @@ void layout_apply(void){
 
     index++;
   }
+}
+
+void layout_apply(void){
+
+  //this sends configures, so it takes the outermost lock first. it is
+  //recursive and every caller so far is already inside it, on the compositor
+  //thread
+  lock_wayland();
+
+  for(int i = 0; i < swordfish_outputs_count; i++)
+    layout_apply_output(i);
 
   unlock_wayland();
 }

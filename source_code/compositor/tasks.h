@@ -25,6 +25,10 @@ typedef struct Task{
     struct wl_list link;
     int32_t x,y;
     bool can_draw;
+    //which SwordfishOutput this window is tiled on, decided once at map time
+    //from wherever the cursor was - an index into swordfish_outputs, and
+    //what both layout_apply() and draw_surfaces() filter on
+    int output_index;
     //a cursor image the client handed to wl_pointer.set_cursor. it arrived as
     //an ordinary surface and there is nothing to draw a cursor into yet, so it
     //is kept out of the scene

@@ -3,6 +3,7 @@
 
 #include <engine/model.h>
 #include <engine/numbers.h>
+#include <engine/renderer/render_target.h>
 
 //the compositor's own pointer: one quad at the cursor position with the arrow
 //shaded into it by shaders/cursor.frag, so there is no image to load and it
@@ -16,7 +17,10 @@ extern Cursor cursor;
 
 void cursor_init(Cursor *target);
 
-void cursor_draw(Cursor *target, VkCommandBuffer *cmd_buffer, u32 image_index);
+//render_target is whichever output is being recorded - the cursor only ever
+//actually draws on the one it is currently over, see swordfish_draw_scene()
+void cursor_draw(Cursor *target, PRenderTarget *render_target,
+                 VkCommandBuffer *cmd_buffer, u32 image_index);
 
 void cursor_clean(Cursor *target);
 

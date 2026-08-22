@@ -8,6 +8,8 @@
 #include "compositor/retire.h"
 #include "compositor/shared_memory.h"
 #include "compositor/surface.h"
+#include "mouse.h"
+#include "outputs.h"
 #include <engine/renderer/sync.h>
 #include <engine/array.h>
 #include <engine/model.h>
@@ -45,14 +47,20 @@ PModel text_model;
 
 bool finished_build = false;
 
-void draw_surface(Task* surface, VkCommandBuffer *cmd_buffer, uint32_t index){
+void draw_surface(Task* surface, PRenderTarget *render_target,
+                  VkCommandBuffer *cmd_buffer, uint32_t index){
 
-  //the cell the layout gave this window. the buffer is stretched into it
-  //rather than drawn at its own size, so the tiling has no hole in it during
-  //the frame or two between the configure and the client repainting at the new
-  //size. a surface the layout has not reached - one that never became a
-  //toplevel - keeps the old behaviour and is drawn at the corner
-  vec2 position = {surface->tile_x, surface->tile_y};
+  SwordfishOutput *out =
+      &swordfish_outputs[render_target - pe_render_targets];
+
+  //the cell the layout gave this window, in the virtual desktop - the
+  //output's own origin comes back out since this target only draws its own
+  //slice of it. the buffer is stretched into it rather than drawn at its own
+  //size, so the tiling has no hole in it during the frame or two between the
+  //configure and the client repainting at the new size. a surface the layout
+  //has not reached - one that never became a toplevel - keeps the old
+  //behaviour and is drawn at the corner
+  vec2 position = {surface->tile_x - out->x, surface->tile_y - out->y};
   vec2 size = {surface->tile_width, surface->tile_height};
 
   if (surface->tile_width == 0) {
@@ -62,7 +70,7 @@ void draw_surface(Task* surface, VkCommandBuffer *cmd_buffer, uint32_t index){
     size[1] = surface->image->heigth;
   }
 
-  pe_2d_draw(&surface->model, index, position, size);
+  pe_2d_draw_on_target(&surface->model, render_target, index, position, size);
 
   pe_vk_descriptor_with_image_update(&surface->model, &main_render_target);//TODO
 
@@ -141,15 +149,18 @@ void end_frame() {
   //array_clean(&tasks_for_draw);
 }
 
-void draw_surfaces(VkCommandBuffer *command, uint32_t index) {
+void draw_surfaces(PRenderTarget *render_target, VkCommandBuffer *command,
+                   uint32_t index) {
+
+  int output_index = render_target - pe_render_targets;
 
   lock_wayland();
   pthread_mutex_lock(&draw_tasks_mutex);
 
   for (int i = 0; i < tasks_for_draw.count; i++) {
     Task *task = array_get_pointer(&tasks_for_draw, i);
-    if (task->can_draw) {
-      draw_surface(task, command, index);
+    if (task->can_draw && task->output_index == output_index) {
+      draw_surface(task, render_target, command, index);
 
       //no release goes out here. a dmabuf buffer is sampled straight out of the
       //client's memory, and this quad goes on sampling this one every frame
@@ -221,15 +232,23 @@ static void swordfish_update_camera(void) {
 
 void swordfish_draw_scene(PRenderTarget *target, VkCommandBuffer *cmd_buffer, uint32_t index){
 
-  //before anything copies the view matrix out of main_camera
-  swordfish_update_camera();
+  //which output this render target is - output 0 carries the 3D scene, the
+  //hud and (by convention) the "primary" everything; every output carries
+  //whatever client windows were mapped onto it
+  int output_index = target - pe_render_targets;
 
-  //the running processes as a city ringing the die, one draw call for all
-  //of them. swap this for city_draw to get the directory instead
-  processes_draw(&processes, cmd_buffer, index);
+  if (output_index == 0) {
 
-  //the cpus as a row of towers down the middle of that street
-  system_monitor_draw(&system_monitor, cmd_buffer, index);
+    //before anything copies the view matrix out of main_camera
+    swordfish_update_camera();
+
+    //the running processes as a city ringing the die, one draw call for all
+    //of them. swap this for city_draw to get the directory instead
+    processes_draw(&processes, cmd_buffer, index);
+
+    //the cpus as a row of towers down the middle of that street
+    system_monitor_draw(&system_monitor, cmd_buffer, index);
+  }
 
   //quad
   // pe_2d_draw(&text_model, index, VEC2(0,0), VEC2(1,1));
@@ -248,15 +267,18 @@ void swordfish_draw_scene(PRenderTarget *target, VkCommandBuffer *cmd_buffer, ui
 
   //we need to sync with compositor
   //if(can_draw_surfaces)
-  draw_surfaces(cmd_buffer, index);
+  draw_surfaces(target, cmd_buffer, index);
 
-  //flat overlay last, so the numbers sit over the scene
-  hud_draw(&hud, cmd_buffer, index);
+  //flat overlay last, so the numbers sit over the scene. output 0 only - the
+  //hud reports on the whole machine, not on one monitor
+  if (output_index == 0)
+    hud_draw(&hud, cmd_buffer, index);
 
-  //and the pointer over that. no client has ever handed over a cursor image -
-  //set_cursor keeps the surface out of the draw list - so this arrow is the
-  //only pointer there is
-  cursor_draw(&cursor, cmd_buffer, index);
+  //and the pointer over that, on whichever output it is actually over. no
+  //client has ever handed over a cursor image - set_cursor keeps the surface
+  //out of the draw list - so this arrow is the only pointer there is
+  if (swordfish_output_index_at(cursor_x) == output_index)
+    cursor_draw(&cursor, target, cmd_buffer, index);
 }
 
 

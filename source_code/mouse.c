@@ -3,12 +3,15 @@
 #include <libinput.h>
 
 #include "compositor/input.h"
+#include "outputs.h"
 #include "window.h"
 
 double cursor_x, cursor_y;
 
-//the cursor belongs to swordfish's own image, so it stops at the edge of it
-//rather than wherever the mouse kept going
+//the cursor belongs to the virtual desktop the outputs tile into, so it stops
+//at its edges rather than wherever the mouse kept going. y clamps to whatever
+//output the cursor's x is currently over, since outputs are not necessarily
+//the same height
 static void clamp_cursor(void) {
 
   if (cursor_x < 0)
@@ -17,11 +20,14 @@ static void clamp_cursor(void) {
   if (cursor_y < 0)
     cursor_y = 0;
 
-  if (cursor_x > WINDOW_WIDTH - 1)
-    cursor_x = WINDOW_WIDTH - 1;
+  int32_t max_x = swordfish_virtual_width() - 1;
+  if (cursor_x > max_x)
+    cursor_x = max_x;
 
-  if (cursor_y > WINDOW_HEIGHT - 1)
-    cursor_y = WINDOW_HEIGHT - 1;
+  SwordfishOutput *out = swordfish_output_at(cursor_x);
+  int32_t max_y = (out ? out->height : WINDOW_HEIGHT) - 1;
+  if (cursor_y > max_y)
+    cursor_y = max_y;
 }
 
 void move_cursor_to(double x, double y) {
@@ -59,13 +65,15 @@ void handle_libinput_pointer_event(InputEvent *event) {
     break;
 
   //tablets and touchscreens report where the cursor is rather than how far it
-  //moved, in a space of their own that libinput scales to whatever is asked
+  //moved, in a space of their own that libinput scales to whatever is asked.
+  //there is no one right height across outputs of different sizes, so this
+  //scales against the tallest one
   case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE:
     move_cursor_to(
-        libinput_event_pointer_get_absolute_x_transformed(pointer,
-                                                          WINDOW_WIDTH),
-        libinput_event_pointer_get_absolute_y_transformed(pointer,
-                                                          WINDOW_HEIGHT));
+        libinput_event_pointer_get_absolute_x_transformed(
+            pointer, swordfish_virtual_width()),
+        libinput_event_pointer_get_absolute_y_transformed(
+            pointer, swordfish_max_output_height()));
     break;
 
   case LIBINPUT_EVENT_POINTER_BUTTON:

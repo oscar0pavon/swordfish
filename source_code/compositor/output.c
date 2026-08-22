@@ -6,12 +6,10 @@
 #include <wayland-server-protocol.h>
 
 #include "compositor.h"
-#include "window.h"
+#include "outputs.h"
 
-//swordfish renders one image of a fixed size into one window, so there is one
-//output and its mode is that image. WINDOW_WIDTH/WINDOW_HEIGHT stays the app's
-//authority on the size, the same as it is for the swap chain and the camera -
-//once resizing exists, a new mode goes out to everyone in output_resources
+//swordfish advertises one wl_output global per SwordfishOutput, each one's
+//mode fixed to that output's own render target size - see outputs.h
 #define OUTPUT_REFRESH_MHZ 60000
 
 //a physical size of zero is what the protocol says to send for an unknown one,
@@ -20,8 +18,10 @@
 #define OUTPUT_DPI 96
 #define OUTPUT_MILLIMETRES(pixels) ((int32_t)((pixels) * 25.4 / OUTPUT_DPI))
 
-//every wl_output resource bound right now. a client can bind the same global
-//more than once, and wl_surface.enter is owed on each of its own resources
+//every wl_output resource bound right now, across every output - a client can
+//bind more than one global and more than once each, and wl_surface.enter is
+//owed on each of its own resources for the output its surface is on. which
+//output a resource belongs to is its wl_resource user data, a SwordfishOutput*
 static struct wl_list output_resources;
 
 //wl_output.release, since version 3. without an implementation on the resource
@@ -40,12 +40,13 @@ static void destroy_output(WResource *resource) {
 
 //everything the client needs to describe the output, in the order the protocol
 //asks for it: the properties first, then done to say the burst is over
-static void send_output_state(WResource *resource) {
+static void send_output_state(WResource *resource, SwordfishOutput *out) {
 
   uint32_t version = wl_resource_get_version(resource);
 
-  wl_output_send_geometry(resource, 0, 0, OUTPUT_MILLIMETRES(WINDOW_WIDTH),
-                          OUTPUT_MILLIMETRES(WINDOW_HEIGHT),
+  wl_output_send_geometry(resource, out->x, out->y,
+                          OUTPUT_MILLIMETRES(out->width),
+                          OUTPUT_MILLIMETRES(out->height),
                           WL_OUTPUT_SUBPIXEL_UNKNOWN, "swordfish", "swordfish",
                           WL_OUTPUT_TRANSFORM_NORMAL);
 
@@ -53,13 +54,13 @@ static void send_output_state(WResource *resource) {
   //nothing can switch away from it
   wl_output_send_mode(resource,
                       WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED,
-                      WINDOW_WIDTH, WINDOW_HEIGHT, OUTPUT_REFRESH_MHZ);
+                      out->width, out->height, OUTPUT_REFRESH_MHZ);
 
   if (version >= WL_OUTPUT_SCALE_SINCE_VERSION)
     wl_output_send_scale(resource, 1);
 
   if (version >= WL_OUTPUT_NAME_SINCE_VERSION)
-    wl_output_send_name(resource, "swordfish-0");
+    wl_output_send_name(resource, out->name);
 
   if (version >= WL_OUTPUT_DESCRIPTION_SINCE_VERSION)
     wl_output_send_description(resource, "Swordfish scene");
@@ -73,6 +74,8 @@ static void send_output_state(WResource *resource) {
 static void bind_output(WClient *client, void *data, uint32_t version,
                         uint32_t id) {
 
+  SwordfishOutput *out = data;
+
   WResource *resource =
       wl_resource_create(client, &wl_output_interface, version, id);
   if (!resource) {
@@ -81,23 +84,26 @@ static void bind_output(WClient *client, void *data, uint32_t version,
     return;
   }
 
-  wl_resource_set_implementation(resource, &output_interface, &compositor,
+  wl_resource_set_implementation(resource, &output_interface, out,
                                  destroy_output);
 
   wl_list_insert(&output_resources, wl_resource_get_link(resource));
 
-  send_output_state(resource);
+  send_output_state(resource, out);
 
-  printf("Output bound\n");
+  printf("Output %s bound\n", out->name);
 }
 
-void output_send_surface_enter(WResource *surface_resource) {
+void output_send_surface_enter(WResource *surface_resource,
+                               int output_index) {
 
   WClient *client = wl_resource_get_client(surface_resource);
+  SwordfishOutput *out = &swordfish_outputs[output_index];
 
   WResource *output;
   wl_resource_for_each(output, &output_resources) {
-    if (wl_resource_get_client(output) == client)
+    if (wl_resource_get_client(output) == client &&
+        (SwordfishOutput *)wl_resource_get_user_data(output) == out)
       wl_surface_send_enter(surface_resource, output);
   }
 }
@@ -106,6 +112,9 @@ void init_output() {
 
   wl_list_init(&output_resources);
 
-  wl_global_create(compositor.display, &wl_output_interface, OUTPUT_VERSION,
-                   &compositor, bind_output);
+  //one global per output - a client that only cares about one monitor still
+  //has to see all of them to place its windows correctly
+  for (int i = 0; i < swordfish_outputs_count; i++)
+    wl_global_create(compositor.display, &wl_output_interface, OUTPUT_VERSION,
+                     &swordfish_outputs[i], bind_output);
 }

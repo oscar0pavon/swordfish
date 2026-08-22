@@ -17,6 +17,7 @@
 #include "input.h"
 #include "keyboard.h"
 #include <engine/renderer/vulkan.h>
+#include "outputs.h"
 #include "window.h"
 
 #include <engine/memory.h>
@@ -97,6 +98,11 @@ int main(){
   pe_vk_draw_scene = swordfish_draw_scene;
 
   pe_vk_init();
+
+  //one SwordfishOutput per render target, laid left to right. static
+  //detection only - has to run before the compositor thread, which is what
+  //advertises these as wl_outputs and reads them into the layout
+  swordfish_outputs_init();
 
   //INFO after pe_vk_init(), not before: under DRM it is what corrects
   //pe_window_width/height from the fixed WINDOW_WIDTH/HEIGHT above to the
