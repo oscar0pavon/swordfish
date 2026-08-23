@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <signal.h>
 
-#include "seat.h"
+#include "tty.h"
 #include "surface.h"
 #include <engine/array.h>
 #include "swordfish.h"
@@ -29,13 +29,22 @@
 void close_swordfish() {
   log_info("Closing Swordfish");
 
+  swordfish_running = false;
+
+  //INFO first, before any of the teardown below. giving the display back is
+  //the one step that must not be skipped: leaving VT_PROCESS set with nobody
+  //left to answer the release signal wedges VT switching for the whole
+  //machine, and it has to be reached even when the rest of the shutdown does
+  //not - pe_vk_end() below aborts inside vkDestroyDevice if a client is still
+  //connected, which is exactly the state a ctrl+c arrives in
+  if(is_drm_rendering){
+    finish_input();
+    tty_session_finish();
+  }
+
   clean_swordfish();
   pe_vk_end();
 
-  swordfish_running = false;
-  if(is_drm_rendering){
-    finish_input();
-  }
   finish_keyboard();
   finish_compositor();
   clear_engine_memory();
@@ -50,6 +59,9 @@ int main(void){
   log_init();
 
   signal(SIGINT, handle_signal);
+  //pkill's default. without it a kill leaves the tty in graphics mode with
+  //VT_PROCESS still set, and no VT can be switched to afterwards
+  signal(SIGTERM, handle_signal);
 
   pe_init_memory();
   
@@ -68,8 +80,15 @@ int main(void){
 
     compositor.gpu_path = "/dev/dri/card0";
 
-    //we can use seat but with vulkan not for now
-    //init_seat();
+    //INFO before pe_vk_init(), and that ordering is the whole trick: this
+    //takes DRM master, which makes the fd radv opens for itself non-master,
+    //which leaves mesa's wsi_display with no fd of its own - so the hook below
+    //can install ours instead and swordfish can drop the display again when
+    //the VT is switched away. taking master after vulkan is up is too late
+    if (!tty_session_init(compositor.gpu_path))
+      log_warn("No VT session: switching away will not release the display");
+
+    pe_vk_acquire_display = swordfish_acquire_drm_display;
   }
 
   pe_window_width = WINDOW_WIDTH;

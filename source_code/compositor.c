@@ -18,7 +18,7 @@
 #include "data_device.h"
 #include "input.h"
 #include "output.h"
-#include "seat.h"
+#include "tty.h"
 #include "surface.h"
 #include "dma.h"
 #include "shared_memory.h"
@@ -224,12 +224,23 @@ void run_compositor(void) {
       dispatch_libinput_events();
     }
 
+    //a VT switch the signal handler recorded. after input, so a keypress that
+    //asked for the switch is dispatched before it happens, and before the
+    //frame step, which must not run once the display is gone
+    if (is_drm_rendering)
+      tty_session_handle_pending();
+
     if (fds[1].revents & POLLIN) {
       //must be read to re-arm a periodic timerfd's readability - otherwise
       //poll() would report it ready forever after the first expiry
       uint64_t expirations;
       read(frame_timer_fd, &expirations, sizeof(expirations));
-      swordfish_frame_step();
+
+      //another VT owns the screen: we dropped DRM master, so presenting would
+      //be submitting to a display that is not ours. clients simply do not get
+      //frame callbacks until it comes back, which is what stops them drawing
+      if (!is_drm_rendering || tty_session_is_active())
+        swordfish_frame_step();
     }
   }
 

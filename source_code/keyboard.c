@@ -9,7 +9,7 @@
 #include <complex.h>
 #include <stdio.h>
 #include <libinput.h>
-#include <libseat.h>
+#include "tty.h"
 #include <fcntl.h>
 #include <mman.h>
 #include <string.h>
@@ -69,6 +69,11 @@ off_t get_keymap_file_size(int fd){
 
 
 
+//where super+w goes. a fixed VT rather than a cycle, the same one the libseat
+//call it replaces asked for - change it here if the compositor to come back to
+//lives somewhere else
+#define SWITCH_TO_VT_NUMBER 3
+
 //keys the compositor ate on the way down. their release has to be eaten too,
 //or the client is handed a release for a press it never saw
 #define MAX_SWALLOWED_KEYS 8
@@ -123,9 +128,12 @@ static bool handle_swordfish_key(uint32_t unicode) {
     exit(0);
     return true;
   case 'w':
-    //there is only a seat to switch when we own the tty
+    //there is only a VT to switch when we own the tty. this used to call
+    //libseat_switch_session() on a seat that was never opened - init_seat()
+    //had been commented out in main() - so the one shortcut that needed a
+    //seat daemon was a NULL dereference. the kernel does the switching now
     if (is_drm_rendering)
-      libseat_switch_session(compositor.seat, 3);
+      tty_switch_to(SWITCH_TO_VT_NUMBER);
     return true;
   }
 

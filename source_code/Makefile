@@ -3,7 +3,12 @@ CLINKS := -lpthread -lm -lvulkan -ldrm -llodepng
 CLINKS += -linput -ludev -lxkbcommon
 CLINKS += -lwayland-server
 CLINKS += -lpway -lwayland-client -lwayland-egl
-CLINKS += -lseat -lEGL -lGL
+#INFO no -lseat. seatd hands DRM and input fds to a compositor that is not
+#root and arbitrates between several users' sessions; swordfish is root on a
+#single user machine and opens /dev/dri/card0 itself. the half of libseat that
+#is not about multiple users - being told when the VT went away - is the
+#kernel's own VT_PROCESS protocol, and lives in tty.c
+CLINKS += -lEGL -lGL
 #INFO the engine and the vulkan renderer live in /root/pengine now and arrive
 #as one static archive. it comes before the libraries it needs, not after
 CLINKS := -lpengine $(CLINKS)

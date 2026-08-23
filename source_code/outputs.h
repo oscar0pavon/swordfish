@@ -1,6 +1,7 @@
 #ifndef SWORDFISH_OUTPUTS_H
 #define SWORDFISH_OUTPUTS_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include <engine/renderer/render_target.h>
@@ -16,6 +17,11 @@ typedef struct SwordfishOutput {
 
 extern SwordfishOutput swordfish_outputs[PE_VK_MAX_RENDER_TARGETS];
 extern int swordfish_outputs_count;
+
+//pengine's pe_vk_acquire_display hook, wired up in main() on the DRM path.
+//hands vulkan the DRM fd tty.c holds master on, so mesa scans out through an
+//fd swordfish can drop again when the VT is switched away
+bool swordfish_acquire_drm_display(void);
 
 //fills the table from pe_render_targets, one output per target, in order.
 //called once from main() right after pe_vk_init() - before the compositor

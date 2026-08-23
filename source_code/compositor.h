@@ -2,7 +2,6 @@
 #define COMPOSITOR_H
 
 #include <stdint.h>
-#include <libseat.h>
 #include "client_buffer.h"
 #include "dma.h"
 #include <engine/images.h>
@@ -21,11 +20,11 @@ typedef struct SwordfishCompositor{
     struct wl_event_loop *event_loop;
     struct wl_list surfaces; 
     DesktopBase *desktop_base;
-    struct libseat *seat;
-    int gpu_fd;
+    //INFO the DRM fd itself is not here: tty.c opens it, holds master on it
+    //and hands it out through tty_drm_fd(), because dropping and retaking it
+    //is part of the VT session and nothing else may do it behind that file's
+    //back. this is only which device to open
     const char *gpu_path;
-    int seat_active;
-    int seat_fd;
     struct wl_list tasks_input;
 
     // libinput components
