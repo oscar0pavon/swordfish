@@ -8,6 +8,7 @@
 #include <engine/time.h>
 #include "keyboard.h"
 #include "mouse.h"
+#include "log.h"
 
 LibInput* libinput;
 struct udev *udev;
@@ -30,13 +31,13 @@ void init_input() {
   udev = udev_new();
   if (!udev) {
     // Handle error
-    printf("Can't open udev\n");
+    log_error("Can't open udev");
   }
 
   libinput = libinput_udev_create_context(&interface, NULL, udev);
   if (!libinput) {
     // Handle error
-    printf("Can't create libinput context\n");
+    log_error("Can't create libinput context");
   }
 
   libinput_udev_assign_seat(libinput, "seat0"); // Assign to a seat
@@ -45,7 +46,7 @@ void init_input() {
 void finish_input() {
   libinput_unref(libinput);
   udev_unref(udev);
-  printf("finished input\n");
+  log_info("finished input");
 }
 
 //drains and dispatches whatever libinput already has queued. no poll of its

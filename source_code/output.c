@@ -7,6 +7,7 @@
 
 #include "compositor.h"
 #include "outputs.h"
+#include "log.h"
 
 //swordfish advertises one wl_output global per SwordfishOutput, each one's
 //mode fixed to that output's own render target size - see outputs.h
@@ -35,7 +36,7 @@ static const struct wl_output_interface output_interface = {
 
 static void destroy_output(WResource *resource) {
   wl_list_remove(wl_resource_get_link(resource));
-  printf("Destroyed output\n");
+  log_info("Destroyed output");
 }
 
 //everything the client needs to describe the output, in the order the protocol
@@ -80,7 +81,7 @@ static void bind_output(WClient *client, void *data, uint32_t version,
       wl_resource_create(client, &wl_output_interface, version, id);
   if (!resource) {
     wl_client_post_no_memory(client);
-    printf("Can't create output resource\n");
+    log_error("Can't create output resource");
     return;
   }
 
@@ -91,7 +92,7 @@ static void bind_output(WClient *client, void *data, uint32_t version,
 
   send_output_state(resource, out);
 
-  printf("Output %s bound\n", out->name);
+  log_info("Output %s bound", out->name);
 }
 
 void output_send_surface_enter(WResource *surface_resource,

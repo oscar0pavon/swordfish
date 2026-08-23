@@ -11,6 +11,7 @@
 
 #include "tasks.h"
 #include "input.h"
+#include "log.h"
 
 //the space between two windows, in render target pixels. the whole point of it
 //is that a tiled window has an edge - without one two terminals side by side
@@ -242,7 +243,7 @@ void layout_focus_next(int direction){
       //swordfish_frame_step()'s handle_focus() is what turns this into
       //wl_keyboard.leave, enter, and a fresh clipboard offer
       is_focus_completed = false;
-      printf("Focus moved to window %i of %i\n", next + 1, count);
+      log_info("Focus moved to window %i of %i", next + 1, count);
     }
   }
 }
@@ -282,14 +283,14 @@ void layout_focus_fallback(void){
     is_focus_completed = false;
 
     if(next)
-      printf("Focus fell back to another window\n");
+      log_info("Focus fell back to another window");
   }
 }
 
 void layout_close_focused(void){
 
   if(focused_task && focused_task->top_level){
-    printf("Closing focused window\n");
+    log_info("Closing focused window");
     top_level_close(focused_task->top_level);
   }
 

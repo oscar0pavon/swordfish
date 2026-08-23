@@ -656,13 +656,56 @@ the request arrives would destroy an image a frame in flight is still sampling.
 The shm side answers exactly that with its retire list, and the TODO in
 `handle_buffer_destroyed()` says the dma side wants the same treatment.
 
+### The log (`log.c`)
+
+On tty3 there is no terminal to read. The compositor owns the display, so
+everything `printf` writes to the console is either drawn over by the next frame
+or never visible at all — and a crash that takes the session with it takes the
+output with it. `log_init()` (first line of `main()`, before `pe_init_memory()`)
+opens **`/tmp/swordfish.log`**, or `$SWORDFISH_LOG`, and `log_info(...)` /
+`log_debug` / `log_warn` / `log_error` write a timestamped record to it.
+The previous run is kept as `<path>.old`, since the run that crashed is the one
+worth reading and it is easy to start the next one before reading it.
+
+**Swordfish's own diagnostics are all `log_*` calls** — the ~150 `printf`,
+`fprintf(stderr, ...)` and `perror()` calls that used to be scattered across
+these files were converted, and a new one should be too. `log_debug` is where
+the per-frame and per-buffer chatter went (`surface.c`'s attach/commit/damage,
+`dma.c`'s plane and retire lines, `seat.c`'s dispatch loop), so
+`SWORDFISH_LOG_LEVEL=info` leaves a log that can be read.
+
+Three things it does that a `printf` wrapper would not:
+
+- **`log_redirect_stdio()`** dups the log fd onto stdout and stderr, so what
+  swordfish does *not* write itself — pengine's `LOG` (which is still `printf`),
+  the Vulkan validation layer, libwayland's own errors — lands in the same file
+  anyway. `main()` calls it only on the **bare DRM path**, in the
+  `create_wayland_window()` failure branch — on the pway path the terminal is
+  real and output belongs there. The mirror to stderr that the records get on
+  the pway path is switched off at the same time, or the file would hold
+  everything twice. stdout is put back to **line buffered** afterwards: a log
+  file is a regular file, so it would otherwise be fully buffered and the last
+  4 KB before a crash — the interesting ones — would never be written.
+- **A crash handler** on SIGSEGV/SIGABRT/SIGBUS/SIGFPE/SIGILL writes the signal
+  number and a `backtrace_symbols_fd()` stack to the log, then restores
+  `SIG_DFL` and re-raises so the core dump and exit status are unchanged. It
+  runs on a dying process, so it is `write()` and nothing else — no `printf`, no
+  `malloc`. `backtrace()` allocates on its first call, which is why `log_init()`
+  makes that call while the program is still healthy. **`-rdynamic` in
+  `source_code/Makefile` is what makes the trace readable**; without it the
+  stack is a column of addresses with no names.
+- **`SWORDFISH_LOG_SYNC=1`** `fdatasync`es every record. The page cache keeps
+  what a process wrote before it segfaulted, but not what it wrote before it
+  hard-locked the machine — which is the failure a KMS compositor actually has.
+  `SWORDFISH_LOG_LEVEL=debug|info|warn|error` filters.
+
 ### Layer conventions
 
 - **`renderer/`** (in pengine) — thin Vulkan wrapper, everything prefixed `pe_vk_`. `pe_vk_init()` in `renderer/vulkan.c` is the authoritative, order-sensitive init sequence; `pe_vk_end()` is its mirror.
 - **`engine/`** (in pengine) — reusable engine (hence the `pe_` prefix): custom allocator, `Array` container, glTF/PNG loading, camera, 2D/text.
 - **The Wayland server implementation** — `compositor.c`, `surface.c`, `tasks.c`, `top_level.c`, `data_device.c`, `dma.c`, `shared_memory.c`, and the rest of what used to live under a `compositor/` subdirectory, now flattened into `source_code/` alongside everything else: this *is* the main code, not a piece tucked away from it. It includes the one piece of window-manager *policy* (`layout.c`): which window gets which piece of the output. It is written against `Task` and `TopLevel` and sends configures, not because it draws anything.
 - **`wayland_window/`** — the pway windowed dev path (`window.c`/`window.h`), off in its own directory precisely because it is a *tool* for developing without a VT switch, not the main path: bare DRM (see **Two orthogonal mode flags**) is. `device_input.c` still branches on `is_wayland_window` to pump `pway_handle_events()` instead of libinput, but the pway-specific glue itself — connecting to the host compositor, translating its mouse/keyboard callbacks — lives only here.
-- Everything else at the top level — `main.c`, `device_input.c` (libinput/pway event pump), `keyboard.c`, `mouse.c`, `outputs.c`, `launch.c` (spawning a program from a keybinding), `swordfish.c` (compositor-side drawing: client quads, the cursor), `cursor.c`, `tty.c`.
+- Everything else at the top level — `main.c`, `device_input.c` (libinput/pway event pump), `keyboard.c`, `mouse.c`, `outputs.c`, `launch.c` (spawning a program from a keybinding), `swordfish.c` (compositor-side drawing: client quads, the cursor), `cursor.c`, `tty.c`, `log.c` (see **The log**).
 
 ### Memory
 
@@ -685,4 +728,4 @@ A model's `PCreateShaderInfo.layout` must match the layout its descriptor sets w
 
 ## Code style
 
-Follow the surrounding code: 2-space indent, `snake_case`, designated initializers for Vulkan structs, `LOG(...)`/`printf` for diagnostics, `VKVALID(call, "message")` for Vulkan results. Headers use `#ifndef NAME_H` guards. Comments are sparse; `//INFO` and `//TODO` mark notes the author cares about — leave them in place.
+Follow the surrounding code: 2-space indent, `snake_case`, designated initializers for Vulkan structs, `log_info(...)`/`log_debug`/`log_warn`/`log_error` for diagnostics (never `printf` — see **The log**), `VKVALID(call, "message")` for Vulkan results. Headers use `#ifndef NAME_H` guards. Comments are sparse; `//INFO` and `//TODO` mark notes the author cares about — leave them in place.

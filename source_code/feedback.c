@@ -16,6 +16,7 @@
 #include "linux-dmabuf.h"
 #include "drm_format.h"
 #include <engine/renderer/physical_devices.h>
+#include "log.h"
 
 typedef struct FormatTable {
   uint32_t format;
@@ -93,13 +94,13 @@ static int create_anon_file(size_t size) {
         ftruncate(fd, size);
         return fd;
     }
-    printf("Can't create shared memory\n");
+    log_error("Can't create shared memory");
     return -1;
 }
 
 
 void send_supported_formats_indices(WResource *resource) {
-  printf("Sending format indices for the current tranche\n");
+  log_debug("Sending format indices for the current tranche");
 
   struct wl_array indices_array;
   wl_array_init(&indices_array);
@@ -108,8 +109,7 @@ void send_supported_formats_indices(WResource *resource) {
     uint16_t *index_ptr =
         (uint16_t *)wl_array_add(&indices_array, sizeof(uint16_t));
     if (!index_ptr) {
-      fprintf(stderr,
-              "Failed to allocate memory for format index in wl_array.\n");
+      log_error("Failed to allocate memory for format index in wl_array.");
       break;
     }
     *index_ptr = (uint16_t)i;
@@ -131,28 +131,28 @@ void init_format_table() {
 
   table_size = num_formats * sizeof(FormatTable);
 
-  printf("Advertising %zu format/modifier pairs\n", num_formats);
+  log_info("Advertising %zu format/modifier pairs", num_formats);
 
   for (size_t i = 0; i < num_formats; i++) {
     const DrmFormat *format = drm_format_find(supported_formats[i].format);
-    printf("  %s modifier 0x%016lx\n", format ? format->name : "????",
-           (unsigned long)supported_formats[i].modifier);
+    log_debug("  %s modifier 0x%016lx", format ? format->name : "????",
+              (unsigned long)supported_formats[i].modifier);
   }
 }
 
 void send_format_table(WResource* resource) {
-    printf("Compositor sending format table via shared memory\n");
+    log_info("Compositor sending format table via shared memory");
 
     int fd = create_anon_file(table_size);
     if (fd < 0) {
-        fprintf(stderr, "Failed to create shared memory file\n");
+        log_error("Failed to create shared memory file");
         return;
     }
 
     void *map = mmap(NULL, table_size, PROT_WRITE, MAP_SHARED, fd, 0);
     if (map == MAP_FAILED) {
         close(fd);
-        fprintf(stderr, "Failed to mmap shared memory\n");
+        log_error("Failed to mmap shared memory");
         return;
     }
     memcpy(map, supported_formats, table_size);
@@ -166,13 +166,13 @@ void send_format_table(WResource* resource) {
 
 void destroy_feedback(WClient *client, WResource *resource) {
 
-  printf("Destroy feedback\n");
+  log_info("Destroy feedback");
 }
 
 void destroy_surface_feedback(WClient *client,
                               WResource *resource) {
 
-  printf("Destroy surface feedback\n");
+  log_info("Destroy surface feedback");
 }
 
 const struct zwp_linux_dmabuf_feedback_v1_interface feedback_implementation = {
@@ -215,7 +215,7 @@ void send_feedback(WResource *resource){
 void get_feedback(WClient *client, WResource *resource,
     uint32_t id) {
 
-  printf("Sending feed back\n");
+  log_info("Sending feed back");
 
 
   init_format_table();
@@ -233,7 +233,7 @@ void get_feedback(WClient *client, WResource *resource,
 
   send_feedback(feedback);
 
-  printf("Sent feed back\n");
+  log_info("Sent feed back");
 
 
 }
@@ -241,7 +241,7 @@ void get_feedback(WClient *client, WResource *resource,
 void get_surface_feedback(WClient *client, WResource *resource,
                           uint32_t id, WResource *surface_resource) {
 
-  printf("Get surface feedback\n");
+  log_info("Get surface feedback");
 
 
   // if (!surface) {
@@ -268,5 +268,5 @@ void get_surface_feedback(WClient *client, WResource *resource,
 
   send_feedback(feedback);
 
-  printf("Sent surface feedback\n");
+  log_info("Sent surface feedback");
 }

@@ -14,6 +14,7 @@
 
 #include "mouse.h"
 #include "outputs.h"
+#include "log.h"
 
 Cursor cursor;
 
@@ -95,7 +96,7 @@ void cursor_init(Cursor *target) {
 
   pe_vk_create_shader(&cursor_shader);
 
-  LOG("Cursor: %.0f pixels\n", CURSOR_SIZE);
+  log_info("Cursor: %.0f pixels", CURSOR_SIZE);
 }
 
 void cursor_draw(Cursor *target, PRenderTarget *render_target,

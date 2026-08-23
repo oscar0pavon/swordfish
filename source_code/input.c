@@ -13,6 +13,7 @@
 #include <time.h>
 #include "swordfish.h"
 #include "pointer.h"
+#include "log.h"
 
 //milliseconds before a held key repeats, and repeats per second after that
 #define KEYBOARD_REPEAT_DELAY 400
@@ -109,7 +110,7 @@ static void send_keyboard_enter(void){
   //so whatever is on the selection has to be offered again to this one
   data_device_offer_selection(wl_resource_get_client(keyboard_focus->resource));
 
-  printf("Keyboard focus entered\n");
+  log_debug("Keyboard focus entered");
 }
 
 //the client holding the keyboard, which is who the selection is offered to.
@@ -205,7 +206,7 @@ void send_keyboard_configuration(WResource *resource){
 
   //a client without a keymap is better than a dead compositor
   if(fd < 0){
-    printf("No keymap to send to the client\n");
+    log_warn("No keymap to send to the client");
     return;
   }
 
@@ -239,7 +240,7 @@ static void destroy_task_input(WResource* resource){
     wl_resource_set_user_data(input->pointer_resource, NULL);
 
   free(input);
-  printf("Destroyed Task input\n");
+  log_info("Destroyed Task input");
 }
 
 //wl_keyboard.release, since version 3. without an implementation on the
@@ -259,7 +260,7 @@ static void destroy_keyboard(WResource *resource) {
 
   //the seat resource went first and took the TaskInput with it
   if(!input){
-    printf("Destroyed keyboard\n");
+    log_info("Destroyed keyboard");
     return;
   }
 
@@ -268,12 +269,12 @@ static void destroy_keyboard(WResource *resource) {
     focus_entered = false;
   }
 
-  printf("Destroyed keyboard\n");
+  log_info("Destroyed keyboard");
 }
 
 static void get_keyboard(WClient *client, WResource *resource, uint32_t id) {
 
-  printf("Get keyboard\n");
+  log_info("Get keyboard");
 
   TaskInput *input = wl_resource_get_user_data(resource);
 
@@ -286,7 +287,7 @@ static void get_keyboard(WClient *client, WResource *resource, uint32_t id) {
       wl_resource_create(client, &wl_keyboard_interface, version, id);
   if (!keyboard_resource) {
     wl_client_post_no_memory(client);
-    printf("Can't create keyboard resource\n");
+    log_error("Can't create keyboard resource");
   }
 
   wl_resource_set_implementation(keyboard_resource, &keyboard_interface,
@@ -313,12 +314,12 @@ static void get_keyboard(WClient *client, WResource *resource, uint32_t id) {
 
 static void get_touch(WClient *client, WResource *resource, uint32_t id) {
 
-  printf("Get keyboard\n");
+  log_info("Get keyboard");
 }
 
 static void release(WClient *client, WResource *resource) {
 
-  printf("Release input\n");
+  log_info("Release input");
 }
 
 static const struct wl_seat_interface input_interface = {
@@ -357,7 +358,7 @@ static void bind_input_handler(WClient *client, void* data,
     wl_seat_send_name(resource, "swordfish");
 
 
-  printf("Bound input\n");
+  log_info("Bound input");
 
 }
 

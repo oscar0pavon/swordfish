@@ -14,9 +14,10 @@
 #include "input.h"
 #include "mouse.h"
 #include "outputs.h"
+#include "log.h"
 
 void destroy_top_level(WClient *client, WResource *resource){
-  printf("Destroy top level\n");
+  log_info("Destroy top level");
   wl_resource_destroy(resource);
 }
 
@@ -30,7 +31,7 @@ static void replace_string(char **destination, const char *value){
 void set_title(WClient *client, WResource *resource, const char *title){
   TopLevel *top_level = wl_resource_get_user_data(resource);
   replace_string(&top_level->title, title);
-  printf("New task with title: %s\n", top_level->title);
+  log_info("New task with title: %s", top_level->title);
 }
 
 //the class of application, not the window. clients send this immediately after
@@ -40,7 +41,7 @@ static void set_app_id(WClient *client, WResource *resource,
                        const char *app_id){
   TopLevel *top_level = wl_resource_get_user_data(resource);
   replace_string(&top_level->app_id, app_id);
-  printf("Task app id: %s\n", top_level->app_id);
+  log_info("Task app id: %s", top_level->app_id);
 }
 
 void send_top_level_configure(TopLevel* toplevel, int width, int height){
@@ -204,7 +205,7 @@ static void destroy_top_level_resource(WResource *resource){
   //nothing was freed
   layout_focus_fallback();
 
-  printf("Destroyed top level\n");
+  log_info("Destroyed top level");
 }
 
 void get_top_level_implementation(WClient *client,
@@ -223,11 +224,11 @@ void get_top_level_implementation(WClient *client,
   if (!top_level->resource) {
     free(top_level);
     wl_client_post_no_memory(client);
-    printf("Can't create top level resource\n");
+    log_error("Can't create top level resource");
     return;
   }
 
-  printf("get top level\n");
+  log_info("get top level");
 
   wl_resource_set_implementation(top_level->resource, &top_level_implementation,
                                  top_level, destroy_top_level_resource);

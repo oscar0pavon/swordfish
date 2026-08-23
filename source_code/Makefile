@@ -37,8 +37,11 @@ SWORDFISHOBJS := $(SRCS:c=o)
 
 OBJS := $(SWORDFISHOBJS) $(wayland_window_objs)
 
+#-rdynamic puts swordfish's own symbols in the dynamic symbol table, which is
+#what backtrace_symbols_fd() reads. without it the crash backtrace log.c writes
+#is a column of addresses with no names on it
 swordfish: $(OBJS) shaders
-	cc $(CFLAGS_ENGINE) -L/usr/local/lib $(OBJS) -o ../swordfish $(CLINKS)
+	cc $(CFLAGS_ENGINE) -rdynamic -L/usr/local/lib $(OBJS) -o ../swordfish $(CLINKS)
 
 %.o: %.c
 	cc $(CFLAGS_ENGINE) -c $<

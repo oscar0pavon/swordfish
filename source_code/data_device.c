@@ -10,6 +10,7 @@
 
 #include "compositor.h"
 #include "input.h"
+#include "log.h"
 
 //the clipboard. the compositor never sees the data itself: it keeps whichever
 //wl_data_source last claimed the selection, tells the focused client what mime
@@ -107,7 +108,7 @@ static void destroy_data_source(WResource *resource) {
   free(source->mime_types);
   free(source);
 
-  printf("Destroyed data source\n");
+  log_info("Destroyed data source");
 }
 
 static void create_data_source(WClient *client, WResource *resource,
@@ -125,14 +126,14 @@ static void create_data_source(WClient *client, WResource *resource,
   if (!source->resource) {
     free(source);
     wl_client_post_no_memory(client);
-    printf("Can't create data source resource\n");
+    log_error("Can't create data source resource");
     return;
   }
 
   wl_resource_set_implementation(source->resource, &data_source_interface,
                                  source, destroy_data_source);
 
-  printf("Created data source\n");
+  log_info("Created data source");
 }
 
 // ----------------------------------------------------------------- data offer
@@ -278,7 +279,7 @@ static void set_selection(WClient *client, WResource *resource,
   if (focused)
     data_device_offer_selection(focused);
 
-  printf("Selection %s\n", source ? "set" : "cleared");
+  log_info("Selection %s", source ? "set" : "cleared");
 }
 
 //there is no drag: no second quad to carry an icon, no grab to hold, and no
@@ -304,7 +305,7 @@ static const struct wl_data_device_interface data_device_interface = {
 
 static void destroy_data_device(WResource *resource) {
   wl_list_remove(wl_resource_get_link(resource));
-  printf("Destroyed data device\n");
+  log_info("Destroyed data device");
 }
 
 static void get_data_device(WClient *client, WResource *resource, uint32_t id,
@@ -315,7 +316,7 @@ static void get_data_device(WClient *client, WResource *resource, uint32_t id,
 
   if (!device) {
     wl_client_post_no_memory(client);
-    printf("Can't create data device resource\n");
+    log_error("Can't create data device resource");
     return;
   }
 
@@ -329,7 +330,7 @@ static void get_data_device(WClient *client, WResource *resource, uint32_t id,
   if (keyboard_focus_client() == client)
     send_selection_to_device(device);
 
-  printf("Got data device\n");
+  log_info("Got data device");
 }
 
 // --------------------------------------------------------------- the manager
@@ -346,14 +347,14 @@ static void bind_data_device_manager(WClient *client, void *data,
 
   if (!resource) {
     wl_client_post_no_memory(client);
-    printf("Can't create data device manager resource\n");
+    log_error("Can't create data device manager resource");
     return;
   }
 
   wl_resource_set_implementation(resource, &data_device_manager_interface,
                                  &compositor, NULL);
 
-  printf("Data device manager bound\n");
+  log_info("Data device manager bound");
 }
 
 void init_data_device() {

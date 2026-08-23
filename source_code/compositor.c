@@ -26,6 +26,7 @@
 #include "wayland_window/window.h"
 #include "device_input.h"
 #include <pway/pway.h>
+#include "log.h"
 
 //how long the compositor thread waits for a client before looking at
 //swordfish_running again. now mostly a safety net - the frame timer below
@@ -56,7 +57,7 @@ void finish_compositor(){
   
   wl_display_destroy(compositor.display);
 
-  printf("Finish compositor\n");
+  log_info("Finish compositor");
 }
 
 
@@ -66,35 +67,35 @@ void bind_compositor(WClient *client, void *data, uint32_t version,
 
   SwordfishCompositor* compositor = (SwordfishCompositor*)data;
   if(!compositor)
-    printf("Compositor is NULL\n");
+    log_error("Compositor is NULL");
 
   WResource* resource;
 
   resource = wl_resource_create(client, &wl_compositor_interface, version, id);
   if(!resource){
     wl_client_post_no_memory(client);
-    printf("Can't create resource\n");
+    log_error("Can't create resource");
   }
 
   wl_resource_set_implementation(resource, &compositor_interface, compositor, NULL);
-  printf("Compositor bound\n");
+  log_info("Compositor bound");
 }
 
 static void your_error_handler_func(void *data, const char *msg) {
-    fprintf(stderr, "Wayland Error: %s\n", msg);
+    log_error("Wayland Error: %s", msg);
 }
 
 void init_compositor(void){
 
   compositor.display = wl_display_create();
   if (!compositor.display) {
-    fprintf(stderr, "Failed to create Wayland display\n");
+    log_error("Failed to create Wayland display");
     return;
   }
 
   compositor.event_loop = wl_display_get_event_loop(compositor.display);
   if (!compositor.event_loop) {
-    fprintf(stderr, "Failed to get event loop\n");
+    log_error("Failed to get event loop");
     return;
   }
 
@@ -123,7 +124,7 @@ void init_compositor(void){
 
   const char *socket = wl_display_add_socket_auto(compositor.display);
   if (!socket) {
-    fprintf(stderr, "Failed to create Wayland socket\n");
+    log_error("Failed to create Wayland socket");
     wl_display_destroy(compositor.display);
     return;
   }
@@ -138,8 +139,8 @@ void init_compositor(void){
   //setenv("MESA_LOADER_DRIVER_OVERRIDE", "radeonsi", true);
   //setenv("MESA_DRM_DRIVER", "radeon", true);
 
-  printf("Wayland socket available at %s\n", socket);
-  printf("Compositor running. Use a Wayland client to connect.\n");
+  log_info("Wayland socket available at %s", socket);
+  log_info("Compositor running. Use a Wayland client to connect.");
 
   if (!is_wayland_window)
     init_input();
@@ -164,9 +165,6 @@ void run_compositor(void) {
 
     wl_display_flush_clients(compositor.display);
 
-    //pway's own wl_display_prepare_read()/poll()/read_events() dance requires
-    //prepare_read to immediately precede the poll that waits on its fd - see
-    //pway_dispatch_events() below, which is the other half of this
     if (is_wayland_window)
       pway_prepare_to_read_events();
 
@@ -203,7 +201,7 @@ void run_compositor(void) {
     //already wakes it every ~16.7ms in practice
     if (poll(fds, nfds, COMPOSITOR_POLL_TIMEOUT_MS) < 0 &&
         errno != EINTR) {
-      fprintf(stderr, "Compositor event loop poll failed: %m\n");
+      log_error("Compositor event loop poll failed: %m");
       break;
     }
 

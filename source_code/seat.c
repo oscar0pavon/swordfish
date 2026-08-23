@@ -15,6 +15,7 @@
 #include "tty.h"
 #include <pthread.h>
 #include <xf86drm.h>
+#include "log.h"
 
 
 static void on_seat_disable(struct libseat *seat, void *userdata);
@@ -33,12 +34,12 @@ static void on_seat_enable(struct libseat *seat, void *userdata) {
 
 static void on_seat_disable(struct libseat *seat, void *userdata) {
     SwordfishCompositor *state = userdata;
-    printf("libseat: Seat disabled. Suspending compositor.\n");
+    log_info("libseat: Seat disabled. Suspending compositor.");
     state->seat_active = 0;
     
     // Acknowledge the disable event *immediately* as required by the documentation
     if (libseat_disable_seat(seat) < 0) {
-        fprintf(stderr, "libseat_disable_seat failed: %s\n", strerror(errno));
+        log_error("libseat_disable_seat failed: %s", strerror(errno));
     }
 
     // You should close your devices here if necessary, or just stop using the FDs
@@ -50,12 +51,12 @@ static void on_seat_disable(struct libseat *seat, void *userdata) {
 }
 
 void init_seat() {
-  printf("Starting seat\n");
+  log_info("Starting seat");
 
   compositor.seat = libseat_open_seat(&seat_listener, &compositor);
 
   if (!compositor.seat) {
-    fprintf(stderr, "Failed to open seat: %s\n", strerror(errno));
+    log_error("Failed to open seat: %s", strerror(errno));
   }
 
 
@@ -63,23 +64,23 @@ void init_seat() {
   // pthread_create(&seat_thread_id, NULL, run_seat_loop, NULL);
 
 
-  printf("libseat: Seat enabled. Attempting to open GPU device.\n");
+  log_info("libseat: Seat enabled. Attempting to open GPU device.");
 
   int device_id = libseat_open_device(compositor.seat, compositor.gpu_path,
                                       &compositor.gpu_fd);
 
   if (device_id < 0) {
-    fprintf(stderr, "libseat_open_device failed for %s: %s\n",
-            compositor.gpu_path, strerror(errno));
+    log_error("libseat_open_device failed for %s: %s",
+              compositor.gpu_path, strerror(errno));
     compositor.gpu_fd = -1;
   } else {
-    printf("libseat: Successfully opened GPU device FD %d (Device ID: %d)\n",
-           compositor.gpu_fd, device_id);
+    log_info("libseat: Successfully opened GPU device FD %d (Device ID: %d)",
+             compositor.gpu_fd, device_id);
     compositor.seat_active = 1;
   }
 
   if (drmSetMaster(compositor.gpu_fd) < 0) {
-    printf("Can't be DRM master\n");
+    log_warn("Can't be DRM master");
   }
 
   // tty_save_state();
@@ -92,25 +93,25 @@ void check_libseat(){
 }
 
 void* run_seat_loop(void*none){
-  printf("libseat session opened successfully. Entering main loop.\n");
+  log_info("libseat session opened successfully. Entering main loop.");
   int seat_fd = libseat_get_fd(compositor.seat);
   struct pollfd fds[] = {{seat_fd, POLLIN, 0}};
   while(1){
-    printf("seat event loop\n");
+    log_debug("seat event loop");
     if (poll(fds, 1, -1) == -1) {
       if (errno == EINTR)
         continue; // Handle signals
-      perror("poll failed");
+      log_error("poll failed: %s", strerror(errno));
       break; // Exit loop on error
     }
   
-    printf("have a event\n");
+    log_debug("have a event");
     if (fds[0].revents & POLLIN) {
       // Dispatch pending libseat events, which triggers our callbacks
       if (libseat_dispatch(compositor.seat, 0) < 0) {
-        fprintf(stderr, "libseat_dispatch failed: %s\n", strerror(errno));
+        log_error("libseat_dispatch failed: %s", strerror(errno));
       }
-      printf("dispatch\n");
+      log_debug("dispatch");
     }
   }
 }

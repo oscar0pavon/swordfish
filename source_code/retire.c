@@ -5,6 +5,7 @@
 #include <engine/renderer/vulkan.h>
 #include <stdio.h>
 #include <vulkan/vulkan_core.h>
+#include "log.h"
 
 typedef enum RetiredKind {
   RETIRED_TEXTURE,
@@ -32,7 +33,7 @@ static uint64_t frame_number;
 static Retired *retire_slot(void) {
 
   if (retired_count >= MAX_RETIRED) {
-    printf("Too many retired vulkan objects, leaking one\n");
+    log_warn("Too many retired vulkan objects, leaking one");
     return NULL;
   }
 

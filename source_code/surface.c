@@ -22,6 +22,7 @@
 #include "retire.h"
 #include "shared_memory.h"
 #include "top_level.h"
+#include "log.h"
 
 Array tasks_for_draw;
 
@@ -32,7 +33,7 @@ static void surface_damage(WClient *client, WResource *resource,
                            int32_t height) {
   // Store the damaged region information.
   // ...
-  printf("Surface damage\n");
+  log_debug("Surface damage");
 }
 
 static void surface_destroy(WClient *client, WResource *resource) {
@@ -42,7 +43,7 @@ static void surface_destroy(WClient *client, WResource *resource) {
   //and the task is not out of tasks_for_draw yet
   wl_resource_destroy(resource);
 
-  printf("Surface destroy\n");
+  log_info("Surface destroy");
 }
 
 void send_frame_callback_done(Task *surface){
@@ -186,7 +187,7 @@ void mark_surface_as_cursor(Task *task) {
     task->buffer_released = true;
   }
 
-  printf("Surface is a cursor\n");
+  log_info("Surface is a cursor");
 }
 
 void surface_attach(WClient *client, WResource *resource,
@@ -213,7 +214,7 @@ void surface_attach(WClient *client, WResource *resource,
     //it draws nothing. relayouting here means it loses its place to whoever is
     //behind it and takes a different one when it maps again, which is worse
     //until the layout keeps windows in a stable order of its own
-    printf("Surface detached\n");
+    log_debug("Surface detached");
     return;
   }
 
@@ -239,8 +240,8 @@ void surface_attach(WClient *client, WResource *resource,
 
   ClientBuffer *buffer = wl_resource_get_user_data(buffer_resource);
 
-  printf("Got image with %i %i\n", buffer->texture.width,
-         buffer->texture.heigth);
+  log_debug("Got image with %i %i", buffer->texture.width,
+            buffer->texture.heigth);
 
   surface->client_buffer = buffer;
   surface->image = &buffer->texture;
@@ -262,7 +263,7 @@ void surface_attach(WClient *client, WResource *resource,
   surface->x = x;
   surface->y = y;
 
-  printf("Surface attached\n");
+  log_debug("Surface attached");
 }
 
 //the copy, and the release that goes with it. called from end_frame(), the one
@@ -311,7 +312,7 @@ void surface_commit(WClient *client, WResource *resource) {
       surface->client_buffer->type == CLIENT_BUFFER_SHARED_MEMORY)
     surface->client_buffer->needs_upload = true;
 
-  printf("Surface committed! Ready to draw.\n");
+  log_debug("Surface committed! Ready to draw.");
 }
 
 
@@ -322,7 +323,7 @@ void handle_frame(WClient *client, WResource *resource, uint32_t callback_id){
 
   if (!callback_resource) {
     wl_client_post_no_memory(client);
-    printf("Can't creat frame callback resource\n");
+    log_error("Can't creat frame callback resource");
     return;
   }
 
@@ -414,7 +415,7 @@ static void destroy_surface(WResource *resource) {
   //to be given the keyboard afterwards
   layout_focus_fallback();
 
-  printf("Destroyed surface\n");
+  log_info("Destroyed surface");
 }
 
 void create_surface(WClient *client, WResource *resource,
@@ -440,7 +441,7 @@ void create_surface(WClient *client, WResource *resource,
 
 
   if (!surface) {
-    printf("Can't create wayland surface\n");
+    log_error("Can't create wayland surface");
     wl_client_post_no_memory(client);
     return;
   }
@@ -451,7 +452,7 @@ void create_surface(WClient *client, WResource *resource,
                                          wl_resource_get_version(resource), id);
   if (!surface->resource) {
     free(surface);
-    printf("Can't create wayland resource\n");
+    log_error("Can't create wayland resource");
     wl_client_post_no_memory(client);
     return;
   }
@@ -467,5 +468,5 @@ void create_surface(WClient *client, WResource *resource,
 
   surface->compositor = compositor;
   wl_list_insert(&compositor->surfaces, &surface->link);
-  printf("New surface created with ID %u\n", id);
+  log_info("New surface created with ID %u", id);
 }

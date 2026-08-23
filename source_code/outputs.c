@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include <engine/renderer/vulkan.h>
+#include "log.h"
 
 SwordfishOutput swordfish_outputs[PE_VK_MAX_RENDER_TARGETS];
 int swordfish_outputs_count;
@@ -23,8 +24,8 @@ void swordfish_outputs_init(void) {
     out->height = target->heigth;
     snprintf(out->name, sizeof(out->name), "swordfish-%u", i);
 
-    printf("Output %s: %ix%i at x=%i\n", out->name, out->width, out->height,
-           out->x);
+    log_info("Output %s: %ix%i at x=%i", out->name, out->width, out->height,
+             out->x);
 
     x += out->width;
   }

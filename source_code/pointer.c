@@ -2,6 +2,7 @@
 #include "pointer.h"
 #include "surface.h"
 #include "input.h"
+#include "log.h"
 
 //the task the cursor is inside, and whether it has been sent wl_pointer.enter.
 //the same split as the keyboard, for the same reason: the cursor can be over a
@@ -36,8 +37,8 @@ static void send_pointer_enter(void){
 
   pointer_entered = true;
 
-  printf("Pointer entered task at %.0f %.0f\n", pointer_local_x,
-         pointer_local_y);
+  log_debug("Pointer entered task at %.0f %.0f", pointer_local_x,
+            pointer_local_y);
 }
 
 //is the cursor inside this window's cell, and where in the client's own buffer
@@ -158,7 +159,7 @@ void send_wayland_pointer_button(uint32_t button, bool pressed){
     //swordfish_frame_step()'s handle_focus() is what turns this into
     //wl_keyboard.leave, enter and a fresh clipboard offer
     is_focus_completed = false;
-    printf("Focus moved to the clicked window\n");
+    log_info("Focus moved to the clicked window");
   }
 
   WResource *pointer = focused_pointer();
@@ -233,7 +234,7 @@ static void destroy_pointer(WResource *resource) {
 
   //the seat resource went first and took the TaskInput with it
   if(!input){
-    printf("Destroyed pointer\n");
+    log_info("Destroyed pointer");
     return;
   }
 
@@ -242,12 +243,12 @@ static void destroy_pointer(WResource *resource) {
     pointer_entered = false;
   }
 
-  printf("Destroyed pointer\n");
+  log_info("Destroyed pointer");
 }
 
 void get_pointer(WClient *client, WResource *resource, uint32_t id) {
 
-  printf("Get pointer\n");
+  log_info("Get pointer");
 
   TaskInput *input = wl_resource_get_user_data(resource);
 
@@ -258,7 +259,7 @@ void get_pointer(WClient *client, WResource *resource, uint32_t id) {
       wl_resource_create(client, &wl_pointer_interface, version, id);
   if (!pointer_resource) {
     wl_client_post_no_memory(client);
-    printf("Can't create pointer resource\n");
+    log_error("Can't create pointer resource");
     return;
   }
 

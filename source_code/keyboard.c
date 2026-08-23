@@ -15,6 +15,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "input.h"
+#include "log.h"
 
 struct xkb_context *xkb_context;
 struct xkb_keymap *xkb_keymap;
@@ -23,14 +24,14 @@ struct xkb_state *xkb_state;
 //return file descriptor of keymap
 int create_keymap_file_descriptor(off_t *size_out){
   if(!xkb_keymap){
-    printf("No xkb keymap, init_keyboard() has not run\n");
+    log_error("No xkb keymap, init_keyboard() has not run");
     return -1;
   }
 
   char *keymap_string = xkb_keymap_get_as_string(xkb_keymap, 
       XKB_KEYMAP_FORMAT_TEXT_V1);
   if(!keymap_string){
-    printf("Failed to get XKB keymap string\n");
+    log_error("Failed to get XKB keymap string");
     return -1;
   }
 
@@ -38,13 +39,13 @@ int create_keymap_file_descriptor(off_t *size_out){
 
   int fd = memfd_create("swordfish-keyboard", MFD_CLOEXEC);
   if(fd < 0){
-    printf("Can't create file descriptor for keyboard\n");
+    log_error("Can't create file descriptor for keyboard");
     free(keymap_string);
     return -1;
   }
 
   if(ftruncate(fd, size) < 0){
-   printf("Can't truncate keyboard file descriptor\n");
+   log_error("Can't truncate keyboard file descriptor");
    close(fd);
    free(keymap_string);
   }
@@ -118,7 +119,7 @@ static bool handle_swordfish_key(uint32_t unicode) {
     layout_close_focused();
     return true;
   case 'q':
-    printf("Closing from keyboard\n");
+    log_info("Closing from keyboard");
     exit(0);
     return true;
   case 'w':
@@ -187,7 +188,7 @@ void init_xkb(void) {
 
   xkb_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
   if (!xkb_context) {
-    fprintf(stderr, "Failed to create XKB context\n");
+    log_error("Failed to create XKB context");
     return;
   }
 
@@ -204,14 +205,14 @@ void init_xkb(void) {
   xkb_keymap =
       xkb_keymap_new_from_names(xkb_context, &names, XKB_KEYMAP_COMPILE_NO_FLAGS);
   if (!xkb_keymap) {
-    fprintf(stderr, "Failed to compile XKB keymap\n");
+    log_error("Failed to compile XKB keymap");
     xkb_context_unref(xkb_context);
     return;
   }
 
   xkb_state = xkb_state_new(xkb_keymap);
   if (!xkb_state) {
-    fprintf(stderr, "Failed to create XKB state\n");
+    log_error("Failed to create XKB state");
     xkb_keymap_unref(xkb_keymap);
     xkb_context_unref(xkb_context);
     return;

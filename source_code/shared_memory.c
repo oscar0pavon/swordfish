@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <wayland-server-protocol.h>
+#include "log.h"
 
 //wl_shm names its two mandatory formats 0 and 1 rather than by fourcc; every
 //other value in the enum is the fourcc itself. drm_format.c is the one place
@@ -113,7 +114,7 @@ static bool create_buffer_texture(ClientBuffer *buffer) {
   pe_vk_create_image(&image_info);
 
   if (buffer->texture.image == VK_NULL_HANDLE) {
-    printf("Could not create an image for a shared memory buffer\n");
+    log_error("Could not create an image for a shared memory buffer");
     return false;
   }
 
@@ -279,8 +280,8 @@ static void create_shared_memory_buffer(WClient *client, WResource *resource,
   wl_resource_set_implementation(buffer_resource, &buffer_interface, buffer,
                                  destroy_buffer_function);
 
-  printf("Created shared memory buffer %ix%i %s stride %i\n", width, height,
-         drm_format->name, stride);
+  log_info("Created shared memory buffer %ix%i %s stride %i", width, height,
+           drm_format->name, stride);
 }
 
 // ------------------------------------------------------------------ the pool
@@ -303,7 +304,7 @@ static void resize_shared_memory_pool(WClient *client, WResource *resource,
   void *data = mremap(pool->data, pool->size, size, MREMAP_MAYMOVE);
 
   if (data == MAP_FAILED) {
-    fprintf(stderr, "Failed to remap shared memory: %m\n");
+    log_error("Failed to remap shared memory: %m");
     wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_FD, "remap failed");
     return;
   }
@@ -347,7 +348,7 @@ static void create_shared_memory_pool(WClient *client, WResource *resource,
   close(fd);
 
   if (data == MAP_FAILED) {
-    fprintf(stderr, "Failed to mmap shared memory: %m\n");
+    log_error("Failed to mmap shared memory: %m");
     wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_FD, "mmap failed");
     return;
   }
@@ -378,7 +379,7 @@ static void create_shared_memory_pool(WClient *client, WResource *resource,
   wl_resource_set_implementation(pool_resource, &pool_interface, pool,
                                  destroy_pool_function);
 
-  printf("Created Memory pool\n");
+  log_info("Created Memory pool");
 }
 
 // --------------------------------------------------------------------- wl_shm

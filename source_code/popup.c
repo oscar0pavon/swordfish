@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <wayland-server.h>
+#include "log.h"
 
 //a positioner is client-side bookkeeping until a popup uses it, and swordfish
 //never gets that far. the requests still need handlers: libwayland dispatches
@@ -63,14 +64,14 @@ void create_positioner(WClient *client, WResource *resource, uint32_t id) {
 
   if (!positioner) {
     wl_client_post_no_memory(client);
-    printf("Can't create positioner\n");
+    log_error("Can't create positioner");
     return;
   }
 
   wl_resource_set_implementation(positioner, &positioner_implementation, NULL,
                                  NULL);
 
-  printf("Created positioner\n");
+  log_info("Created positioner");
 }
 
 static void popup_destroy(WClient *client, WResource *resource) {
@@ -99,7 +100,7 @@ void create_popup(WClient *client, WResource *resource, uint32_t id,
 
   if (!popup) {
     wl_client_post_no_memory(client);
-    printf("Can't create popup\n");
+    log_error("Can't create popup");
     return;
   }
 
@@ -111,5 +112,5 @@ void create_popup(WClient *client, WResource *resource, uint32_t id,
   //never answering leaves a client that took a grab waiting forever
   xdg_popup_send_popup_done(popup);
 
-  printf("Popup dismissed, swordfish has nowhere to put it\n");
+  log_info("Popup dismissed, swordfish has nowhere to put it");
 }

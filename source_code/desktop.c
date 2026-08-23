@@ -7,6 +7,7 @@
 
 #include "popup.h"
 #include "top_level.h"
+#include "log.h"
 
 //recieve from client
 void do_desktop_ack(WClient* client, WResource* resource, uint32_t serial){
@@ -17,19 +18,19 @@ void do_desktop_ack(WClient* client, WResource* resource, uint32_t serial){
   //reply to a configure that has already been superseded, and the state that
   //came with it must not be applied
   if(serial != desktop_surface->pending_serial){
-    printf("Client acked configure %u, waiting for %u\n", serial,
-           desktop_surface->pending_serial);
+    log_warn("Client acked configure %u, waiting for %u", serial,
+             desktop_surface->pending_serial);
     return;
   }
 
   desktop_surface->pending_serial = 0;
 
-  printf("ack %u\n", serial);
+  log_debug("ack %u", serial);
 }
 
 void do_desktop_pong(WClient* client, WResource* resource, uint32_t serial){
   //TODO respond to client
-  printf("pong\n");
+  log_debug("pong");
 }
 
 //every request in the interface needs a handler: libwayland dispatches a NULL
@@ -67,7 +68,7 @@ static void destroy_desktop_surface(WResource *resource) {
 
   free(desktop_surface);
 
-  printf("Destroyed desktop surface\n");
+  log_info("Destroyed desktop surface");
 }
 
 void get_desktop_surface(WClient *client, WResource *resource,
@@ -86,7 +87,7 @@ void get_desktop_surface(WClient *client, WResource *resource,
                                  &desktop_surface_implementation,
                                  desktop_surface, destroy_desktop_surface);
 
-  printf("Get desktop surface\n");
+  log_info("Get desktop surface");
 }
 
 static void desktop_destroy(WClient *client, WResource *resource) {
@@ -115,5 +116,5 @@ void bind_desktop(WClient *client, void *data, uint32_t version,
   }
 
   wl_resource_set_implementation(resource, &desktop_implementation, data, NULL);
-  printf("Desktop bound\n");
+  log_info("Desktop bound");
 }

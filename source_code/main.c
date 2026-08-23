@@ -22,12 +22,13 @@
 #include <engine/renderer/renderer.h>
 
 #include "compositor.h"
+#include "log.h"
 
 
 
 void close_swordfish() {
-  printf("Closing Swordfish\n");
-    
+  log_info("Closing Swordfish");
+
   clean_swordfish();
   pe_vk_end();
 
@@ -46,6 +47,8 @@ void handle_signal(int sig_num) {
 
 int main(void){
 
+  log_init();
+
   signal(SIGINT, handle_signal);
 
   pe_init_memory();
@@ -59,8 +62,12 @@ int main(void){
   if(!create_wayland_window()){
     is_drm_rendering = true;
 
+    //no host compositor: this is a VT, and the console the printf() calls all
+    //over swordfish are writing to is about to be under the frames we draw
+    log_redirect_stdio();
+
     compositor.gpu_path = "/dev/dri/card0";
-    
+
     //we can use seat but with vulkan not for now
     //init_seat();
   }
@@ -88,7 +95,9 @@ finish:
     close_wayland_window();
 
 
-  printf("Goobye from Swordfish\n");
+  log_info("Goobye from Swordfish");
+
+  log_end();
 
 
 

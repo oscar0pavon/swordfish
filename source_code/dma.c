@@ -20,6 +20,9 @@
 #include "retire.h"
 
 #include <xf86drm.h>
+#include "log.h"
+#include <errno.h>
+#include <string.h>
 
 uint64_t main_device_id;
 
@@ -38,13 +41,13 @@ uint64_t get_drm_device_id(const char *device_path);
 uint64_t get_render_device_id(const char *primary_path) {
   int fd = open(primary_path, O_RDWR | O_CLOEXEC);
   if (fd < 0) {
-    perror("open primary node");
+    log_error("open primary node: %s", strerror(errno));
     return 0;
   }
 
   drmDevicePtr device;
   if (drmGetDevice2(fd, 0, &device) != 0) {
-    printf("Can't get the drm device for %s\n", primary_path);
+    log_error("Can't get the drm device for %s", primary_path);
     close(fd);
     return 0;
   }
@@ -52,10 +55,10 @@ uint64_t get_render_device_id(const char *primary_path) {
   uint64_t device_id = 0;
 
   if (device->available_nodes & (1 << DRM_NODE_RENDER)) {
-    printf("Advertising render node %s\n", device->nodes[DRM_NODE_RENDER]);
+    log_info("Advertising render node %s", device->nodes[DRM_NODE_RENDER]);
     device_id = get_drm_device_id(device->nodes[DRM_NODE_RENDER]);
   } else {
-    printf("No render node for %s, falling back to it\n", primary_path);
+    log_warn("No render node for %s, falling back to it", primary_path);
     device_id = get_drm_device_id(primary_path);
   }
 
@@ -68,7 +71,7 @@ uint64_t get_render_device_id(const char *primary_path) {
 uint64_t get_drm_device_id(const char *device_path) {
     struct stat st;
     if (stat(device_path, &st) < 0) {
-        perror("stat device_path");
+        log_error("stat device_path: %s", strerror(errno));
         return 0; // Error
     }
     // The device ID is a combination of major and minor numbers
@@ -86,7 +89,7 @@ void params_add(WClient *client,
 		    uint32_t modifier_hi,
         uint32_t modifier_lo){
 
-  printf("Adding params\n");
+  log_debug("Adding params");
 
   DMAParams *params = wl_resource_get_user_data(resource);
 
@@ -107,7 +110,7 @@ void params_add(WClient *client,
     return;
   }
   if (fd == -1 || fcntl(fd, F_GETFL) == -1) {
-    perror("Received an invalid or closed FD from client");
+    log_error("Received an invalid or closed FD from client: %s", strerror(errno));
     wl_resource_post_error(resource,
                            ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT,
                            "Received invalid FD");
@@ -120,7 +123,7 @@ void params_add(WClient *client,
   params->modifiers[plane_idx] = ((uint64_t)modifier_hi << 32) | modifier_lo;
   params->num_planes++;
 
-  printf("Added DMA buffer plane %u with FD %d\n", plane_idx, fd);
+  log_debug("Added DMA buffer plane %u with FD %d", plane_idx, fd);
 }
 
 static void buffer_destroy(WClient *client, WResource *resource) {
@@ -146,8 +149,8 @@ static void destroy_buffer_resource(WResource *resource) {
   if (!buffer)
     return;
 
-  printf("#### Retiring image size %i %i %p\n", buffer->texture.width,
-         buffer->texture.heigth, buffer);
+  log_debug("#### Retiring image size %i %i %p", buffer->texture.width,
+            buffer->texture.heigth, buffer);
 
   retire_texture(&buffer->texture);
 
@@ -184,8 +187,8 @@ static WResource *params_import(WClient *client, WResource *resource,
   const DrmFormat *drm_format = drm_format_find(format);
 
   if (!drm_format) {
-    printf("Client asked for format 0x%08x, which has no vulkan equivalent\n",
-           format);
+    log_warn("Client asked for format 0x%08x, which has no vulkan equivalent",
+             format);
     wl_resource_post_error(resource,
                            ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT,
                            "unsupported format");
@@ -199,11 +202,11 @@ static WResource *params_import(WClient *client, WResource *resource,
     return NULL;
   }
 
-  printf("Creatig buffer with %i %i format %s modifier 0x%016lx planes %i "
-         "stride %u offset %u\n",
-         width, height, drm_format->name,
-         (unsigned long)buffer->modifiers[0], buffer->num_planes,
-         buffer->strides[0], buffer->offsets[0]);
+  log_info("Creatig buffer with %i %i format %s modifier 0x%016lx planes %i "
+           "stride %u offset %u",
+           width, height, drm_format->name,
+           (unsigned long)buffer->modifiers[0], buffer->num_planes,
+           buffer->strides[0], buffer->offsets[0]);
 
   //the same struct shared_memory.c makes, tagged so surface_attach() can tell
   //a zero-copy import from a buffer it has to upload itself
@@ -305,7 +308,7 @@ static void create_immediate(WClient *client,
 
 static void destroy_params_resource(WClient *client, WResource *resource) {
     wl_resource_destroy(resource);
-    printf("Destroyed params resource\n");
+    log_info("Destroyed params resource");
 }
 
 static const struct zwp_linux_buffer_params_v1_interface params_implementation = {
@@ -327,12 +330,12 @@ void destroy_params(WResource *resource) {
         }
         free(params);
     }
-    printf("Destroyed params\n");
+    log_info("Destroyed params");
 }
 
 static void create_params(WClient *client, WResource *resource, uint32_t id) {
 
-  printf("Received create_params request. Creating new buffer_params resource ID: %u\n", id);
+  log_info("Received create_params request. Creating new buffer_params resource ID: %u", id);
 
   WResource *params_resource =
       wl_resource_create(client, &zwp_linux_buffer_params_v1_interface,
@@ -355,7 +358,7 @@ static void create_params(WClient *client, WResource *resource, uint32_t id) {
   wl_resource_set_implementation(params_resource, &params_implementation,
                                  params, destroy_params);
 
-  printf("Created params\n");
+  log_info("Created params");
 }
 
 static void destroy_dmabuf_resource(struct wl_resource *resource) {
@@ -363,27 +366,27 @@ static void destroy_dmabuf_resource(struct wl_resource *resource) {
     // void *data = wl_resource_get_user_data(resource);
     // free(data); // If you allocated data specifically for this resource
 
-    printf("Destroying zwp_linux_dmabuf_v1 resource: ID %u\n", wl_resource_get_id(resource));
+    log_info("Destroying zwp_linux_dmabuf_v1 resource: ID %u", wl_resource_get_id(resource));
     // The resource itself is managed by the Wayland library, no need to free 'resource'
 }
 
 void destry_dma(struct wl_client *client,
     struct wl_resource *resource){
 
-  printf("destry dma");
+  log_info("destry dma");
 }
 
 void bind_dma(WClient *client, void *data, uint32_t version,
                        uint32_t id) {
   
-  printf("## Implementing DMA buffers\n");
+  log_info("## Implementing DMA buffers");
 
   WResource *resource;
 
   resource = wl_resource_create(client, &zwp_linux_dmabuf_v1_interface, version, id);
   if (!resource) {
     wl_client_post_no_memory(client);
-    printf("Can't implement DMA\n");
+    log_error("Can't implement DMA");
     return;
   }
   
@@ -395,13 +398,13 @@ void bind_dma(WClient *client, void *data, uint32_t version,
 
   wl_resource_set_implementation(resource, &dmabuf_data, NULL, destroy_dmabuf_resource);
 
-  printf("Bound zwp_linux_dmabuf_v1 global for client (ID %u, Version %u)\n", id, version);
+  log_info("Bound zwp_linux_dmabuf_v1 global for client (ID %u, Version %u)", id, version);
 }
 
 
 void init_dma(){
 
-  printf("Added DMA global\n");
+  log_info("Added DMA global");
 
   main_device_id = get_render_device_id("/dev/dri/card0");
 
