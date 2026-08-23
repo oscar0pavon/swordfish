@@ -6,7 +6,9 @@ typedef struct libinput LibInput;
 typedef struct libinput_event InputEvent;
 typedef struct libinput_event_keyboard InputEventKeyboard;
 
-void* handle_input(void* none);
+//drains and dispatches whatever libinput already has queued; the caller must
+//already know the libinput fd is readable
+void dispatch_libinput_events(void);
 
 //declared by input.h (the wl_seat one), which owns it
 

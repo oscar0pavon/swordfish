@@ -14,4 +14,6 @@ void swordfish_init();
 void swordfish_draw_scene(PRenderTarget *target, VkCommandBuffer *cmd_buffer, uint32_t index);
 
 void end_frame(void);
+
+void swordfish_frame_step(void);
 #endif

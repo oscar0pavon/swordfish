@@ -79,8 +79,8 @@ The shm upload (`shared_memory.c`) assembles its own version of
 `pe_vk_image_copy_buffer()` and `pe_vk_create_texture_sampler()`, because that
 function hardcodes `VK_FORMAT_R8G8B8A8_SRGB` and takes a `PImage`. The three were
 already external; they only had to be **declared** in pengine's `vk_images.h`.
-All of them end in `vkQueueWaitIdle` — see **Frame path** for which thread may
-call them.
+All of them end in `vkQueueWaitIdle` — see **Frame path** for where they may be
+called from.
 
 ### What swordfish hands the renderer
 
@@ -122,31 +122,62 @@ There is **no X11**. Swordfish is a Wayland client of the host compositor, or it
 
 ## Architecture
 
-### Threads (`main.c`)
+### One thread (`compositor.c`)
 
-Three threads, started in `main()`:
+**Swordfish is single-threaded**, the way sway and the other wlroots compositors
+are. It used to be three threads — a render loop on `main()`, a compositor
+thread, and an input thread — with three mutexes holding them together. All of
+that is gone. Any thread left in a `ps` listing belongs to Mesa (the
+`swordfi:disk$0` shader-cache threads), not to swordfish.
 
-1. **Main thread** — Vulkan render loop: `handle_focus()` → `pe_vk_draw_frame()` → `usleep(16667)` → `update_delta_time()` → `end_frame()`.
-2. **Compositor thread** — started *after* `pe_vk_init()` and `swordfish_init()`, because everything a client touches on it (the quad's pipeline, its buffers, the dmabuf format table the GPU is asked for) needs a Vulkan device; a client that connected before that died on `vkCreateBuffer: Invalid device` and took swordfish with it. `run_compositor()` creates the `wl_display`, registers globals (wl_compositor, xdg_wm_base, shm, linux-dmabuf, seat/input), sets `WAYLAND_DISPLAY`, and blocks in `wl_display_run()`.
-3. **Input thread** — `handle_input()`; when there is a pway window it loops on `pway_handle_events()`, otherwise libinput/udev on bare DRM. `pway_handle_events()` polls with an infinite timeout, so it must stay on its own thread — calling it from the render loop would stall rendering until something happened. Pumping it is also what gets the xdg surface configured, so the window never maps without it.
+`main()` does setup only — memory, `init_keyboard()`, the window or the DRM
+fallback, `pe_vk_init()`, `swordfish_outputs_init()`, `camera_init()`,
+`swordfish_init()` — and then calls `run_compositor()`, which is the whole rest
+of the program. The socket goes up only after `pe_vk_init()`, because everything
+a client touches (the quad's pipeline, its buffers, the dmabuf format table the
+GPU is asked for) needs a Vulkan device; a client that connected before that
+died on `vkCreateBuffer: Invalid device` and took swordfish with it.
 
-`init_keyboard()` runs in `main()`, not on the input thread. The xkb keymap is
-the *compositor's* — every client that calls `wl_seat.get_keyboard` is sent it —
-so it cannot live behind the libinput branch that the pway path returns before
-reaching, or serving a client dereferences a NULL `xkb_keymap`.
+`run_compositor()` creates the `wl_display`, registers the globals
+(wl_compositor, xdg_wm_base, shm, linux-dmabuf, seat/input, output, data
+device), sets `WAYLAND_DISPLAY`, and then loops on **one `poll()`** over:
 
-`draw_tasks_mutex` and `focus_task_mutex` (`swordfish.c`) guard the `tasks_for_draw` array shared between the compositor thread and the render loop. Anything touching client surfaces from the render side must take `draw_tasks_mutex`. It also covers the tile rectangles the layout writes, since the render thread reads those in `draw_surface()`.
+- `wl_event_loop_get_fd()` — client requests, dispatched with
+  `wl_event_loop_dispatch(loop, 0)` (zero timeout: the poll above is what waited)
+- a **frame timerfd** at `FRAME_INTERVAL_NS` (~16.7ms), which replaced the render
+  loop's old `usleep(16667)`. When it fires, `swordfish_frame_step()`
+  (`swordfish.c`) runs `handle_focus()` → `pe_frame_draw()` → `update_delta_time()`
+  → `end_frame()`
+- **input**: on the pway path, `pway->fds[0]` (host connection), `[1]` (key-repeat
+  timerfd) and `[3]` (paste); on bare DRM, `libinput_get_fd()`
 
-#### Sending to a client is single-threaded — `lock_wayland()`
+`wl_display_run()` is this loop with the waiting and the dispatching welded
+together inside libwayland; it is unrolled here so input and the frame timer can
+be waited on in the same `poll()`.
 
-**libwayland-server has no locking of its own**, and all three threads send
-events: the compositor thread out of its event loop, the render thread in
-`end_frame()` and `draw_surfaces()`, the input thread in `send_wayland_key()`
-and the pointer. Everything a client is sent goes through one ring buffer per
+**Ordering inside the loop matters.** Input is dispatched *before* the frame
+step. `pway_prepare_to_read_events()` (called before the poll, as pway's
+`prepare_read`/`poll`/`read_events` contract requires) leaves the connection to
+the host compositor in a pending read, and nothing may touch that connection
+until `pway_dispatch_events()` closes it — **rendering does**, because presenting
+goes out through `VK_KHR_wayland_surface` on that very same `wl_display`. Drawing
+before the dispatch wedges the connection and no input is ever read.
+
+`init_keyboard()` runs in `main()`, before any of this. The xkb keymap is the
+*compositor's* — every client that calls `wl_seat.get_keyboard` is sent it — so
+it cannot live behind the libinput branch that the pway path never reaches, or
+serving a client dereferences a NULL `xkb_keymap`.
+
+#### There are no locks, and adding one is a mistake
+
+`lock_wayland()`/`unlock_wayland()`, `draw_tasks_mutex`, `focus_task_mutex` and
+`retire_mutex` are **all deleted**. They existed for exactly one reason:
+**libwayland-server has no locking of its own**, and three threads used to send
+events to clients. Everything a client is sent goes through one ring buffer per
 connection whose head a send advances and whose tail a flush moves, so two
-threads at once lose an update and leave the tail *past* the head. The client
-then reads a message length out of the middle of an event and drops the
-connection — from the outside it looks exactly like the compositor closing it:
+threads at once lost an update and left the tail *past* the head. The client then
+read a message length out of the middle of an event and dropped the connection —
+from the outside indistinguishable from the compositor closing it:
 
 ```
 Data too big for buffer (18446744073709117440 + 8 > 4096).   # -434176, from libwayland's ring buffer
@@ -154,23 +185,17 @@ Message length 19200 exceeds limit 4096                       # printed by the *
 error in client communication (pid ...)
 ```
 
-`lock_wayland()` / `unlock_wayland()` (`compositor.c`) serialise it.
-The compositor thread holds it **across the whole dispatch**, which is why
-`run_compositor()` no longer calls `wl_display_run()`: that welds the waiting to
-the dispatching, leaving nowhere to hold a lock. Unrolled, it polls
-`wl_event_loop_get_fd()` without the lock and calls
-`wl_event_loop_dispatch(loop, 0)` with it. Holding it across the dispatch is
-what covers the events **libwayland itself** sends — `wl_display.delete_id`
-after every `wl_resource_destroy`, protocol errors — which no lock around our
-own calls could reach.
+One thread makes all of that impossible by construction. Request handlers, the
+render step and input dispatch cannot interleave, so a send is never concurrent
+with another send. **Do not reintroduce a thread here** without bringing the
+whole locking discipline back with it — and note that the old rule was subtle:
+`lock_wayland()` was recursive and strictly outermost, before `draw_tasks_mutex`
+and `focus_task_mutex`, never after.
 
-It is **recursive** (a handler cannot know whether it was reached from the
-dispatch or from the render thread) and it is the **outermost lock**: take it
-before `draw_tasks_mutex` and `focus_task_mutex`, never after, or the render
-thread and a request handler deadlock over the pair.
-
-Code already running on the compositor thread — every request handler — is
-inside it and needs nothing. Only the render and input threads take it by hand.
+What single-threading does **not** remove is GPU-side synchronisation. An shm
+upload still waits on the render targets' fences in `end_frame()`, and
+`task_release_old_buffer()` still counts frames in flight — the GPU runs
+asynchronously whatever the CPU thread count is. See **Frame path**.
 
 ### Two orthogonal mode flags
 
@@ -183,7 +208,7 @@ Both flags are read all over `renderer/` (pengine) and swordfish's own top-level
 
 `create_wayland_window()` calls `pway_init()` then `pway_create_window()`, and deliberately **not** `pway_init_egl()` — Vulkan takes the raw `pway_surface` / `pway_display` through `VK_KHR_wayland_surface` instead, so the EGL context pway would build is never needed.
 
-Ordering matters twice over. `pway_init()` connects using `WAYLAND_DISPLAY`, and `run_compositor()` later overwrites that variable with swordfish's own socket, so the window must be created before the compositor thread starts or swordfish tries to be a client of itself. And within pway, `pway_init()` does all the real work (registry, `wl_surface`, `xdg_surface`, listeners, first commit); `pway_create_window()` only sets the title and size.
+Ordering matters twice over. `pway_init()` connects using `WAYLAND_DISPLAY`, and `run_compositor()` later overwrites that variable with swordfish's own socket, so the window must be created before `run_compositor()` claims that variable, or swordfish tries to be a client of itself. And within pway, `pway_init()` does all the real work (registry, `wl_surface`, `xdg_surface`, listeners, first commit); `pway_create_window()` only sets the title and size.
 
 Two things differ from the old X11 surface and are easy to reintroduce: a Wayland surface does **not** support `VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR`, so `swap_chain.c` picks a `compositeAlpha` out of `supportedCompositeAlpha` rather than assuming one; and the windowed EGL path in `compositor/egl.c` needs a `wl_egl_window` where it used to take an X11 `Window`.
 
@@ -195,16 +220,20 @@ Two things differ from the old X11 surface and are easy to reintroduce: a Waylan
 
 `swordfish_init()` (also `swordfish.c`) is the counterpart: `pe_2d_init()` and `cursor_init()`. `clean_swordfish()` must free whatever it allocates.
 
-`pe_vk_draw_frame()` ends in a `vkQueueWaitIdle()` (`renderer/draw.c`), and `wl_buffer_send_release()` in `draw_surfaces()` silently depends on it: it is queued during command recording but only flushed after the GPU has drained. Removing that wait — the obvious performance fix — means gating it on the frame fence instead.
+`pe_vk_draw_frame()` **no longer ends in `vkQueueWaitIdle()`** — it keeps
+`PE_VK_FRAMES_IN_FLIGHT` frames going on per-frame and per-image fences instead
+(pengine's `renderer/draw.c`). Nothing may assume the queue is drained at the end
+of a frame any more: `end_frame()` waits on the targets' fences explicitly, and
+only on the frames where an shm client actually redrew. The bare-DRM path is the
+exception — it still waits on this frame's fence between submit and present.
 
 **`end_frame()` (`swordfish.c`) is the frame's second half**, and it is where
-everything that needs an idle GPU goes: `shared_memory_collect_textures()`, then
-per task `send_frame_callback_done()`, `task_upload_shared_memory()` and
-`task_release_old_buffer()`, then `wl_display_flush_clients()`. It holds
-`lock_wayland()` around the lot and `draw_tasks_mutex` inside it, in that order.
+everything that needs the GPU to be past a frame goes: `retire_collect()`, the
+fence wait when an shm upload is pending, then per task
+`send_frame_callback_done()`, `task_upload_shared_memory()` and
+`task_release_old_buffer()`, then `wl_display_flush_clients()`.
 Anything that submits to `vk_queue` on behalf of a client belongs here and
-nowhere else — this is the only point where the render thread owns the queue and
-is not recording.
+nowhere else — this is the one point in the loop where nothing is recording.
 
 ### Advertised global versions
 
@@ -289,7 +318,7 @@ that took a grab.
 
 The window manager half, and deliberately **policy only**: it writes a rectangle
 onto every `Task` and `draw_surface()` puts the quad where it says. Nothing in
-it touches the GPU, which is what lets it run on the compositor thread where the
+it touches the GPU, which is what lets it run straight from the request handlers where the
 requests arrive.
 
 The layout is a **spiral**. Each window takes half of what is left and the split
@@ -325,15 +354,12 @@ the time the `xdg_toplevel` destructor runs. `handle_top_level_destroyed()` and
 `task_stop_listening_to_top_level()` are the two halves, so whichever object
 dies first lets go of the other.
 
-`Task.tile_*` is written under `draw_tasks_mutex` because `draw_surface()` reads
-it on the render thread, and the configures go out under `lock_wayland()` — the
-outer of the two, as everywhere else. `layout_focus_next()` and
-`layout_close_focused()` run on the **input** thread and take `lock_wayland()`
-then `focus_task_mutex`, the order `handle_focus()` takes them in. Focus cycling
-only stores a different `Task` in `focused_task`; `handle_focus()` on the render
-thread already turns that into `wl_keyboard.leave`, `enter` and a fresh
-clipboard offer. The close has to `wl_display_flush_clients()` by hand, since
-the input thread is not the one pumping the event loop.
+`Task.tile_*` is written here and read by `draw_surface()` a moment later in the
+same loop, so it needs no synchronisation. Focus cycling only stores a different
+`Task` in `focused_task`; the frame step's `handle_focus()` turns that into
+`wl_keyboard.leave`, `enter` and a fresh clipboard offer. `layout_close_focused()`
+still calls `wl_display_flush_clients()` by hand so the close reaches the client
+now rather than at the top of the loop's next iteration.
 
 **Nothing hands the focus on by itself when a window dies.** `forget_task()`
 (`input.c`) has to NULL `focused_task` — the `Task` is about to be freed — and
@@ -407,7 +433,7 @@ selection is set is not enough. `send_keyboard_enter()` calls
 `data_device_offer_selection()` on every focus change, and that is what makes a
 copy in one window paste into another. `keyboard_focus_client()` (`input.c`) is
 how the clipboard finds out who to offer to; the reads and the writes of
-`keyboard_focus` both happen under `lock_wayland()`, so it adds no lock.
+`keyboard_focus` all happen on the one thread, so it needs no synchronisation.
 
 The source belongs to a client that can destroy it while another client is still
 holding an offer of it, so **every offer carries a `wl_listener` on the source's
@@ -460,7 +486,7 @@ keyboard are two separate focuses: `pointer_focus` follows the cursor by itself,
 but the keyboard follows `focused_task`, which only a new window and super+j/k
 ever moved — so clicking a terminal sent the pointer there and left the keys
 going wherever they already went. A **press** stores `pointer_focus` in
-`focused_task` and `handle_focus()` on the render thread turns that into
+`focused_task` and the frame step's `handle_focus()` turns that into
 `wl_keyboard.leave`, `enter` and a fresh clipboard offer, exactly as it does for
 `layout_focus_next()`. Only the press: a release belongs to whoever took the
 press, and moving the focus on it would hand the keyboard away when the button
@@ -549,12 +575,11 @@ needs one **again every time the client redraws**. A client that draws into a
 buffer it has already attached commits without attaching, which is why
 `surface_commit()` is not empty: it sets `needs_upload`.
 
-**The copy runs on the render thread, out of `end_frame()`.**
+**The copy runs out of `end_frame()`.**
 `pe_vk_end_single_time_cmd()` submits to `vk_queue` and waits on it, and a
-`VkQueue` is not something two threads may touch at once — doing the copy where
-the commit arrives would have the compositor thread submitting alongside the
-render loop. `end_frame()` is the one point in the frame where the queue is idle
-and nothing is recording. The cost is that shm pixels land in the *next* frame:
+doing the copy where the commit arrives would submit in the middle of the frame
+the loop is recording. `end_frame()` is the one point in the frame where nothing
+is recording. The cost is that shm pixels land in the *next* frame:
 one frame of latency dmabuf does not pay.
 
 Details in `shared_memory_upload()` that are easy to get wrong:
@@ -575,8 +600,8 @@ Details in `shared_memory_upload()` that are easy to get wrong:
   without `VK_COMPONENT_SWIZZLE_ONE` the quad blends with whatever the toolkit
   left there. `pe_vk_import_image()` answers it the same way.
 - An shm image is destroyed through a **retire list drained in `end_frame()`**,
-  because the client can destroy a buffer while the render thread is recording
-  with its image.
+  because the client can destroy a buffer while a frame still in flight is
+  sampling its image.
 
 Three more things `shared_memory.c` used to get wrong, all worth not
 reintroducing: `wl_shm.format` was never sent at all (`wl_display_add_shm_format()`
@@ -587,7 +612,7 @@ freed it without destroying the resource, so the next request read freed memory,
 and the protocol says the mapping outlives the pool until the last buffer cut
 from it is gone (reference counted now); and the pool's fd was never closed.
 
-Teardown belongs in `destroy_surface()` — the resource destructor, which holds `draw_tasks_mutex` — not in the `wl_surface.destroy` handler, which runs before the `Task` leaves `tasks_for_draw` and so can free a Vulkan image the render thread is still sampling. `task->image` is also **NULL until the first attach**, and `pe_vk_clean_image()` reads straight through the pointer: a client that creates a surface and destroys it without ever drawing used to segfault the compositor. That function destroys the **view before the image** — the other order is a validation error, since an image cannot go while a view of it exists.
+Teardown belongs in `destroy_surface()` — the resource destructor — not in the `wl_surface.destroy` handler, which runs before the `Task` leaves `tasks_for_draw` and so can free a Vulkan image a frame in flight is still sampling. `task->image` is also **NULL until the first attach**, and `pe_vk_clean_image()` reads straight through the pointer: a client that creates a surface and destroys it without ever drawing used to segfault the compositor. That function destroys the **view before the image** — the other order is a validation error, since an image cannot go while a view of it exists.
 
 #### When `wl_buffer.release` is owed
 
@@ -613,8 +638,8 @@ client redraws, which for a terminal means whenever a key is pressed.
 
 So `surface_attach()` calls `owe_release_on()` for the buffer being replaced and
 `end_frame()` pays it through `task_release_old_buffer()`. `end_frame()` is the
-earliest safe point: `pe_vk_draw_frame()` has already run its `vkQueueWaitIdle()`,
-so nothing on the GPU is still reading the old image. Releasing inside
+earliest safe point: `task_release_old_buffer()` checks the retire frame counter,
+so the release waits until the GPU is provably past every frame that sampled it. Releasing inside
 `surface_attach()` instead would be too early — attach can land between
 `draw_surfaces()` dropping the wayland lock and the queue submit.
 
@@ -627,7 +652,7 @@ client can destroy the old one inside that one-frame gap.
 
 On the **dmabuf** side the `PTexture` and its Vulkan image still leak, and the
 surface goes on sampling a `PTexture` the `wl_buffer` freed: destroying it where
-the request arrives would destroy an image the render thread is recording with.
+the request arrives would destroy an image a frame in flight is still sampling.
 The shm side answers exactly that with its retire list, and the TODO in
 `handle_buffer_destroyed()` says the dma side wants the same treatment.
 

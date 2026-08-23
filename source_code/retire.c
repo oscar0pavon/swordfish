@@ -3,7 +3,6 @@
 #include <engine/renderer/sync.h>
 #include <engine/renderer/vk_images.h>
 #include <engine/renderer/vulkan.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <vulkan/vulkan_core.h>
 
@@ -30,10 +29,6 @@ static int retired_count;
 //finishing while anything below reads it
 static uint64_t frame_number;
 
-//innermost lock: nothing in here takes another one, so it may be entered from
-//under lock_wayland() and draw_tasks_mutex both
-static pthread_mutex_t retire_mutex = PTHREAD_MUTEX_INITIALIZER;
-
 static Retired *retire_slot(void) {
 
   if (retired_count >= MAX_RETIRED) {
@@ -56,15 +51,11 @@ void retire_texture(const PTexture *texture) {
   if (texture->image == VK_NULL_HANDLE)
     return;
 
-  pthread_mutex_lock(&retire_mutex);
-
   Retired *slot = retire_slot();
   if (slot) {
     slot->kind = RETIRED_TEXTURE;
     slot->texture = *texture;
   }
-
-  pthread_mutex_unlock(&retire_mutex);
 }
 
 void retire_buffer(const PBuffer *buffer) {
@@ -72,50 +63,34 @@ void retire_buffer(const PBuffer *buffer) {
   if (buffer->buffer == VK_NULL_HANDLE)
     return;
 
-  pthread_mutex_lock(&retire_mutex);
-
   Retired *slot = retire_slot();
   if (slot) {
     slot->kind = RETIRED_BUFFER;
     slot->buffer = *buffer;
   }
-
-  pthread_mutex_unlock(&retire_mutex);
 }
 
 uint64_t retire_frame_number(void) {
-
-  pthread_mutex_lock(&retire_mutex);
-  uint64_t frame = frame_number;
-  pthread_mutex_unlock(&retire_mutex);
-
-  return frame;
+  return frame_number;
 }
 
 bool retire_frame_is_finished(uint64_t frame) {
-
-  pthread_mutex_lock(&retire_mutex);
-  bool finished = frame_number - frame > PE_VK_FRAMES_IN_FLIGHT;
-  pthread_mutex_unlock(&retire_mutex);
-
-  return finished;
+  return frame_number - frame > PE_VK_FRAMES_IN_FLIGHT;
 }
 
 void retire_collect(void) {
-
-  pthread_mutex_lock(&retire_mutex);
 
   int kept = 0;
 
   for (int i = 0; i < retired_count; i++) {
 
     //still inside the window the gpu may be reading it in. the margin is one
-    //more than the frames in flight because the retirement can land on the
-    //compositor thread while the render thread is already recording the next
-    //frame - the recorded frame number is then one short of the last frame
-    //that could reference the object. the list is compacted rather than walked
-    //in order, since a later entry can come due before an earlier one only if
-    //the counter wrapped
+    //more than the frames in flight because a resource can be retired by a
+    //request handler mid-dispatch, before this iteration's own frame step has
+    //advanced frame_number - so the recorded frame number can be one short of
+    //the last frame that could reference the object. the list is compacted
+    //rather than walked in order, since a later entry can come due before an
+    //earlier one only if the counter wrapped
     if (frame_number - retired[i].frame <= PE_VK_FRAMES_IN_FLIGHT) {
       retired[kept++] = retired[i];
       continue;
@@ -135,6 +110,4 @@ void retire_collect(void) {
   retired_count = kept;
 
   frame_number++;
-
-  pthread_mutex_unlock(&retire_mutex);
 }

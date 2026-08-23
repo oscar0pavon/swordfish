@@ -3,11 +3,8 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <pthread.h>
-#include <unistd.h>
 #include <signal.h>
 
-#include "input.h"
 #include "seat.h"
 #include "surface.h"
 #include <engine/array.h>
@@ -22,13 +19,8 @@
 
 #include <engine/memory.h>
 
-#include <engine/renderer/draw.h>
-#include <engine/renderer/render_thread.h>
 #include <engine/renderer/renderer.h>
 
-#include <engine/utils.h>
-
-#include <engine/time.h>
 #include "compositor.h"
 
 
@@ -81,9 +73,6 @@ int main(){
     //init_seat();
   }
 
-  pthread_t input_thread_id;
-  pthread_create(&input_thread_id, NULL, handle_input, NULL);
-
   //graphics stuff
   // For pengine - Vulkan Rendering
 
@@ -117,33 +106,14 @@ int main(){
 
   //the socket goes up only now. everything a client touches on the compositor
   //thread - the quad's pipeline, the buffers behind it, the dmabuf format
-  //table the GPU is asked for - needs a vulkan device, and the thread used to
+  //table the GPU is asked for - needs a vulkan device, and this used to
   //start before pe_vk_init() ran. a client that connected in that window died
   //on "vkCreateBuffer: Invalid device" and took swordfish with it
-  pthread_t compositor_thread_id;
-  pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
-
-  start_delta_time();
-  //INFO main loop
-  while (swordfish_running) {
-    if(compositor.gpu_fd < 0)
-      continue;
-
-    handle_focus();
-
-    //start_render_time();
-
-
-    pe_frame_draw();
-
-    usleep(16667);//16.6ms
-    update_delta_time();
-  
-    end_frame();
-    //sleep(1);
-    //delay_render_time();
-    //array_clean(&surface_to_draw);
-  }
+  //
+  //run_compositor() is now the whole rest of the program: it also pumps
+  //input and steps the render loop (see swordfish_frame_step()), so there is
+  //only ever this one thread from here on
+  run_compositor();
 
 finish:
   if(is_wayland_window)

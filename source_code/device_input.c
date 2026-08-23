@@ -5,14 +5,9 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
-#include <poll.h>
-#include "swordfish.h"
-#include "wayland_window/window.h"
 #include <engine/time.h>
 #include "keyboard.h"
 #include "mouse.h"
-
-#include <pway/pway.h>
 
 LibInput* libinput;
 struct udev *udev;
@@ -53,66 +48,37 @@ void finish_input() {
   printf("finished input\n");
 }
 
-void *handle_input(void *none) {
+//drains and dispatches whatever libinput already has queued. no poll of its
+//own - the caller (the compositor thread's single poll loop) already knows
+//the libinput fd is readable before calling this
+void dispatch_libinput_events(void) {
 
-  //as a wayland client the host compositor hands us input, and pway also has
-  //to be pumped for the xdg surface to ever get configured. libinput here
-  //would be reading the same devices a second time, behind the compositor's
-  //back
-  if (is_wayland_window) {
-    printf("Input from pway\n");
+  libinput_dispatch(libinput); // Process events
 
-    while (swordfish_running)
-      pway_handle_events();
+  struct libinput_event *event;
 
-    return NULL;
-  }
+  while ((event = libinput_get_event(libinput))) {
+    // Handle the event based on its type
+    enum libinput_event_type type = libinput_event_get_type(event);
 
-  printf("Input initialazing\n");
-
-  init_input();
-
-  struct pollfd pfd = {
-      .fd = libinput_get_fd(libinput),
-      .events = POLLIN,
-      .revents = 0,
-  };
-
-  while (poll(&pfd, 1, -1) > -1) {
-    
-    if(!swordfish_running)
+    switch (type) {
+    case LIBINPUT_EVENT_DEVICE_ADDED:
+      // Handle device added event
       break;
-
-    libinput_dispatch(libinput); // Process events
-
-    struct libinput_event *event;
-
-    while ((event = libinput_get_event(libinput))) {
-      // Handle the event based on its type
-      enum libinput_event_type type = libinput_event_get_type(event);
-
-      switch (type) {
-      case LIBINPUT_EVENT_DEVICE_ADDED:
-        // Handle device added event
-        break;
-      case LIBINPUT_EVENT_POINTER_MOTION:
-      case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE:
-      case LIBINPUT_EVENT_POINTER_BUTTON:
-      case LIBINPUT_EVENT_POINTER_SCROLL_WHEEL:
-      case LIBINPUT_EVENT_POINTER_SCROLL_FINGER:
-      case LIBINPUT_EVENT_POINTER_SCROLL_CONTINUOUS:
-        handle_libinput_pointer_event(event);
-        break;
-      case LIBINPUT_EVENT_KEYBOARD_KEY:
-        handle_xkb_keyboard_event(event);
-        break;
-        // ... other event types
-      }
-
-      libinput_event_destroy(event); // Free the event
+    case LIBINPUT_EVENT_POINTER_MOTION:
+    case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE:
+    case LIBINPUT_EVENT_POINTER_BUTTON:
+    case LIBINPUT_EVENT_POINTER_SCROLL_WHEEL:
+    case LIBINPUT_EVENT_POINTER_SCROLL_FINGER:
+    case LIBINPUT_EVENT_POINTER_SCROLL_CONTINUOUS:
+      handle_libinput_pointer_event(event);
+      break;
+    case LIBINPUT_EVENT_KEYBOARD_KEY:
+      handle_xkb_keyboard_event(event);
+      break;
+      // ... other event types
     }
+
+    libinput_event_destroy(event); // Free the event
   }
-
-
-  return NULL;
 }

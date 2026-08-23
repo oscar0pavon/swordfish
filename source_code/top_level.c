@@ -11,7 +11,6 @@
 #include "surface.h"
 #include <engine/array.h>
 #include "swordfish.h"
-#include <pthread.h>
 #include "input.h"
 #include "mouse.h"
 #include "outputs.h"
@@ -235,13 +234,9 @@ void get_top_level_implementation(WClient *client,
 
   //the newest window takes the keyboard. this is the point at which a surface
   //becomes a window - doing it in create_surface() handed the focus to cursor
-  //images and anything else a client makes a bare wl_surface for.
-  //handle_focus() on the render thread reads this, so it goes under the same
-  //lock as the rest of the focus state
-  pthread_mutex_lock(&focus_task_mutex);
+  //images and anything else a client makes a bare wl_surface for
   focused_task = surface->surface;
   is_focus_completed = false;
-  pthread_mutex_unlock(&focus_task_mutex);
 
   //this is the point where a wl_surface becomes a window, and so the point
   //where it starts counting for the layout. the listener is what makes the

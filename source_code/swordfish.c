@@ -25,12 +25,12 @@
 #include <engine/renderer/draw.h>
 #include <engine/renderer/vk_images.h>
 #include <engine/renderer/vulkan.h>
+#include <engine/renderer/render_thread.h>
+#include <engine/time.h>
 
 #include <wayland-server-core.h>
 
-#include <pthread.h>
-
-pthread_mutex_t draw_tasks_mutex = PTHREAD_MUTEX_INITIALIZER;
+#include "input.h"
 
 bool can_draw_surfaces = true;
 
@@ -72,12 +72,6 @@ void draw_surface(Task* surface, PRenderTarget *render_target,
 }
 
 void end_frame() {
-
-  //the compositor thread is sending to the same clients out of its event loop.
-  //lock_wayland() before draw_tasks_mutex, never the other way round: a
-  //request handler already holds the wayland lock when it takes this one
-  lock_wayland();
-  pthread_mutex_lock(&draw_tasks_mutex);
 
   //vulkan objects whose wl_buffer the client destroyed while a frame was
   //still using them. retire.c counts frames in flight, so only what no frame
@@ -127,12 +121,7 @@ void end_frame() {
     task_release_old_buffer(surface);
   }
 
-
-  pthread_mutex_unlock(&draw_tasks_mutex);
-
   wl_display_flush_clients(compositor.display);
-
-  unlock_wayland();
   //array_clean(&tasks_for_draw);
 }
 
@@ -140,9 +129,6 @@ void draw_surfaces(PRenderTarget *render_target, VkCommandBuffer *command,
                    uint32_t index) {
 
   int output_index = render_target - pe_render_targets;
-
-  lock_wayland();
-  pthread_mutex_lock(&draw_tasks_mutex);
 
   for (int i = 0; i < tasks_for_draw.count; i++) {
     Task *task = array_get_pointer(&tasks_for_draw, i);
@@ -158,9 +144,17 @@ void draw_surfaces(PRenderTarget *render_target, VkCommandBuffer *command,
       //in end_frame() is where it is answered instead
     }
   }
+}
 
-  pthread_mutex_unlock(&draw_tasks_mutex);
-  unlock_wayland();
+//the render loop's step, folded into run_compositor()'s poll loop (compositor.c)
+//via a timerfd instead of a separate thread with its own usleep(16667). now
+//that drawing, wayland dispatch and input are all on the one thread, nothing
+//in end_frame()/draw_surfaces() needs a lock any more
+void swordfish_frame_step(void) {
+  handle_focus();
+  pe_frame_draw();
+  update_delta_time();
+  end_frame();
 }
 
 //the 3D scene this used to draw - the cpu die, the process ring and the hud -

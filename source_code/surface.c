@@ -22,7 +22,6 @@
 #include "retire.h"
 #include "shared_memory.h"
 #include "top_level.h"
-#include <pthread.h>
 
 Array tasks_for_draw;
 
@@ -38,20 +37,14 @@ static void surface_damage(WClient *client, WResource *resource,
 
 static void surface_destroy(WClient *client, WResource *resource) {
 
-  //the image is torn down in destroy_surface() instead, under
-  //draw_tasks_mutex: freeing it here means freeing a vulkan image the render
-  //thread may still be sampling, and the task is not out of tasks_for_draw yet
+  //the image is torn down in destroy_surface() instead: freeing it here means
+  //freeing a vulkan image a frame still in flight on the gpu may be sampling,
+  //and the task is not out of tasks_for_draw yet
   wl_resource_destroy(resource);
 
   printf("Surface destroy\n");
 }
 
-//must be called with draw_tasks_mutex held: handle_frame() stores the next
-//callback from the compositor thread while this runs on the render thread, and
-//a store landing between the send and the NULL either destroys a resource the
-//client is still waiting on or drops the new one on the floor. the first is a
-//use-after-free that libwayland reports as "Data too big for buffer" and
-//answers by disconnecting the client
 void send_frame_callback_done(Task *surface){
   WResource *callback = surface->frame_call_resource;
 
@@ -68,10 +61,6 @@ void send_frame_callback_done(Task *surface){
 static void handle_buffer_destroyed(struct wl_listener *listener, void *data) {
 
   Task *surface = wl_container_of(listener, surface, buffer_destroy);
-
-  //this is the compositor thread and draw_surfaces() reads the same field on
-  //the render thread
-  pthread_mutex_lock(&draw_tasks_mutex);
 
   wl_list_remove(&surface->buffer_destroy.link);
   surface->listening_to_buffer = false;
@@ -92,8 +81,6 @@ static void handle_buffer_destroyed(struct wl_listener *listener, void *data) {
     surface->image = NULL;
     array_remove_element(&tasks_for_draw, surface);
   }
-
-  pthread_mutex_unlock(&draw_tasks_mutex);
 }
 
 static void stop_listening_to_buffer(Task *surface) {
@@ -121,13 +108,9 @@ static void handle_old_buffer_destroyed(struct wl_listener *listener,
 
   Task *surface = wl_container_of(listener, surface, old_buffer_destroy);
 
-  pthread_mutex_lock(&draw_tasks_mutex);
-
   wl_list_remove(&surface->old_buffer_destroy.link);
   surface->listening_to_old_buffer = false;
   surface->old_buffer_resource = NULL;
-
-  pthread_mutex_unlock(&draw_tasks_mutex);
 }
 
 static void stop_listening_to_old_buffer(Task *surface) {
@@ -166,8 +149,8 @@ static void owe_release_on(Task *surface, WResource *buffer_resource) {
   surface->listening_to_old_buffer = true;
 }
 
-//called from end_frame() on the render thread. the caller holds
-//lock_wayland() and draw_tasks_mutex
+//called from end_frame(), the one point in the frame loop where nothing is
+//recording a command buffer
 void task_release_old_buffer(Task *surface) {
 
   if (!surface->old_buffer_resource)
@@ -191,8 +174,6 @@ void task_release_old_buffer(Task *surface) {
 //is never getting
 void mark_surface_as_cursor(Task *task) {
 
-  pthread_mutex_lock(&draw_tasks_mutex);
-
   task->is_cursor = true;
   task->can_draw = false;
 
@@ -204,8 +185,6 @@ void mark_surface_as_cursor(Task *task) {
     wl_buffer_send_release(task->buffer_resource);
     task->buffer_released = true;
   }
-
-  pthread_mutex_unlock(&draw_tasks_mutex);
 
   printf("Surface is a cursor\n");
 }
@@ -219,8 +198,6 @@ void surface_attach(WClient *client, WResource *resource,
   //attaching NULL unmaps the surface. clients do it to their cursor as a way
   //of hiding it, and the user data below is read straight through
   if (!buffer_resource) {
-    pthread_mutex_lock(&draw_tasks_mutex);
-
     //unmapping does not excuse the compositor from handing the buffer back, and
     //the surface stops being drawn here rather than when the release goes out
     if (surface->buffer_resource && !surface->buffer_released)
@@ -231,7 +208,6 @@ void surface_attach(WClient *client, WResource *resource,
     surface->can_draw = false;
 
     array_remove_element(&tasks_for_draw, surface);
-    pthread_mutex_unlock(&draw_tasks_mutex);
 
     //TODO this is an unmap, and the window keeps its cell in the layout while
     //it draws nothing. relayouting here means it loses its place to whoever is
@@ -240,8 +216,6 @@ void surface_attach(WClient *client, WResource *resource,
     printf("Surface detached\n");
     return;
   }
-
-  pthread_mutex_lock(&draw_tasks_mutex);
 
   //the buffer being replaced is the one the quad has been sampling every frame
   //since it arrived, so it is only now that the client can have it back - and
@@ -256,8 +230,6 @@ void surface_attach(WClient *client, WResource *resource,
 
   listen_to_buffer(surface, buffer_resource);
 
-  pthread_mutex_unlock(&draw_tasks_mutex);
-
   //a cursor stays out of the draw list however often it is redrawn
   if (surface->is_cursor) {
     wl_buffer_send_release(buffer_resource);
@@ -269,8 +241,6 @@ void surface_attach(WClient *client, WResource *resource,
 
   printf("Got image with %i %i\n", buffer->texture.width,
          buffer->texture.heigth);
-
-  pthread_mutex_lock(&draw_tasks_mutex);
 
   surface->client_buffer = buffer;
   surface->image = &buffer->texture;
@@ -289,17 +259,14 @@ void surface_attach(WClient *client, WResource *resource,
 
   array_add_pointer(&tasks_for_draw, surface);
 
-  pthread_mutex_unlock(&draw_tasks_mutex);
-
   surface->x = x;
   surface->y = y;
 
   printf("Surface attached\n");
 }
 
-//the copy, and the release that goes with it. called from end_frame() on the
-//render thread with lock_wayland() and draw_tasks_mutex held, which is the one
-//place where the queue is idle and nothing is recording
+//the copy, and the release that goes with it. called from end_frame(), the one
+//place where nothing is recording a command buffer
 void task_upload_shared_memory(Task *surface) {
 
   ClientBuffer *buffer = surface->client_buffer;
@@ -340,13 +307,9 @@ void surface_commit(WClient *client, WResource *resource) {
   //attaching again, and an shm buffer is a copy - nothing the client writes
   //reaches the gpu until end_frame() copies it a second time. a dmabuf needs
   //nothing here, because the quad is reading the client's pages directly
-  pthread_mutex_lock(&draw_tasks_mutex);
-
   if (surface->client_buffer &&
       surface->client_buffer->type == CLIENT_BUFFER_SHARED_MEMORY)
     surface->client_buffer->needs_upload = true;
-
-  pthread_mutex_unlock(&draw_tasks_mutex);
 
   printf("Surface committed! Ready to draw.\n");
 }
@@ -365,19 +328,12 @@ void handle_frame(WClient *client, WResource *resource, uint32_t callback_id){
 
   Task *surface = wl_resource_get_user_data(resource);
 
-  //the render thread reads this field in end_frame() and destroys what it
-  //finds, so the store has to be under the same lock or the two threads race
-  //over the same wl_resource
-  pthread_mutex_lock(&draw_tasks_mutex);
-
   //a client asking twice before a frame went out would otherwise leak the
   //first callback and leave it unanswered forever
   if (surface->frame_call_resource)
     send_frame_callback_done(surface);
 
   surface->frame_call_resource = callback_resource;
-
-  pthread_mutex_unlock(&draw_tasks_mutex);
 
 }
 
@@ -431,13 +387,6 @@ static void destroy_surface(WResource *resource) {
 
   wl_list_remove(&surface->link);
 
-  //draw_surfaces() and end_frame() walk tasks_for_draw on the render thread,
-  //so this cannot pull the Task out and free it unsynchronised - a client
-  //exiting mid-frame left the renderer drawing freed memory and jumping
-  //through a freed pipeline pointer. can_draw_surfaces was meant to cover this
-  //and never could: the render side only ever read it behind a comment
-  pthread_mutex_lock(&draw_tasks_mutex);
-
   array_remove_element(&tasks_for_draw, surface);
 
   //the buffer can outlive the surface that attached it, and the listener lives
@@ -457,10 +406,7 @@ static void destroy_surface(WResource *resource) {
 
   free(surface);
 
-  pthread_mutex_unlock(&draw_tasks_mutex);
-
-  //one cell fewer to divide the output into. after the unlock, because
-  //layout_apply() takes draw_tasks_mutex itself to write the new rectangles
+  //one cell fewer to divide the output into
   layout_apply();
 
   //forget_task() above dropped the focus if it was on this window, and it is

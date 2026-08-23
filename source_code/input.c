@@ -1,7 +1,6 @@
 #include "input.h"
 #include "compositor.h"
 #include <complex.h>
-#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -14,8 +13,6 @@
 #include <time.h>
 #include "swordfish.h"
 #include "pointer.h"
-
-pthread_mutex_t focus_task_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 //milliseconds before a held key repeats, and repeats per second after that
 #define KEYBOARD_REPEAT_DELAY 400
@@ -150,8 +147,6 @@ void set_keyboard_focus(Task *task){
 //still pointing at it has to let go first or the next key dereferences freed
 //memory
 void forget_task(Task *task){
-  pthread_mutex_lock(&focus_task_mutex);
-
   if(keyboard_focus == task){
     keyboard_focus = NULL;
     focus_entered = false;
@@ -164,13 +159,9 @@ void forget_task(Task *task){
 
   if(focused_task == task)
     focused_task = NULL;
-
-  pthread_mutex_unlock(&focus_task_mutex);
 }
 
 void forget_task_input(TaskInput *input){
-  pthread_mutex_lock(&focus_task_mutex);
-
   if(keyboard_focus && keyboard_focus->input == input){
     keyboard_focus->input = NULL;
     keyboard_focus = NULL;
@@ -185,25 +176,15 @@ void forget_task_input(TaskInput *input){
 
   if(focused_task && focused_task->input == input)
     focused_task->input = NULL;
-
-  pthread_mutex_unlock(&focus_task_mutex);
 }
 
 void send_wayland_key(uint32_t scancode, bool pressed){
 
-  //this is the input thread, and the compositor thread is sending to the same
-  //client out of its event loop. lock_wayland() is the outer lock everywhere
-  lock_wayland();
-  pthread_mutex_lock(&focus_task_mutex);
-
   track_pressed_key(scancode, pressed);
 
   WResource *keyboard = focused_keyboard();
-  if(!keyboard){
-    pthread_mutex_unlock(&focus_task_mutex);
-    unlock_wayland();
+  if(!keyboard)
     return;
-  }
 
   wl_keyboard_send_key(keyboard, next_serial(), get_current_time_msec(),
                        scancode,
@@ -213,12 +194,9 @@ void send_wayland_key(uint32_t scancode, bool pressed){
   //the key alone does not tell the client that shift went down with it
   send_wayland_modifiers();
 
-  //this runs on the input thread while the compositor thread owns the event
-  //loop, so nothing reaches the client until somebody flushes
+  //sent right away rather than waiting for the loop's own flush at the top of
+  //its next iteration
   wl_display_flush_clients(compositor.display);
-
-  pthread_mutex_unlock(&focus_task_mutex);
-  unlock_wayland();
 }
 
 void send_keyboard_configuration(WResource *resource){
@@ -238,18 +216,11 @@ void send_keyboard_configuration(WResource *resource){
 
 }
 
-//called once a frame from the render loop. focus is settled here rather than
-//when the surface is created because the client creates its surface and its
-//keyboard as two separate requests, in either order
+//called once a frame from swordfish_frame_step(). focus is settled here rather
+//than when the surface is created because the client creates its surface and
+//its keyboard as two separate requests, in either order
 void handle_focus(){
-  //the render thread, and focus_task() is what sends wl_keyboard.enter
-  lock_wayland();
-  pthread_mutex_lock(&focus_task_mutex);
-
   focus_task(focused_task);
-
-  pthread_mutex_unlock(&focus_task_mutex);
-  unlock_wayland();
 }
 
 
@@ -292,14 +263,10 @@ static void destroy_keyboard(WResource *resource) {
     return;
   }
 
-  pthread_mutex_lock(&focus_task_mutex);
-
   if(input->keyboard_resource == resource){
     input->keyboard_resource = NULL;
     focus_entered = false;
   }
-
-  pthread_mutex_unlock(&focus_task_mutex);
 
   printf("Destroyed keyboard\n");
 }

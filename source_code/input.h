@@ -6,7 +6,6 @@
 #include "tasks.h"
 
 
-extern pthread_mutex_t focus_task_mutex;
 extern bool focus_entered;
 extern Task *keyboard_focus;
 
@@ -33,8 +32,8 @@ void send_wayland_pointer_button(uint32_t button, bool pressed);
 //vertical scroll. positive is down, away from the user, as the protocol has it
 void send_wayland_pointer_axis(double value);
 
-//wl_keyboard.leave the old surface, wl_keyboard.enter the new one. must be
-//called with focus_task_mutex held - focus_task() is its only caller
+//wl_keyboard.leave the old surface, wl_keyboard.enter the new one -
+//focus_task() is its only caller
 void set_keyboard_focus(struct Task *task);
 
 //the client holding the keyboard, or NULL if no window has been entered yet.

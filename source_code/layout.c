@@ -6,7 +6,6 @@
 #include "outputs.h"
 #include "swordfish.h"
 
-#include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
 
@@ -164,15 +163,10 @@ static void layout_apply_output(int output_index){
 
     cell = layout_inset(cell);
 
-    //draw_surface() reads these on the render thread while this runs on the
-    //compositor thread. lock_wayland() is already held, and this is the inner
-    //lock of the two
-    pthread_mutex_lock(&draw_tasks_mutex);
     task->tile_x = cell.x;
     task->tile_y = cell.y;
     task->tile_width = cell.width;
     task->tile_height = cell.height;
-    pthread_mutex_unlock(&draw_tasks_mutex);
 
     //a configure the client has already answered is one it would repaint for
     //nothing, and a relayout that reaches every window twice a second is how a
@@ -187,15 +181,8 @@ static void layout_apply_output(int output_index){
 
 void layout_apply(void){
 
-  //this sends configures, so it takes the outermost lock first. it is
-  //recursive and every caller so far is already inside it, on the compositor
-  //thread
-  lock_wayland();
-
   for(int i = 0; i < swordfish_outputs_count; i++)
     layout_apply_output(i);
-
-  unlock_wayland();
 }
 
 //the window the focus is on, as an index into the layout order, or -1
@@ -239,11 +226,6 @@ static Task *window_at_index(int wanted){
 
 void layout_focus_next(int direction){
 
-  //the input thread, so the wayland lock comes first and focus_task_mutex
-  //inside it - the same order handle_focus() takes them in
-  lock_wayland();
-  pthread_mutex_lock(&focus_task_mutex);
-
   int count = count_windows();
 
   if(count > 1){
@@ -257,15 +239,12 @@ void layout_focus_next(int direction){
 
     if(task){
       focused_task = task;
-      //handle_focus() on the render thread is what turns this into
+      //swordfish_frame_step()'s handle_focus() is what turns this into
       //wl_keyboard.leave, enter, and a fresh clipboard offer
       is_focus_completed = false;
       printf("Focus moved to window %i of %i\n", next + 1, count);
     }
   }
-
-  pthread_mutex_unlock(&focus_task_mutex);
-  unlock_wayland();
 }
 
 //a window going away takes the keyboard with it: forget_task() drops the
@@ -273,9 +252,6 @@ void layout_focus_next(int direction){
 //one up, so after super+c the next key went nowhere. hand the focus to a
 //survivor instead
 void layout_focus_fallback(void){
-
-  lock_wayland();
-  pthread_mutex_lock(&focus_task_mutex);
 
   //still on a live window means the one that closed was not the focused one,
   //and moving the focus off it would be the bug rather than the fix.
@@ -301,34 +277,23 @@ void layout_focus_fallback(void){
 
     focused_task = next;
 
-    //handle_focus() on the render thread is what turns this into
+    //swordfish_frame_step()'s handle_focus() is what turns this into
     //wl_keyboard.leave, enter and a fresh clipboard offer
     is_focus_completed = false;
 
     if(next)
       printf("Focus fell back to another window\n");
   }
-
-  pthread_mutex_unlock(&focus_task_mutex);
-  unlock_wayland();
 }
 
 void layout_close_focused(void){
-
-  lock_wayland();
-  pthread_mutex_lock(&focus_task_mutex);
 
   if(focused_task && focused_task->top_level){
     printf("Closing focused window\n");
     top_level_close(focused_task->top_level);
   }
 
-  pthread_mutex_unlock(&focus_task_mutex);
-
-  //the input thread is not the one pumping the event loop, so nothing reaches
-  //the client until somebody flushes - the same reason send_wayland_key()
-  //flushes by hand
+  //sent right away rather than waiting for the loop's own flush at the top of
+  //its next iteration - the same reason send_wayland_key() flushes by hand
   wl_display_flush_clients(compositor.display);
-
-  unlock_wayland();
 }

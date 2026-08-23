@@ -1,5 +1,4 @@
 
-#include <pthread.h>
 #include "pointer.h"
 #include "surface.h"
 #include "input.h"
@@ -85,11 +84,6 @@ static Task *pointer_hit_task(void){
 
   Task *task;
 
-  //the render thread walks the same tiles in draw_surface(). lock_wayland()
-  //and focus_task_mutex are both held by the caller, and this is the innermost
-  //of the three
-  pthread_mutex_lock(&draw_tasks_mutex);
-
   Task *hit = NULL;
 
   wl_list_for_each(task, &compositor.surfaces, link){
@@ -107,12 +101,9 @@ static Task *pointer_hit_task(void){
     }
   }
 
-  pthread_mutex_unlock(&draw_tasks_mutex);
-
   return hit;
 }
 
-//must be called with focus_task_mutex held
 static void set_pointer_focus(Task *task){
 
   if(pointer_focus == task){
@@ -136,11 +127,6 @@ static void set_pointer_focus(Task *task){
 
 void send_wayland_pointer_motion(double x, double y){
 
-  //the input thread again, and this one fires as fast as the mouse moves -
-  //which is what turned the unsynchronised sends into a disconnected client
-  lock_wayland();
-  pthread_mutex_lock(&focus_task_mutex);
-
   pointer_x = x;
   pointer_y = y;
 
@@ -152,19 +138,13 @@ void send_wayland_pointer_motion(double x, double y){
                            wl_fixed_from_double(pointer_local_x),
                            wl_fixed_from_double(pointer_local_y));
 
-    //this runs on the input thread while the compositor thread owns the event
-    //loop, so nothing reaches the client until somebody flushes
+    //sent right away rather than waiting for the loop's own flush at the top
+    //of its next iteration
     wl_display_flush_clients(compositor.display);
   }
-
-  pthread_mutex_unlock(&focus_task_mutex);
-  unlock_wayland();
 }
 
 void send_wayland_pointer_button(uint32_t button, bool pressed){
-
-  lock_wayland();
-  pthread_mutex_lock(&focus_task_mutex);
 
   //click to focus. the pointer already goes to whatever cell the cursor is in,
   //but the keyboard follows focused_task, which until now only super+j/k and a
@@ -175,7 +155,7 @@ void send_wayland_pointer_button(uint32_t button, bool pressed){
   if(pressed && pointer_focus && pointer_focus != focused_task){
     focused_task = pointer_focus;
 
-    //handle_focus() on the render thread is what turns this into
+    //swordfish_frame_step()'s handle_focus() is what turns this into
     //wl_keyboard.leave, enter and a fresh clipboard offer
     is_focus_completed = false;
     printf("Focus moved to the clicked window\n");
@@ -190,15 +170,9 @@ void send_wayland_pointer_button(uint32_t button, bool pressed){
 
     wl_display_flush_clients(compositor.display);
   }
-
-  pthread_mutex_unlock(&focus_task_mutex);
-  unlock_wayland();
 }
 
 void send_wayland_pointer_axis(double value){
-
-  lock_wayland();
-  pthread_mutex_lock(&focus_task_mutex);
 
   WResource *pointer = focused_pointer();
   if(pointer && pointer_entered){
@@ -208,9 +182,6 @@ void send_wayland_pointer_axis(double value){
 
     wl_display_flush_clients(compositor.display);
   }
-
-  pthread_mutex_unlock(&focus_task_mutex);
-  unlock_wayland();
 }
 
 //the client's own cursor image. the surface came from wl_compositor.create_
@@ -230,8 +201,6 @@ static void pointer_set_cursor(WClient *client, WResource *resource,
 
   mark_surface_as_cursor(cursor);
 
-  pthread_mutex_lock(&focus_task_mutex);
-
   //focus follows xdg_toplevel, which a cursor surface never gets, so this
   //should not happen. a client that skips xdg-shell entirely still must not be
   //left with the keyboard pointed at its own cursor image
@@ -242,8 +211,6 @@ static void pointer_set_cursor(WClient *client, WResource *resource,
     keyboard_focus = NULL;
     focus_entered = false;
   }
-
-  pthread_mutex_unlock(&focus_task_mutex);
 }
 
 //wl_pointer.release, since version 3. without an implementation on the
@@ -270,14 +237,10 @@ static void destroy_pointer(WResource *resource) {
     return;
   }
 
-  pthread_mutex_lock(&focus_task_mutex);
-
   if(input->pointer_resource == resource){
     input->pointer_resource = NULL;
     pointer_entered = false;
   }
-
-  pthread_mutex_unlock(&focus_task_mutex);
 
   printf("Destroyed pointer\n");
 }
@@ -302,14 +265,10 @@ void get_pointer(WClient *client, WResource *resource, uint32_t id) {
   wl_resource_set_implementation(pointer_resource, &pointer_interface, input,
                                  destroy_pointer);
 
-  pthread_mutex_lock(&focus_task_mutex);
-
   input->pointer_resource = pointer_resource;
 
   //the cursor may already be sitting on this client's surface, in which case
   //the enter it was owed could not be sent until now
   if(pointer_focus && pointer_focus->input == input && !pointer_entered)
     send_pointer_enter();
-
-  pthread_mutex_unlock(&focus_task_mutex);
 }

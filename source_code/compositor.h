@@ -32,16 +32,10 @@ typedef struct SwordfishCompositor{
 }SwordfishCompositor;
 
 
-void* run_compositor(void* none);
-
-//everything sent to a client has to be serialised: libwayland-server has no
-//locking and swordfish sends from three threads. the compositor thread holds
-//this across its whole dispatch, so a request handler is already inside it;
-//the render and input threads take it around their own sends and flushes.
-//recursive, and the outermost lock - before draw_tasks_mutex and
-//focus_task_mutex, never after
-void lock_wayland(void);
-void unlock_wayland(void);
+//this thread also drives input (pway or libinput) and the render loop; see
+//the stage-3 note in swordfish.c's swordfish_frame_step(). there is only one
+//thread now, so nothing that sends to a client needs a lock any more
+void run_compositor(void);
 
 void finish_compositor();
 

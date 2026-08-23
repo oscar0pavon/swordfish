@@ -79,8 +79,6 @@ typedef struct Task{
 
 extern Task *focused_task;
 
-extern pthread_mutex_t draw_tasks_mutex;
-
 void focus_task(Task *task);
 
 #endif
