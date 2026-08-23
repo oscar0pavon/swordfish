@@ -44,14 +44,11 @@ swordfish: $(OBJS) shaders
 ./compositor/%.o: ./compositor/%.c
 	cc $(CFLAGS_ENGINE) -o $@ -c $<
 
-shaders: shaders/red.frag shaders/model_view_projection.vert
-	glslc shaders/red.frag -o ../shaders/red_frag.spv
+#the client quads (compositor/surface.c) and the cursor are all that is drawn
+#now - the city, hud and model shaders went to 3dtop with the scene
+shaders: shaders/texture.frag shaders/dimention_2d.vert
 	glslc shaders/texture.frag -o ../shaders/texture_frag.spv
-	glslc shaders/model_view_projection.vert -o ../shaders/model_view_projection_vert.spv
 	glslc shaders/dimention_2d.vert -o ../shaders/dimention_2d_vert.spv
-	glslc shaders/city.vert -o ../shaders/city_vert.spv
-	glslc shaders/city.frag -o ../shaders/city_frag.spv
-	glslc shaders/hud.frag -o ../shaders/hud_frag.spv
 	glslc shaders/cursor.frag -o ../shaders/cursor_frag.spv
 
 clean:

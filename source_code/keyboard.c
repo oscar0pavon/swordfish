@@ -1,7 +1,7 @@
 #define _GNU_SOURCE
 #include <stdint.h>
 #include "keyboard.h"
-#include "build.h"
+#include "launch.h"
 #include "compositor/compositor.h"
 #include "compositor/layout.h"
 #include "input.h"

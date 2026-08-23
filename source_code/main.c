@@ -31,7 +31,6 @@
 #include <engine/time.h>
 #include "compositor/compositor.h"
 
-#include "build.h"
 
 
 void close_swordfish() {
@@ -123,9 +122,6 @@ int main(){
   //on "vkCreateBuffer: Invalid device" and took swordfish with it
   pthread_t compositor_thread_id;
   pthread_create(&compositor_thread_id,NULL,run_compositor,NULL);
-
-  pthread_t make_thread_id;
-  //pthread_create(&make_thread_id,NULL,call_make, NULL);
 
   start_delta_time();
   //INFO main loop

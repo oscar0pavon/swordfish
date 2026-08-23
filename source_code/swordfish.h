@@ -5,10 +5,6 @@
 #include <engine/renderer/renderer.h>
 #include <engine/renderer/vulkan.h>
 
-extern PModel text_model;
-
-extern bool finished_build;
-
 extern bool can_draw_surfaces;
 
 void clean_swordfish();

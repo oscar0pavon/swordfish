@@ -4,7 +4,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Swordfish is a single C binary that is simultaneously a **Wayland compositor**, a **Vulkan renderer**, and a small **3D engine**. The renderer and the engine are no longer in this repo: they are **pengine** (`/root/pengine`), linked in as `libpengine.a`. What is left here is the compositor and the scene. It displays software build progress as a 3D scene (inspired by the movie *Swordfish*): you run `swordfish <command>`, and client windows plus build output are composited into the 3D world.
+Swordfish is a **Wayland compositor** with a **Vulkan renderer**: a tiling
+window manager that draws every client as a textured quad. The renderer and the
+engine are not in this repo — they are **pengine** (`/root/pengine`), linked in
+as `libpengine.a`. What is left here is the compositor.
+
+It used to be more than that. Swordfish began as one binary that was also a 3D
+engine, displaying software build progress as a 3D scene inspired by the movie
+*Swordfish*, with client windows composited into that world. On 2026-08-23 the
+scene moved out to **3dtop** (`/root/3dtop`), a standalone 3D system monitor that
+is now an ordinary Wayland client. The reason was simple: the tiling layout
+covers the whole output, so the 3D world was never actually visible behind the
+windows. The build-output half (`build.c`'s `call_make`) went with it; only
+`launch_program()` survived, in `launch.c`, because a keybinding still spawns a
+terminal.
+
+**The movie premise is gone, deliberately.** Compositing client windows *into* a
+3D world only worked while one binary owned both. Do not reintroduce the scene
+here — 3dtop is a client like any other now, and is swordfish's first-party test
+client for the dmabuf import path, the multimonitor layout, and rotation.
 
 ## Build / install
 
@@ -173,11 +191,11 @@ Two things differ from the old X11 surface and are easy to reintroduce: a Waylan
 
 ### Frame path
 
-`pe_vk_draw_frame()` (`renderer/draw.c`) → `pe_vk_start_render_pass()` → `pe_vk_draw_commands()` → **`swordfish_draw_scene()` (`swordfish.c`)**. That last function is the application-level scene: it is where models are updated and recorded, and where `draw_surfaces()` renders each Wayland client as a textured quad. **To add or change something visible, edit `swordfish.c`**, not the renderer.
+`pe_vk_draw_frame()` (`renderer/draw.c`) → `pe_vk_start_render_pass()` → `pe_vk_draw_commands()` → **`swordfish_draw_scene()` (`swordfish.c`)**. That last function draws each Wayland client as a textured quad (`draw_surfaces()`) and the cursor on top. **To add or change something visible, edit `swordfish.c`**, not the renderer.
 
-`swordfish_init()` (also `swordfish.c`) is the counterpart: load textures, create descriptor sets, create shaders/pipelines. `clean_swordfish()` must free whatever it allocates.
+`swordfish_init()` (also `swordfish.c`) is the counterpart: `pe_2d_init()` and `cursor_init()`. `clean_swordfish()` must free whatever it allocates.
 
-`pe_vk_draw_frame()` ends in a `vkQueueWaitIdle()` (`renderer/draw.c`), and several things silently depend on it: `wl_buffer_send_release()` in `draw_surfaces()` is queued during command recording but only flushed after the GPU has drained, and `system_monitor_draw()` / `processes_draw()` rewrite their host-visible instance buffers while the previous frame is assumed finished. Removing that wait — the obvious performance fix — means all of them need gating on the frame fence instead. They are a matched set; fix them together.
+`pe_vk_draw_frame()` ends in a `vkQueueWaitIdle()` (`renderer/draw.c`), and `wl_buffer_send_release()` in `draw_surfaces()` silently depends on it: it is queued during command recording but only flushed after the GPU has drained. Removing that wait — the obvious performance fix — means gating it on the frame fence instead.
 
 **`end_frame()` (`swordfish.c`) is the frame's second half**, and it is where
 everything that needs an idle GPU goes: `shared_memory_collect_textures()`, then
@@ -187,62 +205,6 @@ per task `send_frame_callback_done()`, `task_upload_shared_memory()` and
 Anything that submits to `vk_queue` on behalf of a client belongs here and
 nowhere else — this is the only point where the render thread owns the queue and
 is not recording.
-
-### Scene layout
-
-The world is centred on the CPU: a square die at the origin (`system_monitor.c`), ringed by a city (`processes.c` by default, `city.c` for the directory instead). The camera in `main.c` is unused — `swordfish_update_camera()` in `swordfish.c` owns it and rewrites it every frame.
-
-### The city (`city.c`)
-
-The directory view, kept as an alternative to the process ring — `swordfish_init()` calls `processes_init()`, and swapping in `city_init(&city, ".")` puts the directory in the same ring. `city_init()` does one `readdir()` pass and turns every entry into a `PInstance` (position, scale, colour, packed name); `city_draw()` renders the whole skyline with a **single** `vkCmdDrawIndexed`. Directory entries become towers — height from child count for directories, from file size for files, both log-scaled. They are placed on concentric rings from `CITY_INNER_RADIUS` outwards; each ring's occupants are spread over the **whole** circle rather than packed along an arc, so the centre stays surrounded even with only a handful of entries.
-
-Facades are drawn entirely in `shaders/city.frag`, which samples `font.png` as a 16×16 atlas indexed straight by ASCII code. Two things about that atlas are easy to get wrong: glyphs live in the **alpha** channel, and atlas row 0 is the **top** of the PNG while a wall counts `v` from the ground up, so `glyph_alpha()` reads the glyph back with `1.0 - local.y`.
-
-Each building shows its real filename on a repeating horizontal band. The name is packed 4 characters per uint into the instance data (`PINSTANCE_NAME_MAX`, 32) rather than going through a storage buffer, which is why no extra descriptor layout was needed. Tuning constants sit at the top of `city.frag` (`NAME_CHAR_WIDTH`, `NAME_BAND_SPACING`) and in `city.c` (`CITY_FOOTPRINT`, `CITY_INNER_RADIUS`). `NAME_CHAR_WIDTH` is a **ceiling**, not a size: a name too long for its facade shrinks to fit, so short names render large. The random glyph noise on the rest of the wall must stay well below the name's brightness or it reads as texture over the text.
-
-Note `array_add` does **not** grow an array — it hits `debug_break()` on overflow — so `city.buildings` is capped at `CITY_MAX_BUILDINGS` and sized up front.
-
-`city_create_box()` is the unit box every instanced tower is a copy of — centred on X and Y, spanning 0..1 on Z so scaling z grows it off the ground. It is shared by the system monitor and the process ring rather than duplicated.
-
-### The system monitor (`system_monitor.c`)
-
-The machine's CPUs as one square die at the centre of the world, every core inside it, one instanced draw call for the lot. Reuses `city_create_box()` and the `city.vert`/`city.frag` pipeline unchanged — a monitor tower is a city building with a different instance array, so core names go through the same 4-chars-per-uint packing.
-
-The instance array holds the cores, then `MONITOR_MEMORY_TOWERS` memory towers (`/proc/meminfo`, fractions of total), then one flat slab as the die itself. The grid is `ceil(sqrt(core_count))` columns wide.
-
-**Height is utilisation, colour is temperature** — two independent channels, so a cool busy core and a hot idle one look different. `coretemp` numbers its sensors sparsely and labels them by *physical* core id, so `monitor_map_temperatures()` walks `temp*_label` for `Core N` and resolves each logical CPU through `/sys/devices/system/cpu/cpuN/topology/core_id`. Hyperthread siblings correctly share one sensor.
-
-A sampler thread reads `/proc/stat` every `MONITOR_SAMPLE_INTERVAL_US` (500ms) and writes busy fractions under `sample_mutex`; the render loop copies that snapshot and eases `displayed[]` toward it, so towers move smoothly instead of snapping twice a second. Sampling at frame rate would burn the CPU this is meant to be measuring. Two details in the parse are easy to get wrong: the first `cpu` line is the machine-wide total and must be skipped, and `guest`/`guest_nice` are already counted inside `user`/`nice`, so the total stops at `steal`.
-
-Unlike the city's, the monitor's instance buffer is rewritten every frame via `pe_vk_update_buffer()`.
-
-The camera must stay **above `MONITOR_MAX_HEIGHT`**: below it, a busy core near the camera rises past the tops of the cores behind it and hides them entirely.
-
-### The process ring (`processes.c`)
-
-The running processes as the city around the die, and the only part of the scene with birth and death — the reason it reads as a monitor rather than an animated gauge.
-
-Height is CPU (Δ`utime+stime` ÷ Δ total jiffies × core count, a fraction of **one** core), colour is resident memory on a log scale washed toward white by CPU, so the tall towers are also the bright readable ones. Name is `comm`.
-
-The thing that matters here is **stable identity**: each of the `PROCESS_MAX` slots is given its ring position once at startup and keeps it. `process_slot_for()` maps pid → slot with a free list, so an exiting process frees its slot for reuse and nothing shuffles. Rebuilding the array by index each sample would make the whole ring lurch every time anything died.
-
-A dead slot sets `scale.z = 0` — a degenerate box that rasterises nothing — so the draw count stays constant at `PROCESS_MAX`. Live-but-idle processes keep `PROCESS_MIN_HEIGHT`, which is what makes the idle carpet.
-
-Parsing `/proc/<pid>/stat`: `comm` can contain spaces and brackets, so the name is taken between the **first** `(` and the **last** `)`, and the numeric fields are read from after that.
-
-Kernel threads are skipped on `vsize == 0` — they have no address space. On this machine that is 426 of 469 entries, and none of them ever move, so leaving them in buried the interesting processes under a carpet. `vsize == 0` and an empty `/proc/<pid>/cmdline` were verified to agree on every process; `vsize` wins because it is already parsed and costs no extra syscall. Filtering also keeps the live count well under `PROCESS_MAX`, which is a hard cap (`array_add` does not grow).
-
-Because `process_slot_for()` takes the lowest free slot and low slots are the innermost ring, live processes stay clustered around the die instead of scattering across sparse outer rings.
-
-### The HUD (`hud.c`)
-
-The flat overlay carrying the numbers the 3D scene can only suggest: aggregate CPU, hottest core, memory, process count, busiest process. The 3D carries shape, the HUD carries precision.
-
-It reuses `pe_2d_get_character_uvs()` and `pe_2d_init_vulkan_buffers()` but **not** `pe_2d_create_text_geometry()`, which is single-line, fixed-string, and allocates fresh Vulkan buffers on every call — fine once at startup, a steady leak at the HUD's twice-a-second refresh. Instead the quad set is allocated once at `HUD_MAX_CHARS` and rewritten in place through `pe_vk_update_buffer()`; characters past the end of the string collapse to a single point, so `index_array.count` (which is what `pe_vk_draw_model()` passes to `vkCmdDrawIndexed`) never changes.
-
-`shaders/hud.frag` exists because `texture.frag` returns the sampled RGB, and `font.png` keeps its glyphs in the **alpha** channel — reusing it would have drawn black on black. The HUD shader treats the sample as a mask and supplies its own colour.
-
-The HUD reads only `displayed_*` fields from the monitor and the process ring. Those are render-thread-only by construction, so it never takes the samplers' locks.
 
 ### Advertised global versions
 
@@ -492,8 +454,6 @@ takes the first window whose **tile** the cursor is inside. Order does not
 matter while the cells cannot overlap. It skips anything without a
 `top_level` — a cursor image or a surface still on its way to being a window
 would otherwise take the pointer over the whole rectangle it would be drawn at.
-When the quads move into the 3D world this becomes a ray cast, and it is still
-the only thing that has to change.
 
 **Click to focus** is in `send_wayland_pointer_button()`. The pointer and the
 keyboard are two separate focuses: `pointer_focus` follows the cursor by itself,
@@ -561,7 +521,7 @@ which modifiers it can sample each format with — it used to be two hardcoded
 guesses with modifier 0. On this machine that is 16 pairs, and clients pick an
 AMD DCC modifier rather than linear.
 
-### Wayland client → 3D quad
+### Wayland client → quad
 
 A client surface becomes a `Task` (`compositor/compositor.h`): it owns the `wl_resource`, the client's buffer, a `PTexture`, and a `PModel` quad — plus, once the client gives it a toplevel role, the tile the layout put it in and a listener-backed pointer to its `TopLevel`. `Task`s live in the `tasks_for_draw` array; each frame `draw_surfaces()` draws them and `end_frame()` sends the frame callbacks (`send_frame_callback_done`), uploads shm pixels, pays owed releases, and then `wl_display_flush_clients`.
 
@@ -680,7 +640,7 @@ The shm side answers exactly that with its retire list, and the TODO in
   output. It is in here rather than at the top level because it is written
   against `Task` and `TopLevel` and sends configures, not because it draws
   anything.
-- Top-level `*.c` — app glue: the pway window (`window.c`), input, keyboard/xkb, child-process build invocation (`build.c`), the scene (`swordfish.c`), the directory city (`city.c`), the process ring (`processes.c`), the CPU monitor (`system_monitor.c`), and the 2D overlay (`hud.c`).
+- Top-level `*.c` — app glue: the pway window (`window.c`), input, keyboard/xkb, spawning a program from a keybinding (`launch.c`), and the compositor-side drawing (`swordfish.c`: client quads, the cursor).
 
 ### Memory
 
