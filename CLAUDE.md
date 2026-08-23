@@ -74,7 +74,7 @@ into pengine's `include.make`. They apply to pengine only; swordfish's own
 objects are built without them, exactly as before. Keep cglm math on pengine's
 side so the depth and handedness conventions stay consistent.
 
-The shm upload (`compositor/shared_memory.c`) assembles its own version of
+The shm upload (`shared_memory.c`) assembles its own version of
 `pe_vk_create_texture_from_image()` out of `pe_vk_transition_image_layout()`,
 `pe_vk_image_copy_buffer()` and `pe_vk_create_texture_sampler()`, because that
 function hardcodes `VK_FORMAT_R8G8B8A8_SRGB` and takes a `PImage`. The three were
@@ -91,15 +91,15 @@ before `pe_vk_init()`:
 - `pe_vk_draw_scene` - a function pointer, set to `swordfish_draw_scene`.
   `pe_vk_draw_commands()` calls it in the middle of the render pass.
 - `pe_window_width` / `pe_window_height` - set from `WINDOW_WIDTH` /
-  `WINDOW_HEIGHT` in `window.h`, which is still the app's authority on the size.
+  `WINDOW_HEIGHT` in `wayland_window/window.h`, which is still the app's authority on the size.
   The swap chain extent, the camera and the 2D ortho projection all read them.
 - `is_wayland_window` and `is_drm_rendering` are declared in
   `<engine/renderer/renderer.h>` and defined in pengine's `vulkan.c`.
-  `window.c` and `main()` still set them.
+  `wayland_window/window.c` and `main()` still set them.
 
 ### Generated Wayland protocol code
 
-`compositor/desktop-server.{c,h}` (xdg-shell) and `compositor/linux-dmabuf.{c,h}` are `wayland-scanner` output but are checked into git. Regenerate with `compositor/generate_wayland_protocol_files.sh` (run from inside `compositor/`) — do not hand-edit them.
+`desktop-server.{c,h}` (xdg-shell) and `linux-dmabuf.{c,h}` are `wayland-scanner` output but are checked into git. Regenerate with `generate_wayland_protocol_files.sh` (run from inside `source_code/`, where all of it lives now) — do not hand-edit them.
 
 ### System dependencies
 
@@ -154,7 +154,7 @@ Message length 19200 exceeds limit 4096                       # printed by the *
 error in client communication (pid ...)
 ```
 
-`lock_wayland()` / `unlock_wayland()` (`compositor/compositor.c`) serialise it.
+`lock_wayland()` / `unlock_wayland()` (`compositor.c`) serialise it.
 The compositor thread holds it **across the whole dispatch**, which is why
 `run_compositor()` no longer calls `wl_display_run()`: that welds the waiting to
 the dispatching, leaving nowhere to hold a lock. Unrolled, it polls
@@ -177,9 +177,9 @@ inside it and needs nothing. Only the render and input threads take it by hand.
 - `is_opengl` (`main.c`, default `false`) — selects the EGL/GLES path (`compositor/egl.c`, `buffers.c`) instead of Vulkan. The Vulkan path is the live one; the EGL path exits early via `goto finish`.
 - `is_drm_rendering` (pengine's `renderer/vulkan.c`, set by `main()`) — set to `true` when `create_wayland_window()` fails (no compositor to connect to). Then rendering targets DRM/KMS directly (`direct_render.c`, `renderer/display.c`, `compositor.gpu_path = "/dev/dri/card0"`), the swapchain/surface setup differs, `vkGetMemoryFdKHR` is resolved for buffer export, and input comes from libinput instead of pway.
 
-Both flags are read all over `renderer/` and `compositor/`; grep for them before changing init order.
+Both flags are read all over `renderer/` (pengine) and swordfish's own top-level `*.c` files (what used to live under `compositor/`, before it flattened into `source_code/` — see **Layer conventions**); grep for them before changing init order.
 
-### The window (`window.c`)
+### The window (`wayland_window/window.c`)
 
 `create_wayland_window()` calls `pway_init()` then `pway_create_window()`, and deliberately **not** `pway_init_egl()` — Vulkan takes the raw `pway_surface` / `pway_display` through `VK_KHR_wayland_surface` instead, so the EGL context pway would build is never needed.
 
@@ -208,7 +208,7 @@ is not recording.
 
 ### Advertised global versions
 
-`COMPOSITOR_VERSION` and `SEAT_VERSION` (`compositor/compositor.h`) are what
+`COMPOSITOR_VERSION` and `SEAT_VERSION` (`compositor.h`) are what
 `wl_global_create()` advertises for `wl_compositor` and `wl_seat`. **A client
 binding above the advertised version is a protocol error and gets
 disconnected** — libwayland prints `invalid version for global ... expected at
@@ -221,7 +221,7 @@ handler in the interface struct, because **libwayland dispatches a NULL handler
 as a call** and takes the compositor down with it. Version 4 of `wl_compositor`
 is entirely `wl_surface` requests — `set_buffer_transform` (v2),
 `set_buffer_scale` (v3), `damage_buffer` (v4) — all no-ops in
-`compositor/surface.c` since the quad samples the whole buffer regardless. Child
+`surface.c` since the quad samples the whole buffer regardless. Child
 resources are created with `wl_resource_get_version(resource)` rather than a
 hardcoded 1, so a surface or keyboard inherits the version its parent was bound
 at.
@@ -256,9 +256,9 @@ of `data_device.c` with the drag half removed.
 
 ### xdg-shell
 
-`xdg_wm_base` is advertised at version 1 (`compositor/compositor.c`), and every
+`xdg_wm_base` is advertised at version 1 (`compositor.c`), and every
 request of every xdg interface has a handler for the reason above — a NULL entry
-is dispatched as a call. `xdg_toplevel` (`compositor/top_level.c`) records the
+is dispatched as a call. `xdg_toplevel` (`top_level.c`) records the
 title, app id and size limits and no-ops the rest; `set_maximized`,
 `unset_maximized`, `set_fullscreen` and `unset_fullscreen` **must** still answer
 with a configure even though swordfish declines them, because a client blocks
@@ -278,14 +278,14 @@ Configure serials come from `wl_display_next_serial()` and are stored in
 `DesktopSurface.pending_serial`, so `do_desktop_ack()` can tell a real ack from
 a stale one. A constant serial made every configure look like the same event.
 
-`xdg_positioner` and `xdg_popup` (`compositor/popup.c`) exist only so a client
+`xdg_positioner` and `xdg_popup` (`popup.c`) exist only so a client
 opening a menu does not take the compositor down. There is no second quad to
 draw a popup into, so `create_popup()` creates the resource and immediately
 sends `xdg_popup.popup_done`. That is the only one of the three options that
 leaves the client alive: a protocol error kills it, and silence hangs a client
 that took a grab.
 
-### The tiling layout (`compositor/layout.c`)
+### The tiling layout (`layout.c`)
 
 The window manager half, and deliberately **policy only**: it writes a rectangle
 onto every `Task` and `draw_surface()` puts the quad where it says. Nothing in
@@ -363,7 +363,7 @@ looking like an oversight.
 `move`, `resize` and `show_window_menu` stay no-ops: a tiled window's size is
 not the client's to ask for.
 
-### The output (`compositor/output.c`)
+### The output (`output.c`)
 
 One `wl_output` at version 4, and its mode is the image swordfish renders:
 `WINDOW_WIDTH`×`WINDOW_HEIGHT` at 60000 mHz, flagged `CURRENT | PREFERRED` since
@@ -391,7 +391,7 @@ global more than once, and enter is owed on each of its own.
 pway never binds `wl_output`, so pterminal exercises none of this. It exists for
 the toolkit clients that would otherwise stall.
 
-### The clipboard (`compositor/data_device.c`)
+### The clipboard (`data_device.c`)
 
 `wl_data_device_manager` at version 3 — see **Advertised global versions** for
 why GDK will not start without it. **None of the data passes through the
@@ -432,9 +432,9 @@ clipboard at all.
 
 The seat advertises `WL_SEAT_CAPABILITY_POINTER` alongside the keyboard.
 `mouse.c` owns the cursor position in the render target's own pixels and is fed
-by both input paths — `window.c` wires pway's `update_mouse`/`click`/
-`click_release` on the windowed path, `input.c` forwards libinput's pointer
-events on the DRM one. `compositor/input.c` turns a cursor position into
+by both input paths — `wayland_window/window.c` wires pway's `update_mouse`/`click`/
+`click_release` on the windowed path, `device_input.c` forwards libinput's pointer
+events on the DRM one. `input.c` turns a cursor position into
 `wl_pointer` events.
 
 Three things about that are easy to get wrong. The host reports the cursor in
@@ -489,7 +489,7 @@ destructors check for it.
 
 ### DRM formats and the dmabuf import
 
-Client buffers arrive as a DRM fourcc, and `compositor/drm_format.c` is the only
+Client buffers arrive as a DRM fourcc, and `drm_format.c` is the only
 place that says what that means in Vulkan. The two naming schemes read backwards
 from each other — a fourcc names its channels from the top of a little-endian
 32-bit word down, Vulkan names them in memory order — so `XR24` is X,R,G,B in
@@ -514,7 +514,7 @@ wrong for one that already exists elsewhere: Mesa rounds an 800-pixel row up to
 3584 bytes, not 3200. X formats also leave the fourth byte undefined, so the
 image view sets `components.a = VK_COMPONENT_SWIZZLE_ONE`.
 
-The advertised format table in `compositor/feedback.c` is built once at first
+The advertised format table in `feedback.c` is built once at first
 `get_default_feedback` by asking the GPU, via
 `vkGetPhysicalDeviceFormatProperties2` + `VkDrmFormatModifierPropertiesListEXT`,
 which modifiers it can sample each format with — it used to be two hardcoded
@@ -523,13 +523,13 @@ AMD DCC modifier rather than linear.
 
 ### Wayland client → quad
 
-A client surface becomes a `Task` (`compositor/compositor.h`): it owns the `wl_resource`, the client's buffer, a `PTexture`, and a `PModel` quad — plus, once the client gives it a toplevel role, the tile the layout put it in and a listener-backed pointer to its `TopLevel`. `Task`s live in the `tasks_for_draw` array; each frame `draw_surfaces()` draws them and `end_frame()` sends the frame callbacks (`send_frame_callback_done`), uploads shm pixels, pays owed releases, and then `wl_display_flush_clients`.
+A client surface becomes a `Task` (`compositor.h`): it owns the `wl_resource`, the client's buffer, a `PTexture`, and a `PModel` quad — plus, once the client gives it a toplevel role, the tile the layout put it in and a listener-backed pointer to its `TopLevel`. `Task`s live in the `tasks_for_draw` array; each frame `draw_surfaces()` draws them and `end_frame()` sends the frame callbacks (`send_frame_callback_done`), uploads shm pixels, pays owed releases, and then `wl_display_flush_clients`.
 
 #### Both buffer protocols make the same struct
 
-Buffers arrive either through wl_shm (`compositor/shared_memory.c`) or
-linux-dmabuf (`compositor/dma.c`). **Both put a `ClientBuffer`
-(`compositor/client_buffer.h`) behind the `wl_buffer`'s user data**, tagged with
+Buffers arrive either through wl_shm (`shared_memory.c`) or
+linux-dmabuf (`dma.c`). **Both put a `ClientBuffer`
+(`client_buffer.h`) behind the `wl_buffer`'s user data**, tagged with
 `type` as its first member, because that user data is all `surface_attach()` has
 to go on. They used to put *different* structs there — a bare `PTexture` on the
 dmabuf side, its own bookkeeping struct on the shm side — and `surface_attach()`
@@ -635,12 +635,9 @@ The shm side answers exactly that with its retire list, and the TODO in
 
 - **`renderer/`** (in pengine) — thin Vulkan wrapper, everything prefixed `pe_vk_`. `pe_vk_init()` in `renderer/vulkan.c` is the authoritative, order-sensitive init sequence; `pe_vk_end()` is its mirror.
 - **`engine/`** (in pengine) — reusable engine (hence the `pe_` prefix): custom allocator, `Array` container, glTF/PNG loading, camera, 2D/text.
-- **`compositor/`** — Wayland server implementation, plus the one piece of
-  window-manager *policy* (`layout.c`): which window gets which piece of the
-  output. It is in here rather than at the top level because it is written
-  against `Task` and `TopLevel` and sends configures, not because it draws
-  anything.
-- Top-level `*.c` — app glue: the pway window (`window.c`), input, keyboard/xkb, spawning a program from a keybinding (`launch.c`), and the compositor-side drawing (`swordfish.c`: client quads, the cursor).
+- **The Wayland server implementation** — `compositor.c`, `surface.c`, `tasks.c`, `top_level.c`, `data_device.c`, `dma.c`, `shared_memory.c`, and the rest of what used to live under a `compositor/` subdirectory, now flattened into `source_code/` alongside everything else: this *is* the main code, not a piece tucked away from it. It includes the one piece of window-manager *policy* (`layout.c`): which window gets which piece of the output. It is written against `Task` and `TopLevel` and sends configures, not because it draws anything.
+- **`wayland_window/`** — the pway windowed dev path (`window.c`/`window.h`), off in its own directory precisely because it is a *tool* for developing without a VT switch, not the main path: bare DRM (see **Two orthogonal mode flags**) is. `device_input.c` still branches on `is_wayland_window` to pump `pway_handle_events()` instead of libinput, but the pway-specific glue itself — connecting to the host compositor, translating its mouse/keyboard callbacks — lives only here.
+- Everything else at the top level — `main.c`, `device_input.c` (libinput/pway event pump), `keyboard.c`, `mouse.c`, `outputs.c`, `launch.c` (spawning a program from a keybinding), `swordfish.c` (compositor-side drawing: client quads, the cursor), `cursor.c`, `tty.c`.
 
 ### Memory
 

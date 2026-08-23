@@ -2,9 +2,9 @@
 
 #include <libinput.h>
 
-#include "compositor/input.h"
+#include "input.h"
 #include "outputs.h"
-#include "window.h"
+#include "wayland_window/window.h"
 
 double cursor_x, cursor_y;
 

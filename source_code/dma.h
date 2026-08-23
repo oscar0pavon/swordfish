@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "compositor/types.h"
+#include "types.h"
 #include <engine/images.h>
 
 typedef struct wl_client WClient;

@@ -2,9 +2,9 @@
 #include <stdint.h>
 #include "keyboard.h"
 #include "launch.h"
-#include "compositor/compositor.h"
-#include "compositor/layout.h"
-#include "input.h"
+#include "compositor.h"
+#include "layout.h"
+#include "device_input.h"
 #include "swordfish.h"
 #include <complex.h>
 #include <stdio.h>
@@ -14,7 +14,7 @@
 #include <mman.h>
 #include <string.h>
 #include <unistd.h>
-#include "compositor/input.h"
+#include "input.h"
 
 struct xkb_context *xkb_context;
 struct xkb_keymap *xkb_keymap;

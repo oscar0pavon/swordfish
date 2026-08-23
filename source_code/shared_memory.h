@@ -13,7 +13,7 @@ void init_shared_memory(void);
 bool shared_memory_upload(ClientBuffer *buffer);
 
 //the vulkan images of destroyed wl_buffers used to be collected by this file's
-//own one-frame list; they go through compositor/retire.c now, which counts the
+//own one-frame list; they go through retire.c now, which counts the
 //frames in flight - retire_collect() in end_frame() is what drains it
 
 #endif

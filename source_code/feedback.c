@@ -1,5 +1,5 @@
 #include "feedback.h"
-#include "compositor/compositor.h"
+#include "compositor.h"
 #include "dma.h"
 #include "linux-dmabuf.h"
 #include <stdint.h>

@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "input.h"
+#include "device_input.h"
 
 //one wheel click. the protocol measures scroll in the same units as surface
 //coordinates and clients read 15 as a notch, which is also libinput's degrees

@@ -1,6 +1,6 @@
 #include "desktop.h"
 #include "compositor.h"
-#include "compositor/desktop-server.h"
+#include "desktop-server.h"
 #include <complex.h>
 #include <stdio.h>
 #include <stdlib.h>

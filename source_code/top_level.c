@@ -1,5 +1,5 @@
 #include "top_level.h"
-#include "compositor/compositor.h"
+#include "compositor.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <wayland-server.h>

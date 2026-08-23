@@ -7,18 +7,18 @@
 #include <unistd.h>
 #include <signal.h>
 
-#include "compositor/input.h"
-#include "compositor/seat.h"
-#include "compositor/surface.h"
+#include "input.h"
+#include "seat.h"
+#include "surface.h"
 #include <engine/array.h>
 #include "swordfish.h"
 
 #include <engine/camera.h>
-#include "input.h"
+#include "device_input.h"
 #include "keyboard.h"
 #include <engine/renderer/vulkan.h>
 #include "outputs.h"
-#include "window.h"
+#include "wayland_window/window.h"
 
 #include <engine/memory.h>
 
@@ -29,7 +29,7 @@
 #include <engine/utils.h>
 
 #include <engine/time.h>
-#include "compositor/compositor.h"
+#include "compositor.h"
 
 
 

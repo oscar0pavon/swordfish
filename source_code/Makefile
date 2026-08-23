@@ -27,13 +27,15 @@ CFLAGS += -Wno-incompatible-pointer-types
 
 CFLAGS_ENGINE := $(CFLAGS) -I/root/swordfish/source_code $(PENGINE_INCLUDES) -I/usr/include/libdrm -I/usr/include -I/usr/local/include
 
-compositor_src := $(wildcard ./compositor/*.c)
-compositor_objs := $(compositor_src:%.c=%.o)
+wayland_window_src := $(wildcard ./wayland_window/*.c)
+wayland_window_objs := $(wayland_window_src:%.c=%.o)
 
+#everything that used to be compositor/*.c is flattened in here now - only the
+#pway windowed dev path is still off in its own directory
 SRCS := $(wildcard *.c)
 SWORDFISHOBJS := $(SRCS:c=o)
 
-OBJS := $(SWORDFISHOBJS) $(compositor_objs)
+OBJS := $(SWORDFISHOBJS) $(wayland_window_objs)
 
 swordfish: $(OBJS) shaders
 	cc $(CFLAGS_ENGINE) -L/usr/local/lib $(OBJS) -o ../swordfish $(CLINKS)
@@ -41,10 +43,10 @@ swordfish: $(OBJS) shaders
 %.o: %.c
 	cc $(CFLAGS_ENGINE) -c $<
 
-./compositor/%.o: ./compositor/%.c
+./wayland_window/%.o: ./wayland_window/%.c
 	cc $(CFLAGS_ENGINE) -o $@ -c $<
 
-#the client quads (compositor/surface.c) and the cursor are all that is drawn
+#the client quads (surface.c) and the cursor are all that is drawn
 #now - the city, hud and model shaders went to 3dtop with the scene
 shaders: shaders/texture.frag shaders/dimention_2d.vert
 	glslc shaders/texture.frag -o ../shaders/texture_frag.spv
@@ -54,7 +56,7 @@ shaders: shaders/texture.frag shaders/dimention_2d.vert
 clean:
 	rm -f ../swordfish
 	rm -f *.o
-	rm -f ./compositor/*.o
+	rm -f ./wayland_window/*.o
 	rm -f ../shaders/*.spv
 
 .PHONY: shaders

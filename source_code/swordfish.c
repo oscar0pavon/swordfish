@@ -1,9 +1,9 @@
 #include "swordfish.h"
 #include "cursor.h"
-#include "compositor/compositor.h"
-#include "compositor/retire.h"
-#include "compositor/shared_memory.h"
-#include "compositor/surface.h"
+#include "compositor.h"
+#include "retire.h"
+#include "shared_memory.h"
+#include "surface.h"
 #include "mouse.h"
 #include "outputs.h"
 #include <engine/renderer/sync.h>

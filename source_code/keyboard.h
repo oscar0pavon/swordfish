@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <xkbcommon/xkbcommon.h>
 
-#include "input.h"
+#include "device_input.h"
 
 extern struct xkb_context *xkb_context;
 extern struct xkb_keymap *xkb_keymap;

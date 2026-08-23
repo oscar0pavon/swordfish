@@ -14,17 +14,17 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <wayland-util.h>
-#include "compositor/desktop-server.h"
-#include "compositor/desktop.h"
-#include "compositor/data_device.h"
-#include "compositor/input.h"
-#include "compositor/output.h"
-#include "compositor/seat.h"
+#include "desktop-server.h"
+#include "desktop.h"
+#include "data_device.h"
+#include "input.h"
+#include "output.h"
+#include "seat.h"
 #include "surface.h"
 #include "dma.h"
 #include "shared_memory.h"
 #include "swordfish.h"
-#include "window.h"
+#include "wayland_window/window.h"
 
 //how long the compositor thread waits for a client before looking at
 //swordfish_running again
