@@ -39,6 +39,7 @@ void run_compositor(void);
 
 void finish_compositor();
 
+void init_compositor(void);
 
 uint32_t next_serial(void);
 

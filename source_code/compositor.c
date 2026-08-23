@@ -84,18 +84,14 @@ static void your_error_handler_func(void *data, const char *msg) {
     fprintf(stderr, "Wayland Error: %s\n", msg);
 }
 
+void init_compositor(void){
 
-void run_compositor(void) {
-
-
-  // Create the Wayland display
   compositor.display = wl_display_create();
   if (!compositor.display) {
     fprintf(stderr, "Failed to create Wayland display\n");
     return;
   }
 
-  // Get the event loop
   compositor.event_loop = wl_display_get_event_loop(compositor.display);
   if (!compositor.event_loop) {
     fprintf(stderr, "Failed to get event loop\n");
@@ -106,11 +102,6 @@ void run_compositor(void) {
   wl_list_init(&compositor.tasks_input);
 
 
-
-  //advertising version 1 here is what disconnected every client: pway binds
-  //wl_compositor at 4, and a bind above the advertised version is a protocol
-  //error, so the client died on the registry before it ever made a surface.
-  //everything version 4 adds is on wl_surface, see surface_implementation
   wl_global_create(compositor.display, &wl_compositor_interface,
                    COMPOSITOR_VERSION, &compositor, bind_compositor);
 
@@ -139,7 +130,7 @@ void run_compositor(void) {
 
   setenv("WAYLAND_DISPLAY", socket, true);
   //setenv("EGL_PLATFORM", "wayland", true);
-  setenv("EGL_LOG_LEVEL", "debug", true);
+  //setenv("EGL_LOG_LEVEL", "debug", true);
  // setenv("MESA_DEBUG", "1", true);
   //setenv("LIBGL_DEBUG", "verbose", true);
   //setenv("LIBGL_ALWAYS_SOFTWARE", "1", true);
@@ -150,13 +141,13 @@ void run_compositor(void) {
   printf("Wayland socket available at %s\n", socket);
   printf("Compositor running. Use a Wayland client to connect.\n");
 
-  //this thread also pumps whichever input source we have and steps the
-  //render loop, instead of a separate input thread and a separate render
-  //loop on main(). is_wayland_window means the host compositor hands us
-  //input through pway; otherwise libinput reads the devices directly, and
-  //needs opening once before its fd exists
   if (!is_wayland_window)
     init_input();
+
+}
+
+void run_compositor(void) {
+
 
   //the render loop's old usleep(16667) becomes a periodic timerfd in the same
   //poll set, so drawing a frame is just another thing this loop wakes up for
@@ -169,10 +160,6 @@ void run_compositor(void) {
 
   start_delta_time();
 
-  //wl_display_run() is this loop with the waiting and the dispatching welded
-  //together inside libwayland - unrolled here so pway/libinput and the frame
-  //timer can be waited on in the same poll(). now that this is the only
-  //thread touching any of it, nothing here needs a lock any more
   while (swordfish_running) {
 
     wl_display_flush_clients(compositor.display);
