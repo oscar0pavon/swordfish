@@ -22,6 +22,12 @@ struct vt_stat virtual_terminal_stat;
 struct termios original_termios;
 int original_tty_number;
 
+//the console keyboard mode we found the VT in, so it can be put back. K_XLATE
+//on a text VT, and worth saving rather than assuming: a VT left by another
+//program may be in any of them
+static int original_keyboard_mode = K_UNICODE;
+static bool keyboard_silenced;
+
 //INFO there is no libseat here on purpose. seatd exists to hand a DRM and
 //input fds to a compositor that is *not* root, and to arbitrate between the
 //sessions of several users - neither of which is a problem on a single user
@@ -87,6 +93,52 @@ void tty_save_state() {
   if (tcgetattr(tty_file, &original_termios) < 0) {
     log_error("Failed to get original terminal attributes: %s", strerror(errno));
   }
+
+  if (ioctl(tty_file, KDGKBMODE, &original_keyboard_mode) < 0) {
+    log_error("Failed to get the console keyboard mode: %s", strerror(errno));
+  }
+}
+
+//INFO KD_GRAPHICS stops the console *drawing*; it does not stop it reading.
+//the kernel keyboard driver goes on translating every key on this VT into
+//characters for whoever holds the tty, so everything typed into a client is
+//also echoed onto the console under the frames we present, and ctrl+c is
+//still turned into a SIGINT on swordfish's own process group - which is what
+//closes the compositor when a client was the one being typed into. libinput
+//reads the same keys from /dev/input/event* directly, so the console's copy
+//is pure duplication. K_OFF makes the driver deliver nothing at all and
+//leaves evdev the only reader of the keyboard
+static void tty_silence_keyboard(void) {
+
+  if (tty_file < 0)
+    return;
+
+  //KDSKBMUTE, the ioctl libseat reaches for first, is not in linux/kd.h at all
+  //- it is a define seatd carries itself for a kernel that does not implement
+  //it either. K_OFF is the one the console driver actually answers
+  if (ioctl(tty_file, KDSKBMODE, K_OFF) < 0) {
+    log_error("Can't silence the console keyboard: %s", strerror(errno));
+    return;
+  }
+
+  keyboard_silenced = true;
+
+  log_info("Console keyboard is off, input comes from evdev only");
+}
+
+//INFO the console is unusable until this runs - no key typed on it produces
+//anything - so every way out of swordfish has to reach it. that is why
+//tty_session_init() hands it to atexit() and to the crash handler as well as
+//close_swordfish() calling tty_session_finish()
+static void tty_restore_keyboard(void) {
+
+  if (!keyboard_silenced)
+    return;
+
+  if (ioctl(tty_file, KDSKBMODE, original_keyboard_mode) < 0)
+    log_error("Failed to restore the console keyboard mode: %s", strerror(errno));
+
+  keyboard_silenced = false;
 }
 
 void tty_set_to_graphics(){
@@ -114,6 +166,8 @@ void tty_restore_state() {
       log_error("Failed to restore VT mode: %s", strerror(errno));
     vt_mode_taken = false;
   }
+
+  tty_restore_keyboard();
 
   // Set tty back to text mode
   if (ioctl(tty_file, KDSETMODE, KD_TEXT) < 0) {
@@ -179,6 +233,13 @@ bool tty_session_init(const char *gpu_path) {
     return false;
 
   tty_set_to_graphics();
+  tty_silence_keyboard();
+
+  //super+q calls exit() and a fatal signal never comes back here at all, so
+  //the restore cannot live on the one path close_swordfish() takes. both of
+  //these end in tty_restore_state(), which is a no-op the second time
+  atexit(tty_session_finish);
+  log_crash_hook = tty_emergency_restore;
 
   if (ioctl(tty_file, VT_GETMODE, &original_vt_mode) < 0) {
     log_error("Failed to read VT mode: %s", strerror(errno));
@@ -224,6 +285,23 @@ void tty_session_finish(void) {
     close(drm_fd);
     drm_fd = -1;
   }
+}
+
+//INFO ioctl and nothing else: this runs from the crash handler on a process
+//that is already dying. it leaves the fds open and the bookkeeping alone -
+//all it owes the machine is a console that can be typed on again
+void tty_emergency_restore(void) {
+
+  if (tty_file < 0)
+    return;
+
+  if (vt_mode_taken)
+    ioctl(tty_file, VT_SETMODE, &original_vt_mode);
+
+  if (keyboard_silenced)
+    ioctl(tty_file, KDSKBMODE, original_keyboard_mode);
+
+  ioctl(tty_file, KDSETMODE, KD_TEXT);
 }
 
 //INFO evdev fds are not scoped to a VT: libinput holds /dev/input/event* open

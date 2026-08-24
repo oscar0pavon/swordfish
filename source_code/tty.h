@@ -15,6 +15,12 @@ bool tty_session_init(const char *gpu_path);
 
 void tty_session_finish(void);
 
+//puts the console's keyboard and video mode back, and hands VT switching to
+//the kernel again, from a signal handler on a process that is already dying.
+//ioctl and nothing else - log.c's crash handler calls it before it writes the
+//backtrace, since a K_OFF keyboard leaves a VT nobody can type on
+void tty_emergency_restore(void);
+
 //acts on a VT switch the signal handler recorded. called once per turn of the
 //compositor loop, since dropping DRM master and suspending libinput are not
 //things a signal handler may do

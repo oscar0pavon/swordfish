@@ -30,6 +30,8 @@ static struct timespec start_time;
 
 static const char *level_names[] = {"DEBUG", "INFO ", "WARN ", "ERROR"};
 
+void (*log_crash_hook)(void);
+
 static void write_all(int file, const char *data, size_t size) {
   while (size > 0) {
     ssize_t written = write(file, data, size);
@@ -141,6 +143,11 @@ static void write_number(int file, unsigned long value) {
 
 static void handle_crash_signal(int signal_number) {
   static const char message[] = "\n=== swordfish died on signal ";
+
+  //before the backtrace: giving the console back is what decides whether the
+  //machine can be used to read the log at all
+  if (log_crash_hook)
+    log_crash_hook();
 
   write_record(message, sizeof(message) - 1);
   if (log_file >= 0)
