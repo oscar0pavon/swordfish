@@ -107,6 +107,11 @@ int main(void){
 
   sword_outputs_init();
 
+  if (is_drm_rendering) {
+    sword_capture_display_routing();
+    sword_log_display_routing("startup");
+  }
+
   camera_init(&main_camera);
 
 

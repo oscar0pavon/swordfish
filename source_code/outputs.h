@@ -29,6 +29,23 @@ bool sword_acquire_drm_display(void);
 //see outputs.c for why those two can disagree
 void sword_sort_displays_by_connector(void);
 
+//diagnostic only: logs which CRTC the kernel has driving each connected
+//connector right now. called once at startup (main()) and again from
+//tty.c's session_deactivate()/session_activate() around a VT switch, so the
+//routing before and after can be compared in /tmp/sword.log
+void sword_log_display_routing(const char *when);
+
+//records the connector->crtc pairing every render target's plane is
+//permanently wired to. called once at startup (main()), right after
+//sword_sort_displays_by_connector()
+void sword_capture_display_routing(void);
+
+//puts the pairing sword_capture_display_routing() recorded back, in case
+//another DRM master moved it while sword did not hold master. called from
+//tty.c's session_activate(), right after drmSetMaster() and before sword's
+//next present
+void sword_restore_display_routing(void);
+
 //fills the table from pe_render_targets, one output per target, in order.
 //called once from main() right after pe_vk_init() - before the compositor
 //thread starts, so nothing needs a lock to read it afterward

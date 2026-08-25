@@ -18,6 +18,7 @@
 
 #include "device_input.h"
 #include "input.h"
+#include "outputs.h"
 
 int tty_file = -1;
 struct vt_stat virtual_terminal_stat;
@@ -347,6 +348,10 @@ static void session_deactivate(void) {
 
   log_info("VT released, letting go of the display");
 
+  //logged before we let go, so it is a known-good baseline to compare
+  //session_activate()'s post-switch log against
+  sword_log_display_routing("before release");
+
   //while we still have the keyboard: the release of ctrl+alt+Fn goes to the VT
   //taking over, so the clients here have to be told by hand
   input_release_pressed_keys();
@@ -375,8 +380,19 @@ static void session_activate(void) {
   if (drm_fd >= 0 && drmSetMaster(drm_fd) < 0)
     log_warn("Can't take DRM master back: %s", strerror(errno));
 
+  //whoever was DRM master while we were not (sway, on another VT) may have
+  //put a different connector on the crtc each render target's plane is
+  //permanently wired to - put it back before sword's next present, or that
+  //plane goes on scanning out to whichever monitor is on its crtc now, not
+  //the one it was chosen for. see outputs.c for the whole mechanism
+  sword_restore_display_routing();
+
   //the compositor that had the VT left its hardware cursor on the plane
   drm_disable_cursor_planes();
+
+  //logged after the restore above, so a mismatch here means the restore
+  //itself did not work rather than the switch having moved anything
+  sword_log_display_routing("after acquire");
 
   if (libinput)
     libinput_resume(libinput);

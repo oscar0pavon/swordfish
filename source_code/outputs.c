@@ -177,6 +177,210 @@ void sword_sort_displays_by_connector(void) {
   log_info("Reordered %u displays to match the DRM connector list", sorted_count);
 }
 
+//INFO diagnostic only. mesa's wsi_display (src/vulkan/wsi/wsi_common_display.c)
+//caches connector->crtc_id the first time it successfully modesets a
+//connector, and only re-derives it via wsi_display_select_crtc() when
+//connector->active was false - which losing DRM master forces. Each
+//connector's atomic commit on the way back is independent, so two connectors
+//can each land on a CRTC that swapped which physical monitor it drives while
+//we did not hold master - sword's own task->output_index and
+//pe_render_targets[] never change, only the CRTC underneath one of them does.
+//This logs the kernel's own connector->crtc routing so that can be confirmed
+//against /tmp/sword.log rather than inferred
+void sword_log_display_routing(const char *when) {
+
+  int drm_fd = tty_drm_fd();
+  if (drm_fd < 0)
+    return;
+
+  drmModeRes *resources = drmModeGetResources(drm_fd);
+  if (!resources) {
+    log_warn("Can't enumerate connectors to log routing (%s): %s", when,
+             strerror(errno));
+    return;
+  }
+
+  for (int i = 0; i < resources->count_connectors; i++) {
+
+    drmModeConnector *connector =
+        drmModeGetConnector(drm_fd, resources->connectors[i]);
+    if (!connector)
+      continue;
+
+    if (connector->connection == DRM_MODE_CONNECTED) {
+
+      uint32_t crtc_id = 0;
+      if (connector->encoder_id) {
+        drmModeEncoder *encoder =
+            drmModeGetEncoder(drm_fd, connector->encoder_id);
+        if (encoder) {
+          crtc_id = encoder->crtc_id;
+          drmModeFreeEncoder(encoder);
+        }
+      }
+
+      log_info("Display routing (%s): connector %u -> crtc %u", when,
+              connector->connector_id, crtc_id);
+    }
+
+    drmModeFreeConnector(connector);
+  }
+
+  drmModeFreeResources(resources);
+}
+
+//INFO the connector->crtc pairing sword_capture_display_routing() recorded at
+//startup - each render target's plane is wired to one crtc for the life of
+//the process (see the routing comment above), so this is what
+//sword_restore_display_routing() puts back after a VT round-trip moves it
+typedef struct DisplayRoute {
+  uint32_t connector_id;
+  uint32_t crtc_id;
+} DisplayRoute;
+
+static DisplayRoute display_routes[PE_VK_MAX_RENDER_TARGETS];
+static int display_routes_count;
+
+//called once at startup, right after sword_sort_displays_by_connector() -
+//records which crtc the kernel had driving each connected connector, which is
+//also the crtc every render target's plane is permanently paired with (a
+//plane's possible_crtcs is a hardware fact, and mesa picks the plane to match
+//whatever crtc the connector was on when it first modeset it)
+void sword_capture_display_routing(void) {
+
+  int drm_fd = tty_drm_fd();
+  if (drm_fd < 0)
+    return;
+
+  drmModeRes *resources = drmModeGetResources(drm_fd);
+  if (!resources) {
+    log_warn("Can't enumerate connectors to capture routing: %s",
+             strerror(errno));
+    return;
+  }
+
+  display_routes_count = 0;
+
+  for (int i = 0; i < resources->count_connectors &&
+                  display_routes_count < PE_VK_MAX_RENDER_TARGETS;
+       i++) {
+
+    drmModeConnector *connector =
+        drmModeGetConnector(drm_fd, resources->connectors[i]);
+    if (!connector)
+      continue;
+
+    if (connector->connection == DRM_MODE_CONNECTED && connector->encoder_id) {
+
+      drmModeEncoder *encoder =
+          drmModeGetEncoder(drm_fd, connector->encoder_id);
+      if (encoder && encoder->crtc_id) {
+        DisplayRoute *route = &display_routes[display_routes_count++];
+        route->connector_id = connector->connector_id;
+        route->crtc_id = encoder->crtc_id;
+      }
+      if (encoder)
+        drmModeFreeEncoder(encoder);
+    }
+
+    drmModeFreeConnector(connector);
+  }
+
+  drmModeFreeResources(resources);
+}
+
+//called from tty.c's session_activate(), right after drmSetMaster() and
+//before sword's next present: another DRM master (sway, on another VT) may
+//have reassigned which connector each crtc drives while we did not hold
+//master. A render target's plane cannot follow - it is wired to one crtc for
+//good - so this puts each connector back on the crtc it was captured on,
+//which is what keeps a render target's fixed plane landing on the monitor it
+//was chosen for. Snapshots each moved connector's own currently-valid
+//mode/framebuffer before changing anything, and applies all the moves from
+//those snapshots - not by reading the target crtc's state, which for a
+//two-way swap is the very thing about to be vacated
+void sword_restore_display_routing(void) {
+
+  int drm_fd = tty_drm_fd();
+  if (drm_fd < 0 || display_routes_count == 0)
+    return;
+
+  typedef struct {
+    uint32_t connector_id;
+    uint32_t crtc_id;
+    uint32_t buffer_id;
+    drmModeModeInfo mode;
+  } PendingMove;
+
+  PendingMove pending[PE_VK_MAX_RENDER_TARGETS];
+  int pending_count = 0;
+
+  for (int i = 0; i < display_routes_count; i++) {
+
+    DisplayRoute *route = &display_routes[i];
+
+    drmModeConnector *connector =
+        drmModeGetConnector(drm_fd, route->connector_id);
+    if (!connector)
+      continue;
+
+    uint32_t current_crtc_id = 0;
+    if (connector->encoder_id) {
+      drmModeEncoder *encoder =
+          drmModeGetEncoder(drm_fd, connector->encoder_id);
+      if (encoder) {
+        current_crtc_id = encoder->crtc_id;
+        drmModeFreeEncoder(encoder);
+      }
+    }
+    drmModeFreeConnector(connector);
+
+    //already on the crtc its plane wants - nothing to do
+    if (current_crtc_id == route->crtc_id)
+      continue;
+
+    if (current_crtc_id == 0) {
+      log_warn("Connector %u has no crtc at all, can't move it back onto "
+               "crtc %u", route->connector_id, route->crtc_id);
+      continue;
+    }
+
+    //the mode and framebuffer already valid on whichever crtc this connector
+    //is currently (wrongly) driven by - taken before either of the two
+    //connectors involved in a swap gets moved, so neither snapshot depends on
+    //the other's about-to-change state
+    drmModeCrtc *crtc = drmModeGetCrtc(drm_fd, current_crtc_id);
+    if (!crtc || !crtc->mode_valid || crtc->buffer_id == 0) {
+      log_warn("Connector %u's current crtc %u has no valid mode/framebuffer "
+               "to move, can't restore it onto crtc %u", route->connector_id,
+               current_crtc_id, route->crtc_id);
+      if (crtc)
+        drmModeFreeCrtc(crtc);
+      continue;
+    }
+
+    PendingMove *move = &pending[pending_count++];
+    move->connector_id = route->connector_id;
+    move->crtc_id = route->crtc_id;
+    move->buffer_id = crtc->buffer_id;
+    move->mode = crtc->mode;
+
+    drmModeFreeCrtc(crtc);
+  }
+
+  for (int i = 0; i < pending_count; i++) {
+    PendingMove *move = &pending[i];
+
+    if (drmModeSetCrtc(drm_fd, move->crtc_id, move->buffer_id, 0, 0,
+                       &move->connector_id, 1, &move->mode) < 0)
+      log_warn("Can't restore connector %u onto crtc %u: %s",
+               move->connector_id, move->crtc_id, strerror(errno));
+    else
+      log_info("Restored connector %u onto crtc %u", move->connector_id,
+               move->crtc_id);
+  }
+}
+
 SwordOutput sword_outputs[PE_VK_MAX_RENDER_TARGETS];
 int sword_outputs_count;
 
