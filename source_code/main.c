@@ -13,6 +13,7 @@
 #include <engine/camera.h>
 #include "device_input.h"
 #include "keyboard.h"
+#include "launch.h"
 #include <engine/renderer/vulkan.h>
 #include "outputs.h"
 #include "wayland_window/window.h"
@@ -41,6 +42,11 @@ void close_sword() {
     finish_input();
     tty_session_finish();
   }
+
+  //before pe_vk_end(), which aborts inside vkDestroyDevice if a client is
+  //still connected: the programs sword spawned are exactly those clients, and
+  //this is the only thing that ends them - they are init's children by then
+  launch_close_programs();
 
   clean_sword();
   pe_vk_end();
