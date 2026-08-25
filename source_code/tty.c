@@ -14,8 +14,10 @@
 #include <errno.h>
 #include <string.h>
 #include <xf86drm.h>
+#include <xf86drmMode.h>
 
 #include "device_input.h"
+#include "input.h"
 
 int tty_file = -1;
 struct vt_stat virtual_terminal_stat;
@@ -222,6 +224,36 @@ static bool take_drm_master(const char *gpu_path) {
   return true;
 }
 
+//INFO whoever was DRM master before us programmed the CRTC's cursor plane and
+//never turned it off on the way out - dropping master changes nothing about
+//the plane state the kernel holds. we scan out through vulkan's display
+//swapchain, which flips the *primary* plane and leaves every other plane
+//alone, so sway's cursor bitmap goes on being composited over our frames,
+//frozen where it was left, and there are two arrows on screen: theirs and the
+//one cursor.c draws. clearing it belongs everywhere we take master
+static void drm_disable_cursor_planes(void) {
+
+  if (drm_fd < 0)
+    return;
+
+  drmModeRes *resources = drmModeGetResources(drm_fd);
+  if (!resources) {
+    log_warn("Can't enumerate CRTCs to clear the cursor plane: %s",
+             strerror(errno));
+    return;
+  }
+
+  //a handle of 0 is what turns the plane off, and the legacy cursor ioctl is
+  //translated onto the universal cursor plane by the kernel, so this reaches
+  //an atomic client's cursor as well as a legacy one's
+  for (int i = 0; i < resources->count_crtcs; i++)
+    if (drmModeSetCursor(drm_fd, resources->crtcs[i], 0, 0, 0) < 0)
+      log_debug("No cursor plane cleared on CRTC %u: %s", resources->crtcs[i],
+                strerror(errno));
+
+  drmModeFreeResources(resources);
+}
+
 bool tty_session_init(const char *gpu_path) {
 
   tty_save_state();
@@ -231,6 +263,9 @@ bool tty_session_init(const char *gpu_path) {
 
   if (!take_drm_master(gpu_path))
     return false;
+
+  //sword may equally be started from a VT another compositor just left
+  drm_disable_cursor_planes();
 
   tty_set_to_graphics();
   tty_silence_keyboard();
@@ -312,6 +347,10 @@ static void session_deactivate(void) {
 
   log_info("VT released, letting go of the display");
 
+  //while we still have the keyboard: the release of ctrl+alt+Fn goes to the VT
+  //taking over, so the clients here have to be told by hand
+  input_release_pressed_keys();
+
   if (libinput)
     libinput_suspend(libinput);
 
@@ -335,6 +374,9 @@ static void session_activate(void) {
 
   if (drm_fd >= 0 && drmSetMaster(drm_fd) < 0)
     log_warn("Can't take DRM master back: %s", strerror(errno));
+
+  //the compositor that had the VT left its hardware cursor on the plane
+  drm_disable_cursor_planes();
 
   if (libinput)
     libinput_resume(libinput);

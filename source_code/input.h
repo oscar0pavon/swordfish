@@ -21,6 +21,11 @@ void handle_focus();
 //keys are tracked here so a client taking focus is told what is already down
 void send_wayland_key(uint32_t scancode, bool pressed);
 
+//release every key still held, to the focused client and to the compositor's
+//own xkb state. the VT switch calls it: the releases of the keys that asked
+//for the switch are delivered to the VT we left, not to us
+void input_release_pressed_keys(void);
+
 //the cursor, in the render target's own pixels, from whichever input path is
 //live. the surface under it is worked out here, so motion is what sends
 //wl_pointer.enter and wl_pointer.leave as well

@@ -380,6 +380,19 @@ Shortcuts live in `handle_sword_key()` (`keyboard.c`) with the rest:
 `q` is already the compositor's own exit. `xdg_toplevel.close` is a *request*; a
 client with unsaved work may put up a dialog and stay.
 
+**ctrl+alt+Fn / ctrl+alt+number** switch VT, and are the one shortcut not behind
+super: it is the gesture the kernel console answers, and `tty_silence_keyboard()`
+putting the console in `K_OFF` is exactly what stops it answering — so the
+compositor has to do the switch itself. Only on the DRM path; in a window the
+host compositor owns the VT and the combination belongs to the client. Both
+spellings are taken (F1 and 1 are both tty1, 0 is tty10), plus the
+`XF86Switch_VT_n` keysyms a keymap may translate ctrl+alt+Fn into by itself.
+The switch is where `input_release_pressed_keys()` (`input.c`) earns its place:
+libinput is suspended before the release of ctrl, alt and the digit ever
+arrives, so without it the client repeats the last key forever and sword's
+own `xkb_state` goes on reporting ctrl+alt — the next digit typed would switch
+VT again. `session_deactivate()` calls it while the keyboard is still ours.
+
 An **unmap** (`surface_attach()` with a NULL buffer) keeps its cell rather than
 reflowing. Reflowing there costs the window its place to whoever is behind it
 and hands it a different one when it maps again, which is worse until the layout

@@ -148,6 +148,43 @@ static bool shortcut_modifier_held(void) {
                                       XKB_STATE_MODS_EFFECTIVE) > 0;
 }
 
+//ctrl+alt is the VT switch, and it is deliberately not super: it is the
+//gesture the kernel console itself answers, and the one every user already
+//knows
+static bool vt_switch_modifiers_held(void) {
+  return xkb_state_mod_name_is_active(xkb_state, XKB_MOD_NAME_CTRL,
+                                      XKB_STATE_MODS_EFFECTIVE) > 0 &&
+         xkb_state_mod_name_is_active(xkb_state, XKB_MOD_NAME_ALT,
+                                      XKB_STATE_MODS_EFFECTIVE) > 0;
+}
+
+//INFO the kernel's own ctrl+alt+Fn stops working the moment tty_silence_keyboard()
+//puts the console keyboard in K_OFF - the driver delivers nothing at all, and
+//that includes the switch it used to handle itself. so the compositor has to
+//do the switching, which is what every VT owning compositor does anyway.
+//returns the VT to go to, or 0 for a key that is not one
+static int vt_number_for_keysym(xkb_keysym_t sym) {
+
+  //some keymaps translate ctrl+alt+Fn into these themselves, and then the Fn
+  //keysym below is never what arrives
+  if (sym >= XKB_KEY_XF86Switch_VT_1 && sym <= XKB_KEY_XF86Switch_VT_12)
+    return sym - XKB_KEY_XF86Switch_VT_1 + 1;
+
+  if (sym >= XKB_KEY_F1 && sym <= XKB_KEY_F12)
+    return sym - XKB_KEY_F1 + 1;
+
+  //the number row as well as the function keys, since ctrl+alt+2 is the more
+  //obvious spelling of the two. 0 is tty10: there is no tty0 to switch to,
+  ///dev/tty0 is a name for whichever one is current
+  if (sym >= XKB_KEY_1 && sym <= XKB_KEY_9)
+    return sym - XKB_KEY_1 + 1;
+
+  if (sym == XKB_KEY_0)
+    return 10;
+
+  return 0;
+}
+
 //one key, whichever path it arrived on, as an evdev code
 void handle_key_code(uint32_t key_code, bool pressed) {
 
@@ -166,6 +203,20 @@ void handle_key_code(uint32_t key_code, bool pressed) {
 
     send_wayland_key(key_code, false);
     return;
+  }
+
+  //only when sword owns the tty. in a window the host compositor is the
+  //one holding the VT, so the combination belongs to the focused client
+  if (is_drm_rendering && vt_switch_modifiers_held()) {
+    xkb_keysym_t sym = xkb_state_key_get_one_sym(xkb_state, xkb_keycode);
+    int vt_number = vt_number_for_keysym(sym);
+
+    if (vt_number) {
+      log_info("Switching to VT %i", vt_number);
+      tty_switch_to(vt_number);
+      swallow_key(key_code);
+      return;
+    }
   }
 
   if (shortcut_modifier_held()) {

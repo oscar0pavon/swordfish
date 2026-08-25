@@ -3,6 +3,7 @@
 #include <complex.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <wayland-server-protocol.h>
 #include <wayland-server-core.h>
@@ -198,6 +199,25 @@ void send_wayland_key(uint32_t scancode, bool pressed){
   //sent right away rather than waiting for the loop's own flush at the top of
   //its next iteration
   wl_display_flush_clients(compositor.display);
+}
+
+//INFO a VT switch takes the keyboard away mid keystroke - ctrl and alt are
+//held down by definition when it happens - and libinput is suspended before
+//their release ever arrives, so nobody is told the keys came up. the client is
+//left believing they are still down and repeats the last one forever, and our
+//own xkb_state goes on reporting ctrl+alt so the next digit typed switches VT
+//again. releasing everything by hand on the way out fixes both at once, since
+//handle_key_code() is what updates the xkb state
+void input_release_pressed_keys(void){
+
+  //by value: send_wayland_key() rewrites the array as it tracks each release
+  uint32_t keys[MAX_PRESSED_KEYS];
+  int count = pressed_keys_count;
+
+  memcpy(keys, pressed_keys, sizeof(uint32_t) * count);
+
+  for(int i = 0; i < count; i++)
+    handle_key_code(keys[i], false);
 }
 
 void send_keyboard_configuration(WResource *resource){
