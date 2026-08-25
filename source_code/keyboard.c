@@ -106,12 +106,12 @@ static bool handle_sword_key(uint32_t unicode) {
   case 'y':
     //must not block: this runs on the input thread, and in the pway path that
     //thread is also what pumps the window
-    launch_program("/root/pterminal/pterminal");
+    launch_program((char* const[]){"/root/pterminal/pterminal", NULL});
     return true;
   case 'm':
     //must not block: this runs on the input thread, and in the pway path that
     //thread is also what pumps the window
-    launch_program("/usr/bin/firefox");
+    launch_program((char* const[]){"/usr/bin/firefox", NULL});
     return true;
   case 'j':
     layout_focus_next(1);

@@ -28,7 +28,8 @@
 static pid_t launched_programs[MAX_LAUNCHED_PROGRAMS];
 static int launched_program_count;
 
-void launch_program(const char* command){
+//argv[0] is the program, NULL-terminated exactly as execvp wants it
+void launch_program(char* const argv[]){
 
   int pid_pipe[2];
   if (pipe(pid_pipe) == -1) {
@@ -54,8 +55,8 @@ void launch_program(const char* command){
       //also makes the child its own process group leader, which is what lets
       //the negative kill below reach whatever it spawns in turn
       setsid();
-      execlp(command, command, NULL);
-      log_error("execlp: %s", strerror(errno));
+      execvp(argv[0], argv);
+      log_error("execvp: %s", strerror(errno));
       _exit(EXIT_FAILURE);
     }
 
@@ -75,14 +76,14 @@ void launch_program(const char* command){
   waitpid(pid, NULL, 0);
 
   if (read_size != sizeof(program_pid)) {
-    log_error("Could not launch %s", command);
+    log_error("Could not launch %s", argv[0]);
     return;
   }
 
-  log_info("Launching %s as %d", command, program_pid);
+  log_info("Launching %s as %d", argv[0], program_pid);
 
   if (launched_program_count == MAX_LAUNCHED_PROGRAMS) {
-    log_warn("Launched program table full, %s will outlive sword", command);
+    log_warn("Launched program table full, %s will outlive sword", argv[0]);
     return;
   }
 
