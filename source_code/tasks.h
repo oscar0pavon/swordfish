@@ -4,6 +4,7 @@
 #include "types.h"
 
 #include "compositor.h"
+#include "region.h"
 
 typedef struct TaskInput {
   WClient *client;
@@ -64,6 +65,14 @@ typedef struct Task{
     //a zero width means the layout has not reached it yet and the quad falls
     //back to its own buffer size
     int32_t tile_x, tile_y, tile_width, tile_height;
+    //wl_surface.set_input_region: where on this surface the client is willing
+    //to be pointed at, in its own coordinates. no region set means all of it,
+    //which is the protocol's default and what every window wants - but a
+    //client that hands over an *empty* one means it, and firefox does: the
+    //subsurface it renders into takes no input so that the pointer reaches the
+    //window behind it. ignoring this is a mouse that does nothing
+    Region input_region;
+    bool has_input_region;
     //wl_subcompositor: the surface this one was made a child of, and the
     //children it was made the parent of. a subsurface is not a window - it
     //takes no cell in the layout and gets no toplevel - it is drawn inside its

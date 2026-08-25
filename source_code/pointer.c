@@ -79,6 +79,14 @@ static bool pointer_inside(Task *task){
     pointer_local_y = pointer_y - y;
   }
 
+  //the client's own say in whether it is pointable here. a surface that set an
+  //empty input region is asking to be passed straight through, so the cursor
+  //is over whatever is behind it - the parent, in firefox's case, which is the
+  //surface gtk actually routes input from
+  if(task->has_input_region &&
+     !region_contains(&task->input_region, pointer_local_x, pointer_local_y))
+    return false;
+
   return true;
 }
 
@@ -98,10 +106,26 @@ static bool tree_can_draw(Task *task){
   return false;
 }
 
-//the deepest, topmost surface of this tree the cursor is inside. children are
-//kept back to front, so the walk is backwards: the frontmost child wins, the
-//same way the frontmost window would. events belong to the child rather than
-//to the window - firefox draws into a subsurface and expects the pointer there
+//is the cursor inside the rectangle this surface is drawn in, and nothing
+//else: no input region, no local coordinates. what the descent below tests to
+//decide whether a subtree is worth walking into at all
+static bool pointer_in_rect(Task *task){
+
+  double x, y, width, height;
+
+  if(!task_screen_rect(task, &x, &y, &width, &height))
+    return false;
+
+  return pointer_x >= x && pointer_y >= y && pointer_x < x + width &&
+         pointer_y < y + height;
+}
+
+//the topmost surface of this tree that will actually take the pointer here, or
+//NULL if none of it will. children are kept back to front, so the walk is
+//backwards: the frontmost child wins, the same way the frontmost window would.
+//a child that refuses the point through its input region does not stop the
+//search - it falls through to whatever is behind it, which is the whole reason
+//firefox's render subsurface sets an empty one
 static Task *pointer_hit_child(Task *task){
 
   Task *child;
@@ -111,15 +135,22 @@ static Task *pointer_hit_child(Task *task){
     if(!child->can_draw || !child->image)
       continue;
 
-    if(pointer_inside(child))
-      return pointer_hit_child(child);
+    if(!pointer_in_rect(child))
+      continue;
+
+    Task *hit = pointer_hit_child(child);
+
+    if(hit)
+      return hit;
   }
 
-  //pointer_local_* has to describe whatever is returned, and the walk above
-  //has been overwriting it with children the cursor turned out to miss
-  pointer_inside(task);
+  //the surface itself, last, since its children are drawn over it. this is
+  //also what leaves pointer_local_* describing what is returned, after the
+  //walk above overwrote it with children the cursor turned out to miss
+  if(pointer_inside(task))
+    return task;
 
-  return task;
+  return NULL;
 }
 
 //which surface the cursor is over. every window has its own cell now, so this
@@ -149,12 +180,22 @@ static Task *pointer_hit_task(void){
     if(!tree_can_draw(task))
       continue;
 
-    if(pointer_inside(task)){
-      //the window keeps the click-to-focus half even when the events go to a
-      //child of it: only a toplevel can hold the keyboard
+    //the window's own cell, tested before its input region: the cells cannot
+    //overlap, so this is the one window the cursor can be over and there is no
+    //point looking at another. inside it the tree decides, and it may decide
+    //nothing takes the pointer here - the shadow around a client-side
+    //decorated window is exactly that
+    if(!pointer_in_rect(task))
+      continue;
+
+    Task *hit = pointer_hit_child(task);
+
+    //the window keeps the click-to-focus half even when the events go to a
+    //child of it: only a toplevel can hold the keyboard
+    if(hit)
       pointer_window = task;
-      return pointer_hit_child(task);
-    }
+
+    return hit;
   }
 
   return NULL;

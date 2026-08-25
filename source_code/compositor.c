@@ -18,6 +18,7 @@
 #include "data_device.h"
 #include "input.h"
 #include "output.h"
+#include "region.h"
 #include "tty.h"
 #include "surface.h"
 #include "dma.h"
@@ -50,7 +51,11 @@ bool is_focus_completed = true;
 
 const WaylanCompositorInterface compositor_interface = {
   .create_surface = create_surface,
-  .create_region = NULL
+  //a region is a set of rectangles sword has nothing to do with, and this
+  //entry was NULL until firefox called it: libwayland dispatches a NULL
+  //handler as a call, so the request that was "not implemented" was an abort
+  //inside the compositor. see region.c
+  .create_region = create_region
 };
 
 

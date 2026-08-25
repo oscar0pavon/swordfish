@@ -339,15 +339,39 @@ void handle_frame(WClient *client, WResource *resource, uint32_t callback_id){
 
 }
 
-//every request in the interface needs a handler, NULL is dispatched as a call
-//and takes the compositor down with the client. these are the ones sword
-//has nothing to do with: the quad is drawn from the whole buffer at whatever
-//size it arrives, so regions, transform and scale change nothing yet
+//the quad is drawn with blending whatever the client says is opaque, so this
+//one really does change nothing
 static void surface_set_opaque_region(WClient *client, WResource *resource,
                                       WResource *region) {}
 
+//where the client is willing to be pointed at. this is not a hint: a NULL
+//region means the whole surface, and an *empty* region means none of it -
+//which is how a client says "the pointer belongs to something behind me".
+//firefox sets an empty one on the subsurface it renders into, so a compositor
+//that ignores this delivers every click to a surface that has already said it
+//does not want them, and the mouse does nothing at all
 static void surface_set_input_region(WClient *client, WResource *resource,
-                                     WResource *region) {}
+                                     WResource *region_resource) {
+
+  Task *surface = wl_resource_get_user_data(resource);
+
+  //TODO the protocol double-buffers this: it should be applied on the next
+  //commit rather than where it arrives, the same as the subsurface state
+  if (!region_resource) {
+    region_clean(&surface->input_region);
+    surface->has_input_region = false;
+    log_debug("Surface takes input over all of itself");
+    return;
+  }
+
+  Region *region = wl_resource_get_user_data(region_resource);
+
+  region_copy(&surface->input_region, region);
+  surface->has_input_region = true;
+
+  log_debug("Surface input region set, %i rectangles",
+            surface->input_region.count);
+}
 
 //since version 2
 static void surface_set_buffer_transform(WClient *client, WResource *resource,
@@ -404,6 +428,9 @@ static void destroy_surface(WResource *resource) {
   //still points at it as a parent - before the memory goes away
   forget_subsurface_role(surface);
   task_detach_subsurfaces(surface);
+
+  //the surface's own copy of whatever region the client last handed it
+  region_clean(&surface->input_region);
 
   //the image is the ClientBuffer's, not the surface's - shm and dma alike.
   //the buffer usually outlives the window it was last drawn into, and its
