@@ -1,9 +1,15 @@
 #ifndef POINTER_H
+#define POINTER_H
 
 #include "tasks.h"
 
 extern Task *pointer_focus;
 extern bool pointer_entered;
+
+//the toplevel the surface under the cursor belongs to. the two are the same
+//window until a client puts its content in a subsurface, and then the pointer
+//events go to the child while the focus still belongs to the window
+extern Task *pointer_window;
 
 void get_pointer(WClient *client, WResource *resource, uint32_t id);
 

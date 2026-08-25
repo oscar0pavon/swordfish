@@ -159,6 +159,11 @@ void forget_task(Task *task){
     pointer_entered = false;
   }
 
+  //the window half of the same pointer, which may be a different Task now that
+  //the surface under the cursor can be a subsurface of it
+  if(pointer_window == task)
+    pointer_window = NULL;
+
   if(focused_task == task)
     focused_task = NULL;
 }

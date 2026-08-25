@@ -3,6 +3,7 @@
 #include "compositor.h"
 #include "retire.h"
 #include "shared_memory.h"
+#include "subcompositor.h"
 #include "surface.h"
 #include "mouse.h"
 #include "outputs.h"
@@ -40,22 +41,21 @@ void draw_surface(Task* surface, PRenderTarget *render_target,
   SwordOutput *out =
       &sword_outputs[render_target - pe_render_targets];
 
-  //the cell the layout gave this window, in the virtual desktop - the
-  //output's own origin comes back out since this target only draws its own
-  //slice of it. the buffer is stretched into it rather than drawn at its own
-  //size, so the tiling has no hole in it during the frame or two between the
-  //configure and the client repainting at the new size. a surface the layout
-  //has not reached - one that never became a toplevel - keeps the old
-  //behaviour and is drawn at the corner
-  vec2 position = {surface->tile_x - out->x, surface->tile_y - out->y};
-  vec2 size = {surface->tile_width, surface->tile_height};
+  //where this surface goes on the virtual desktop: the cell the layout gave
+  //the window, or - for a subsurface - its parent's rectangle plus its own
+  //offset. task_screen_rect() (subcompositor.c) is the one place that knows
+  //which, and pointer.c divides the cursor back through the same arithmetic.
+  //the output's own origin comes back out here since this target only draws
+  //its own slice of the desktop. a window's buffer is stretched into its cell
+  //rather than drawn at its own size, so the tiling has no hole in it during
+  //the frame or two between the configure and the client repainting
+  double x, y, width, height;
 
-  if (surface->tile_width == 0) {
-    position[0] = 0;
-    position[1] = 0;
-    size[0] = surface->image->width;
-    size[1] = surface->image->heigth;
-  }
+  if (!task_screen_rect(surface, &x, &y, &width, &height))
+    return;
+
+  vec2 position = {x - out->x, y - out->y};
+  vec2 size = {width, height};
 
   pe_2d_draw_on_target(&surface->model, render_target, index, position, size);
 
@@ -103,10 +103,19 @@ void end_frame() {
                       pe_render_targets[t].fence_in_flight, VK_TRUE,
                       UINT64_MAX);
 
-  for (int i = 0; i < tasks_for_draw.count; i++) {
-    Task *surface = array_get_pointer(&tasks_for_draw, i);
+  //every surface, not only the ones in the draw list: a client that asks for a
+  //frame callback before it has ever attached a buffer is waiting on that
+  //callback to draw its first one, and a parent surface with all its content in
+  //a subsurface may never attach one at all. answering only what was drawn left
+  //both of them waiting forever
+  Task *surface;
+  wl_list_for_each(surface, &compositor.surfaces, link) {
     if (surface->frame_call_resource != NULL)
       send_frame_callback_done(surface);
+  }
+
+  for (int i = 0; i < tasks_for_draw.count; i++) {
+    Task *surface = array_get_pointer(&tasks_for_draw, i);
 
     //an shm client's pixels are only its own memory until they are copied, and
     //the copy is a queue submit - end_frame() is the one point in the frame
@@ -125,24 +134,53 @@ void end_frame() {
   //array_clean(&tasks_for_draw);
 }
 
+//a window and everything the client hung underneath it, parent first so the
+//children land on top. the list is kept back to front, which is the order
+//wl_subsurface.place_above/below maintain
+static void draw_surface_tree(Task *task, PRenderTarget *render_target,
+                              VkCommandBuffer *command, uint32_t index) {
+
+  //a surface with no buffer draws nothing and still has children that do -
+  //firefox's toplevel is exactly that, an empty parent with its whole
+  //rendering container in a subsurface over it
+  if (task->can_draw && task->image)
+    draw_surface(task, render_target, command, index);
+
+  Task *child;
+  wl_list_for_each(child, &task->children, parent_link)
+      draw_surface_tree(child, render_target, command, index);
+}
+
 void draw_surfaces(PRenderTarget *render_target, VkCommandBuffer *command,
                    uint32_t index) {
 
   int output_index = render_target - pe_render_targets;
 
-  for (int i = 0; i < tasks_for_draw.count; i++) {
-    Task *task = array_get_pointer(&tasks_for_draw, i);
-    if (task->can_draw && task->output_index == output_index) {
-      draw_surface(task, render_target, command, index);
+  //walked over compositor.surfaces rather than tasks_for_draw, because a
+  //surface only enters that array when it attaches a buffer and a parent that
+  //never attaches one would take its children out of the scene with it.
+  //surfaces go in at the head, so backwards is map order - the same order the
+  //layout walks in, which for cells that cannot overlap is any order at all
+  Task *task;
 
-      //no release goes out here. a dmabuf buffer is sampled straight out of the
-      //client's memory, and this quad goes on sampling this one every frame
-      //until the client attaches another - so telling the client it is free the
-      //first time it is drawn hands back a buffer that is still on screen. the
-      //client then picks it as its next render target and the frame that lands
-      //mid-repaint shows the clear rather than the content. task_release_old_buffer()
-      //in end_frame() is where it is answered instead
-    }
+  wl_list_for_each_reverse(task, &compositor.surfaces, link) {
+
+    //a child is drawn by its parent, at the parent's position
+    if (task->parent || task->is_cursor)
+      continue;
+
+    if (task->output_index != output_index)
+      continue;
+
+    draw_surface_tree(task, render_target, command, index);
+
+    //no release goes out here. a dmabuf buffer is sampled straight out of the
+    //client's memory, and this quad goes on sampling this one every frame
+    //until the client attaches another - so telling the client it is free the
+    //first time it is drawn hands back a buffer that is still on screen. the
+    //client then picks it as its next render target and the frame that lands
+    //mid-repaint shows the clear rather than the content. task_release_old_buffer()
+    //in end_frame() is where it is answered instead
   }
 }
 

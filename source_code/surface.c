@@ -21,6 +21,7 @@
 #include "layout.h"
 #include "retire.h"
 #include "shared_memory.h"
+#include "subcompositor.h"
 #include "top_level.h"
 #include "log.h"
 
@@ -398,6 +399,12 @@ static void destroy_surface(WResource *resource) {
   //so can the xdg_toplevel, whenever the client destroys the surface first
   task_stop_listening_to_top_level(surface);
 
+  //and so can the wl_subsurface. the tree has to let go of this Task from both
+  //directions - the parent still holds it in its children list, and every child
+  //still points at it as a parent - before the memory goes away
+  forget_subsurface_role(surface);
+  task_detach_subsurfaces(surface);
+
   //the image is the ClientBuffer's, not the surface's - shm and dma alike.
   //the buffer usually outlives the window it was last drawn into, and its
   //resource destructor retires the image when the client finally lets go of
@@ -465,6 +472,12 @@ void create_surface(WClient *client, WResource *resource,
   //wl_surface is not necessarily a window, and once the seat advertised a
   //pointer the cursor images clients create came through here and took the
   //keyboard away from the window that asked for them
+
+  //a surface starts out with no parent and no children. parent_link is inited
+  //even though nothing is linked through it yet, so wl_list_remove() is safe on
+  //a surface that never becomes anyone's child
+  wl_list_init(&surface->children);
+  wl_list_init(&surface->parent_link);
 
   surface->compositor = compositor;
   wl_list_insert(&compositor->surfaces, &surface->link);

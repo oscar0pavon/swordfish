@@ -22,6 +22,7 @@
 #include "surface.h"
 #include "dma.h"
 #include "shared_memory.h"
+#include "subcompositor.h"
 #include "sword.h"
 #include "wayland_window/window.h"
 #include "device_input.h"
@@ -108,7 +109,11 @@ void init_compositor(void){
 
   wl_global_create(compositor.display, &xdg_wm_base_interface, 1, &compositor,
                    bind_desktop);
-  
+
+  //a window made of more than one surface. firefox aborts outright without
+  //this global rather than degrading, so it is not optional for a gtk client
+  init_subcompositor();
+
   init_shared_memory();
 
   init_dma();

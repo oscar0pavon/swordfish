@@ -1,5 +1,6 @@
 
 #include "pointer.h"
+#include "subcompositor.h"
 #include "surface.h"
 #include "input.h"
 #include "log.h"
@@ -9,6 +10,12 @@
 //surface before that client has got round to asking for a wl_pointer
 Task *pointer_focus;
 bool pointer_entered;
+
+//the window that surface belongs to, which is not the same thing since
+//subsurfaces: pointer_focus is whichever surface of the tree the cursor is
+//actually over, and this is the toplevel it hangs under. click to focus needs
+//the window - a subsurface cannot hold the keyboard
+Task *pointer_window;
 
 //where the cursor is, in the render target's own pixels, and where that lands
 //inside the surface under it
@@ -41,25 +48,19 @@ static void send_pointer_enter(void){
             pointer_local_y);
 }
 
-//is the cursor inside this window's cell, and where in the client's own buffer
-//does that land. the quad is stretched into the cell it was given, so the
-//buffer is not the same size as the rectangle on screen and the position has
-//to be scaled back - a client told the pointer is at the tile's coordinates
-//puts its cursor somewhere other than where the user is pointing
+//is the cursor inside the rectangle this surface is drawn in, and where in the
+//client's own buffer does that land. the quad is stretched into the rectangle
+//it was given, so the buffer is not the same size as what is on screen and the
+//position has to be scaled back - a client told the pointer is at the tile's
+//coordinates puts its cursor somewhere other than where the user is pointing.
+//task_screen_rect() (subcompositor.c) is what the renderer places the quad
+//with, so this divides back through exactly the arithmetic that drew it
 static bool pointer_inside(Task *task){
 
-  int32_t x = task->tile_x;
-  int32_t y = task->tile_y;
-  int32_t width = task->tile_width;
-  int32_t height = task->tile_height;
+  double x, y, width, height;
 
-  //a surface the layout never reached is drawn at the corner at its own size
-  if(width == 0){
-    x = 0;
-    y = 0;
-    width = task->image->width;
-    height = task->image->heigth;
-  }
+  if(!task_screen_rect(task, &x, &y, &width, &height))
+    return false;
 
   if(pointer_x < x || pointer_y < y)
     return false;
@@ -67,42 +68,96 @@ static bool pointer_inside(Task *task){
   if(pointer_x >= x + width || pointer_y >= y + height)
     return false;
 
-  pointer_local_x = (pointer_x - x) * (double)task->image->width / width;
-  pointer_local_y = (pointer_y - y) * (double)task->image->heigth / height;
+  //no buffer means no buffer coordinates to scale into, and a parent whose
+  //content is all in a subsurface is exactly that surface. the offset into the
+  //rectangle is the honest answer there
+  if(task->image && task->image->width > 0 && task->image->heigth > 0){
+    pointer_local_x = (pointer_x - x) * (double)task->image->width / width;
+    pointer_local_y = (pointer_y - y) * (double)task->image->heigth / height;
+  }else{
+    pointer_local_x = pointer_x - x;
+    pointer_local_y = pointer_y - y;
+  }
 
   return true;
 }
 
+//is anything in this tree actually on screen. a window whose own surface never
+//attached a buffer is still there to be pointed at when its subsurfaces are
+static bool tree_can_draw(Task *task){
+
+  if(task->can_draw && task->image)
+    return true;
+
+  Task *child;
+
+  wl_list_for_each(child, &task->children, parent_link)
+    if(tree_can_draw(child))
+      return true;
+
+  return false;
+}
+
+//the deepest, topmost surface of this tree the cursor is inside. children are
+//kept back to front, so the walk is backwards: the frontmost child wins, the
+//same way the frontmost window would. events belong to the child rather than
+//to the window - firefox draws into a subsurface and expects the pointer there
+static Task *pointer_hit_child(Task *task){
+
+  Task *child;
+
+  wl_list_for_each_reverse(child, &task->children, parent_link){
+
+    if(!child->can_draw || !child->image)
+      continue;
+
+    if(pointer_inside(child))
+      return pointer_hit_child(child);
+  }
+
+  //pointer_local_* has to describe whatever is returned, and the walk above
+  //has been overwriting it with children the cursor turned out to miss
+  pointer_inside(task);
+
+  return task;
+}
+
 //which surface the cursor is over. every window has its own cell now, so this
 //walks them and takes the first one the cursor is inside - front to back,
-//which for a tiling layout is any order at all since the cells do not overlap.
+//which for a tiling layout is any order at all since the cells do not overlap -
+//and then descends into whatever the client hung inside it.
 //once the quads move into the 3d world this becomes a ray cast, and it is the
 //only thing that has to change
 static Task *pointer_hit_task(void){
+
+  pointer_window = NULL;
 
   if(pointer_x < 0 || pointer_y < 0)
     return NULL;
 
   Task *task;
 
-  Task *hit = NULL;
-
   wl_list_for_each(task, &compositor.surfaces, link){
 
-    //no buffer means no size to test against, and only a surface the client
-    //made a toplevel out of has a cell to be inside - a cursor image or a
-    //surface still on its way to being a window would otherwise take the
-    //pointer over the whole rectangle it would be drawn at
-    if(!task->can_draw || !task->top_level || task->is_cursor || !task->image)
+    //only a surface the client made a toplevel out of has a cell to be inside -
+    //a cursor image or a surface still on its way to being a window would
+    //otherwise take the pointer over the whole rectangle it would be drawn at.
+    //a subsurface is reached through its parent below, never from here
+    if(!task->top_level || task->is_cursor || task->parent)
+      continue;
+
+    if(!tree_can_draw(task))
       continue;
 
     if(pointer_inside(task)){
-      hit = task;
-      break;
+      //the window keeps the click-to-focus half even when the events go to a
+      //child of it: only a toplevel can hold the keyboard
+      pointer_window = task;
+      return pointer_hit_child(task);
     }
   }
 
-  return hit;
+  return NULL;
 }
 
 static void set_pointer_focus(Task *task){
@@ -151,10 +206,11 @@ void send_wayland_pointer_button(uint32_t button, bool pressed){
   //but the keyboard follows focused_task, which until now only super+j/k and a
   //new window ever moved - so clicking a terminal left the keys going to the
   //one that happened to be focused. only on the press: a release belongs to
-  //whoever took the press, and pointer_hit_task() has already ruled out
-  //anything that is not a window
-  if(pressed && pointer_focus && pointer_focus != focused_task){
-    focused_task = pointer_focus;
+  //whoever took the press. pointer_window rather than pointer_focus, because
+  //the surface under the cursor may be a subsurface and the keyboard belongs
+  //to the window it hangs under
+  if(pressed && pointer_window && pointer_window != focused_task){
+    focused_task = pointer_window;
 
     //sword_frame_step()'s handle_focus() is what turns this into
     //wl_keyboard.leave, enter and a fresh clipboard offer
