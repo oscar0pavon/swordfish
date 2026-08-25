@@ -95,6 +95,7 @@ int main(void){
       log_warn("No VT session: switching away will not release the display");
 
     pe_vk_acquire_display = sword_acquire_drm_display;
+    pe_vk_sort_displays = sword_sort_displays_by_connector;
   }
 
   pe_window_width = WINDOW_WIDTH;

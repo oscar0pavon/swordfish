@@ -1,10 +1,13 @@
 #include "outputs.h"
 
+#include <errno.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
+#include <engine/renderer/display.h>
 #include <engine/renderer/vulkan.h>
 #include "log.h"
 #include "tty.h"
@@ -89,6 +92,89 @@ bool sword_acquire_drm_display(void) {
     log_error("No DRM connector could be acquired");
 
   return acquired;
+}
+
+//INFO vk_get_displays() (pengine's display.c) orders pe_vk_displays[] however
+//vkGetPhysicalDeviceDisplayPropertiesKHR happened to walk them, which is
+//RADV's own internal connector probe order and not the raw DRM connector list
+//- the same raw list sword itself walks in sword_acquire_drm_display() above,
+//and the one a host compositor driving the same box (sway on another VT, or
+//before this one started) also walks, since nothing outside Vulkan enumerates
+//outputs any other way. Left unsorted, sword's left-to-right layout
+//(sword_outputs_init(), out->x = 0, out->width, out->width + next->width...)
+//can come out the opposite of what the same two monitors show under sway,
+//which reads as "the outputs swapped" on every switch to sword's VT even
+//though nothing changes at runtime - the order is fixed once here, at start,
+//and never revisited (see tty.c's session_activate(): a VT switch retakes DRM
+//master, nothing more).
+void sword_sort_displays_by_connector(void) {
+
+  int drm_fd = tty_drm_fd();
+  if (drm_fd < 0)
+    return;
+
+  PFN_vkGetDrmDisplayEXT get_drm_display =
+      (PFN_vkGetDrmDisplayEXT)vkGetInstanceProcAddr(vk_instance,
+                                                    "vkGetDrmDisplayEXT");
+  if (!get_drm_display) {
+    log_warn("VK_EXT_acquire_drm_display is not available, leaving "
+             "display order as enumerated");
+    return;
+  }
+
+  drmModeRes *resources = drmModeGetResources(drm_fd);
+  if (!resources) {
+    log_warn("Can't enumerate connectors to order the outputs: %s",
+             strerror(errno));
+    return;
+  }
+
+  PVkDisplay sorted[PE_VK_MAX_RENDER_TARGETS];
+  u32 sorted_count = 0;
+
+  for (int i = 0; i < resources->count_connectors &&
+                  sorted_count < pe_vk_displays_count;
+       i++) {
+
+    drmModeConnector *connector =
+        drmModeGetConnector(drm_fd, resources->connectors[i]);
+    if (!connector)
+      continue;
+
+    if (connector->connection == DRM_MODE_CONNECTED && connector->count_modes) {
+
+      VkDisplayKHR display;
+      if (get_drm_display(vk_physical_device, drm_fd, connector->connector_id,
+                          &display) == VK_SUCCESS) {
+
+        //match it back to the Vulkan display vk_get_displays() already picked
+        //a mode and a plane for, rather than re-deriving either here
+        for (u32 d = 0; d < pe_vk_displays_count; d++) {
+          if (pe_vk_displays[d].display == display) {
+            sorted[sorted_count++] = pe_vk_displays[d];
+            break;
+          }
+        }
+      }
+    }
+
+    drmModeFreeConnector(connector);
+  }
+
+  drmModeFreeResources(resources);
+
+  //every display vk_get_displays() enumerated has to have matched a
+  //connector, or the reorder is short one and pe_render_targets would come up
+  //missing whatever got dropped
+  if (sorted_count != pe_vk_displays_count) {
+    log_warn("Matched %u of %u displays to connectors, leaving display "
+             "order as enumerated", sorted_count, pe_vk_displays_count);
+    return;
+  }
+
+  memcpy(pe_vk_displays, sorted, sizeof(PVkDisplay) * sorted_count);
+
+  log_info("Reordered %u displays to match the DRM connector list", sorted_count);
 }
 
 SwordOutput sword_outputs[PE_VK_MAX_RENDER_TARGETS];

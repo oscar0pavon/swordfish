@@ -23,6 +23,12 @@ extern int sword_outputs_count;
 //fd sword can drop again when the VT is switched away
 bool sword_acquire_drm_display(void);
 
+//pengine's pe_vk_sort_displays hook, wired up in main() on the DRM path.
+//reorders pe_vk_displays[] to match the raw DRM connector list order rather
+//than whatever order the Vulkan driver's own connector probe walked them in -
+//see outputs.c for why those two can disagree
+void sword_sort_displays_by_connector(void);
+
 //fills the table from pe_render_targets, one output per target, in order.
 //called once from main() right after pe_vk_init() - before the compositor
 //thread starts, so nothing needs a lock to read it afterward
