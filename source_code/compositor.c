@@ -22,14 +22,14 @@
 #include "surface.h"
 #include "dma.h"
 #include "shared_memory.h"
-#include "swordfish.h"
+#include "sword.h"
 #include "wayland_window/window.h"
 #include "device_input.h"
 #include <pway/pway.h>
 #include "log.h"
 
 //how long the compositor thread waits for a client before looking at
-//swordfish_running again. now mostly a safety net - the frame timer below
+//sword_running again. now mostly a safety net - the frame timer below
 //wakes the loop every ~16.7ms on its own
 #define COMPOSITOR_POLL_TIMEOUT_MS 200
 
@@ -37,7 +37,7 @@
 //via a timerfd instead of main()'s own usleep(16667)
 #define FRAME_INTERVAL_NS 16667000L
 
-SwordfishCompositor compositor;
+SwordCompositor compositor;
 
 //every event a client can correlate needs its own serial. a constant made all
 //of them look like the same event, which is why clients ignored the keys
@@ -65,7 +65,7 @@ void finish_compositor(){
 void bind_compositor(WClient *client, void *data, uint32_t version,
                             uint32_t id) {
 
-  SwordfishCompositor* compositor = (SwordfishCompositor*)data;
+  SwordCompositor* compositor = (SwordCompositor*)data;
   if(!compositor)
     log_error("Compositor is NULL");
 
@@ -161,7 +161,7 @@ void run_compositor(void) {
 
   start_delta_time();
 
-  while (swordfish_running) {
+  while (sword_running) {
 
     wl_display_flush_clients(compositor.display);
 
@@ -181,7 +181,7 @@ void run_compositor(void) {
     };
 
     if (is_wayland_window) {
-      //pway->fds[2] (app_fd) is unused by swordfish and stays fd -1, which
+      //pway->fds[2] (app_fd) is unused by sword and stays fd -1, which
       //poll() ignores - included anyway so pway->fds keeps lining up 1:1 with
       //fds[2..4] for the revents copy-back below
       fds[2] = pway->fds[0]; //host wayland connection
@@ -197,7 +197,7 @@ void run_compositor(void) {
     }
 
     //a timeout rather than an infinite wait, so a quiet client does not keep
-    //the thread from noticing that swordfish is closing - the frame timer
+    //the thread from noticing that sword is closing - the frame timer
     //already wakes it every ~16.7ms in practice
     if (poll(fds, nfds, COMPOSITOR_POLL_TIMEOUT_MS) < 0 &&
         errno != EINTR) {
@@ -240,7 +240,7 @@ void run_compositor(void) {
       //be submitting to a display that is not ours. clients simply do not get
       //frame callbacks until it comes back, which is what stops them drawing
       if (!is_drm_rendering || tty_session_is_active())
-        swordfish_frame_step();
+        sword_frame_step();
     }
   }
 

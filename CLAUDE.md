@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Swordfish is a **Wayland compositor** with a **Vulkan renderer**: a tiling
+Sword is a **Wayland compositor** with a **Vulkan renderer**: a tiling
 window manager that draws every client as a textured quad. The renderer and the
 engine are not in this repo — they are **pengine** (`/root/pengine`), linked in
 as `libpengine.a`. What is left here is the compositor.
 
-It used to be more than that. Swordfish began as one binary that was also a 3D
+It used to be more than that. Sword began as one binary that was also a 3D
 engine, displaying software build progress as a 3D scene inspired by the movie
-*Swordfish*, with client windows composited into that world. On 2026-08-23 the
+*Sword*, with client windows composited into that world. On 2026-08-23 the
 scene moved out to **3dtop** (`/root/3dtop`), a standalone 3D system monitor that
 is now an ordinary Wayland client. The reason was simple: the tiling layout
 covers the whole output, so the 3D world was never actually visible behind the
@@ -21,21 +21,21 @@ terminal.
 
 **The movie premise is gone, deliberately.** Compositing client windows *into* a
 3D world only worked while one binary owned both. Do not reintroduce the scene
-here — 3dtop is a client like any other now, and is swordfish's first-party test
+here — 3dtop is a client like any other now, and is sword's first-party test
 client for the dmabuf import path, the multimonitor layout, and rotation.
 
 ## Build / install
 
-The repo path is hardcoded in the build (`-I/root/swordfish/source_code` in `source_code/Makefile`, and in `generate_compile_commands.sh`), so it must live at `/root/swordfish`.
+The repo path is hardcoded in the build (`-I/root/sword/source_code` in `source_code/Makefile`, and in `generate_compile_commands.sh`), so it must live at `/root/sword`.
 
 ```sh
 make                  # root Makefile: builds AND runs `make install` (needs root)
-make -C source_code   # build only -> ./swordfish
+make -C source_code   # build only -> ./sword
 make clean            # removes binary, *.o, ../shaders/*.spv
 ./source_code/generate_compile_commands.sh   # regenerate compile_commands.json for clangd
 ```
 
-`make install` copies the binary to `/usr/bin` and `shaders/`, `models/`, `images/*` to `/usr/libexec/swordfish/`. **Assets are loaded at runtime from absolute `/usr/libexec/swordfish/...` paths**, so any change to a shader, model, or image requires a reinstall before it has an effect. Note `swordfish.c` also loads `/root/models/nissan2026.glb`, which is outside the repo.
+`make install` copies the binary to `/usr/bin` and `shaders/`, `models/`, `images/*` to `/usr/libexec/sword/`. **Assets are loaded at runtime from absolute `/usr/libexec/sword/...` paths**, so any change to a shader, model, or image requires a reinstall before it has an effect. Note `sword.c` also loads `/root/models/nissan2026.glb`, which is outside the repo.
 
 Shaders are GLSL compiled with `glslc` into `shaders/*.spv` (gitignored, rebuilt every build — the `shaders` target is `.PHONY`).
 
@@ -47,10 +47,10 @@ There is no test suite and no linter.
 `/root/pengine/src/engine` and `/root/pengine/src/engine/renderer`, built into
 `/usr/local/lib/libpengine.a` by `make && make install` in that repo. **A change
 to anything under `renderer/` or `engine/` is a change to pengine**, and needs a
-rebuild and reinstall there before swordfish sees it.
+rebuild and reinstall there before sword sees it.
 
 `make install` in pengine copies the header tree to `/usr/local/include/pengine`
-keeping the `engine/...` prefix it is written against, so swordfish compiles
+keeping the `engine/...` prefix it is written against, so sword compiles
 with the single `-I/usr/local/include/pengine` and keeps spelling its includes
 `<engine/model.h>` and `<engine/renderer/vulkan.h>`. The `"renderer/..."`
 includes *inside* pengine's own headers resolve relative to the header doing the
@@ -70,7 +70,7 @@ optional:
   `camera_init()` and `pe_camera_look_at()` take `Camera *`.
 
 `-DCGLM_FORCE_DEPTH_ZERO_TO_ONE -DCGLM_FORCE_LEFT_HANDED` moved with the code
-into pengine's `include.make`. They apply to pengine only; swordfish's own
+into pengine's `include.make`. They apply to pengine only; sword's own
 objects are built without them, exactly as before. Keep cglm math on pengine's
 side so the depth and handedness conventions stay consistent.
 
@@ -82,13 +82,13 @@ already external; they only had to be **declared** in pengine's `vk_images.h`.
 All of them end in `vkQueueWaitIdle` — see **Frame path** for where they may be
 called from.
 
-### What swordfish hands the renderer
+### What sword hands the renderer
 
-pengine cannot call `swordfish_draw_scene()` by name any more, and three globals
-that used to be swordfish's now belong to the renderer. `main()` wires them up
+pengine cannot call `sword_draw_scene()` by name any more, and three globals
+that used to be sword's now belong to the renderer. `main()` wires them up
 before `pe_vk_init()`:
 
-- `pe_vk_draw_scene` - a function pointer, set to `swordfish_draw_scene`.
+- `pe_vk_draw_scene` - a function pointer, set to `sword_draw_scene`.
   `pe_vk_draw_commands()` calls it in the middle of the render pass.
 - `pe_window_width` / `pe_window_height` - set from `WINDOW_WIDTH` /
   `WINDOW_HEIGHT` in `wayland_window/window.h`, which is still the app's authority on the size.
@@ -113,30 +113,30 @@ once left `pway_window_resized()` storing the window width and height on top of
 the `pway->key` function pointer, and the next keypress jumped to `0x3af00000434`
 - which is just 943 x 1076, the tiled window size. After touching a header in
 either repo, `make clean` (or `touch *.c`) in **every** project that includes
-it: pengine, pway, swordfish, and pterminal. Adding a member to `PWay` goes on the **end**
+it: pengine, pway, sword, and pterminal. Adding a member to `PWay` goes on the **end**
 of the struct for the same reason.
 
 **pway** (`/root/pway`) supplies the window. It is a separate repo installed to `/usr/local/lib/libpway.a` and `/usr/local/include/pway`, which is why the build carries `-I/usr/local/include` and `-L/usr/local/lib`. If linking picks up a stale archive, rebuild it there with `make && make install` — the headers and the `.a` are not versioned against each other.
 
-There is **no X11**. Swordfish is a Wayland client of the host compositor, or it drives DRM/KMS directly.
+There is **no X11**. Sword is a Wayland client of the host compositor, or it drives DRM/KMS directly.
 
 ## Architecture
 
 ### One thread (`compositor.c`)
 
-**Swordfish is single-threaded**, the way sway and the other wlroots compositors
+**Sword is single-threaded**, the way sway and the other wlroots compositors
 are. It used to be three threads — a render loop on `main()`, a compositor
 thread, and an input thread — with three mutexes holding them together. All of
 that is gone. Any thread left in a `ps` listing belongs to Mesa (the
-`swordfi:disk$0` shader-cache threads), not to swordfish.
+`swordfi:disk$0` shader-cache threads), not to sword.
 
 `main()` does setup only — memory, `init_keyboard()`, the window or the DRM
-fallback, `pe_vk_init()`, `swordfish_outputs_init()`, `camera_init()`,
-`swordfish_init()` — and then calls `run_compositor()`, which is the whole rest
+fallback, `pe_vk_init()`, `sword_outputs_init()`, `camera_init()`,
+`sword_init()` — and then calls `run_compositor()`, which is the whole rest
 of the program. The socket goes up only after `pe_vk_init()`, because everything
 a client touches (the quad's pipeline, its buffers, the dmabuf format table the
 GPU is asked for) needs a Vulkan device; a client that connected before that
-died on `vkCreateBuffer: Invalid device` and took swordfish with it.
+died on `vkCreateBuffer: Invalid device` and took sword with it.
 
 `run_compositor()` creates the `wl_display`, registers the globals
 (wl_compositor, xdg_wm_base, shm, linux-dmabuf, seat/input, output, data
@@ -145,8 +145,8 @@ device), sets `WAYLAND_DISPLAY`, and then loops on **one `poll()`** over:
 - `wl_event_loop_get_fd()` — client requests, dispatched with
   `wl_event_loop_dispatch(loop, 0)` (zero timeout: the poll above is what waited)
 - a **frame timerfd** at `FRAME_INTERVAL_NS` (~16.7ms), which replaced the render
-  loop's old `usleep(16667)`. When it fires, `swordfish_frame_step()`
-  (`swordfish.c`) runs `handle_focus()` → `pe_frame_draw()` → `update_delta_time()`
+  loop's old `usleep(16667)`. When it fires, `sword_frame_step()`
+  (`sword.c`) runs `handle_focus()` → `pe_frame_draw()` → `update_delta_time()`
   → `end_frame()`
 - **input**: on the pway path, `pway->fds[0]` (host connection), `[1]` (key-repeat
   timerfd) and `[3]` (paste); on bare DRM, `libinput_get_fd()`
@@ -202,13 +202,13 @@ asynchronously whatever the CPU thread count is. See **Frame path**.
 - `is_opengl` (`main.c`, default `false`) — selects the EGL/GLES path (`compositor/egl.c`, `buffers.c`) instead of Vulkan. The Vulkan path is the live one; the EGL path exits early via `goto finish`.
 - `is_drm_rendering` (pengine's `renderer/vulkan.c`, set by `main()`) — set to `true` when `create_wayland_window()` fails (no compositor to connect to). Then rendering targets DRM/KMS directly (`direct_render.c`, `renderer/display.c`, `compositor.gpu_path = "/dev/dri/card0"`), the swapchain/surface setup differs, `vkGetMemoryFdKHR` is resolved for buffer export, and input comes from libinput instead of pway.
 
-Both flags are read all over `renderer/` (pengine) and swordfish's own top-level `*.c` files (what used to live under `compositor/`, before it flattened into `source_code/` — see **Layer conventions**); grep for them before changing init order.
+Both flags are read all over `renderer/` (pengine) and sword's own top-level `*.c` files (what used to live under `compositor/`, before it flattened into `source_code/` — see **Layer conventions**); grep for them before changing init order.
 
 ### The window (`wayland_window/window.c`)
 
 `create_wayland_window()` calls `pway_init()` then `pway_create_window()`, and deliberately **not** `pway_init_egl()` — Vulkan takes the raw `pway_surface` / `pway_display` through `VK_KHR_wayland_surface` instead, so the EGL context pway would build is never needed.
 
-Ordering matters twice over. `pway_init()` connects using `WAYLAND_DISPLAY`, and `run_compositor()` later overwrites that variable with swordfish's own socket, so the window must be created before `run_compositor()` claims that variable, or swordfish tries to be a client of itself. And within pway, `pway_init()` does all the real work (registry, `wl_surface`, `xdg_surface`, listeners, first commit); `pway_create_window()` only sets the title and size.
+Ordering matters twice over. `pway_init()` connects using `WAYLAND_DISPLAY`, and `run_compositor()` later overwrites that variable with sword's own socket, so the window must be created before `run_compositor()` claims that variable, or sword tries to be a client of itself. And within pway, `pway_init()` does all the real work (registry, `wl_surface`, `xdg_surface`, listeners, first commit); `pway_create_window()` only sets the title and size.
 
 Two things differ from the old X11 surface and are easy to reintroduce: a Wayland surface does **not** support `VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR`, so `swap_chain.c` picks a `compositeAlpha` out of `supportedCompositeAlpha` rather than assuming one; and the windowed EGL path in `compositor/egl.c` needs a `wl_egl_window` where it used to take an X11 `Window`.
 
@@ -216,9 +216,9 @@ Two things differ from the old X11 surface and are easy to reintroduce: a Waylan
 
 ### Frame path
 
-`pe_vk_draw_frame()` (`renderer/draw.c`) → `pe_vk_start_render_pass()` → `pe_vk_draw_commands()` → **`swordfish_draw_scene()` (`swordfish.c`)**. That last function draws each Wayland client as a textured quad (`draw_surfaces()`) and the cursor on top. **To add or change something visible, edit `swordfish.c`**, not the renderer.
+`pe_vk_draw_frame()` (`renderer/draw.c`) → `pe_vk_start_render_pass()` → `pe_vk_draw_commands()` → **`sword_draw_scene()` (`sword.c`)**. That last function draws each Wayland client as a textured quad (`draw_surfaces()`) and the cursor on top. **To add or change something visible, edit `sword.c`**, not the renderer.
 
-`swordfish_init()` (also `swordfish.c`) is the counterpart: `pe_2d_init()` and `cursor_init()`. `clean_swordfish()` must free whatever it allocates.
+`sword_init()` (also `sword.c`) is the counterpart: `pe_2d_init()` and `cursor_init()`. `clean_sword()` must free whatever it allocates.
 
 `pe_vk_draw_frame()` **no longer ends in `vkQueueWaitIdle()`** — it keeps
 `PE_VK_FRAMES_IN_FLIGHT` frames going on per-frame and per-image fences instead
@@ -227,7 +227,7 @@ of a frame any more: `end_frame()` waits on the targets' fences explicitly, and
 only on the frames where an shm client actually redrew. The bare-DRM path is the
 exception — it still waits on this frame's fence between submit and present.
 
-**`end_frame()` (`swordfish.c`) is the frame's second half**, and it is where
+**`end_frame()` (`sword.c`) is the frame's second half**, and it is where
 everything that needs the GPU to be past a frame goes: `retire_collect()`, the
 fence wait when an shm upload is pending, then per task
 `send_frame_callback_done()`, `task_upload_shared_memory()` and
@@ -262,7 +262,7 @@ to call `wl_data_device_manager_get_data_device()` on a NULL proxy and die. The
 same hole on the primary-selection side only showed up once the seat had a
 pointer, because pterminal finishing a mouse selection calls
 `pway_primary_copy()`, which marshalled on the NULL manager and died on the
-button release — so a click in a client looked like swordfish closing it (both
+button release — so a click in a client looked like sword closing it (both
 guarded in pway now). Then firefox: it bound `wl_compositor`, `wl_output` and
 `wl_shm`, created an shm pool, and stopped, printing `gdk_seat_get_keyboard:
 assertion 'GDK_IS_SEAT (seat)' failed`. It never bound `wl_seat` and never
@@ -274,7 +274,7 @@ read off the log rather than confirmed by a run; if firefox still stalls, check
 
 **A client that dies or stalls the moment it uses a new path is worth suspecting
 of a missing global before a protocol error** — the protocol error at least
-prints. The absence shows up as a *gap in swordfish's own log*: every bind
+prints. The absence shows up as a *gap in sword's own log*: every bind
 handler prints, so the missing line is the diagnosis.
 
 Still not advertised: `zwp_primary_selection_device_manager_v1`. GDK degrades
@@ -290,7 +290,7 @@ request of every xdg interface has a handler for the reason above — a NULL ent
 is dispatched as a call. `xdg_toplevel` (`top_level.c`) records the
 title, app id and size limits and no-ops the rest; `set_maximized`,
 `unset_maximized`, `set_fullscreen` and `unset_fullscreen` **must** still answer
-with a configure even though swordfish declines them, because a client blocks
+with a configure even though sword declines them, because a client blocks
 waiting for that configure before it will draw again. `reconfigure()` sends the
 size the client already has and an empty state array, which is the protocol's
 way of saying no — and since the layout is what keeps `TopLevel.width/height`
@@ -375,7 +375,7 @@ a path where the window that closed was not the focused one. It walks
 head, so that is newest first and the focus lands on the window the closed one
 was mapped over rather than on the oldest one on screen.
 
-Shortcuts live in `handle_swordfish_key()` (`keyboard.c`) with the rest:
+Shortcuts live in `handle_sword_key()` (`keyboard.c`) with the rest:
 **super+j / super+k** cycle the focus, **super+c** closes the focused window —
 `q` is already the compositor's own exit. `xdg_toplevel.close` is a *request*; a
 client with unsaved work may put up a dialog and stay.
@@ -391,7 +391,7 @@ not the client's to ask for.
 
 ### The output (`output.c`)
 
-One `wl_output` at version 4, and its mode is the image swordfish renders:
+One `wl_output` at version 4, and its mode is the image sword renders:
 `WINDOW_WIDTH`×`WINDOW_HEIGHT` at 60000 mHz, flagged `CURRENT | PREFERRED` since
 there is nothing to switch to. `send_output_state()` is the single place that
 describes it, so a resize has one place to send a new mode from once the swap
@@ -450,7 +450,7 @@ answers with `popup_done`; silence hangs a client waiting on a drop. The rest of
 the version 3 drag-and-drop requests are present and do nothing.
 
 `set_selection` does **not** check the serial. It should be matched against the
-input event the client is claiming the clipboard for, and swordfish does not keep
+input event the client is claiming the clipboard for, and sword does not keep
 its serials long enough to tell — refusing on one it cannot verify would mean no
 clipboard at all.
 
@@ -464,10 +464,10 @@ events on the DRM one. `input.c` turns a cursor position into
 `wl_pointer` events.
 
 Three things about that are easy to get wrong. The host reports the cursor in
-the **window's** pixels and swordfish renders at a fixed `WINDOW_WIDTH`
+the **window's** pixels and sword renders at a fixed `WINDOW_WIDTH`
 ×`WINDOW_HEIGHT` that the host's own window is only scaled into, so the position
 has to be scaled the same way the image is or the cursor lands somewhere other
-than where the user is pointing. (That is the *outer* scale, swordfish inside
+than where the user is pointing. (That is the *outer* scale, sword inside
 the host compositor's window. The layout adds an inner one — see below.) pway hands over which of *its* buttons moved rather
 than an evdev code, and labels the wheel by the opposite sign convention from
 the protocol's, so `pway_window_click_release()` translates both. And libinput
@@ -606,7 +606,7 @@ Details in `shared_memory_upload()` that are easy to get wrong:
 Three more things `shared_memory.c` used to get wrong, all worth not
 reintroducing: `wl_shm.format` was never sent at all (`wl_display_add_shm_format()`
 feeds libwayland's *own* shm implementation, the one `wl_display_init_shm()`
-creates, which swordfish does not use — the events go out on bind now, since a
+creates, which sword does not use — the events go out on bind now, since a
 client that binds later would hear nothing); destroying a pool munmapped and
 freed it without destroying the resource, so the next request read freed memory,
 and the protocol says the mapping outlives the pool until the last buffer cut
@@ -662,22 +662,22 @@ On tty3 there is no terminal to read. The compositor owns the display, so
 everything `printf` writes to the console is either drawn over by the next frame
 or never visible at all — and a crash that takes the session with it takes the
 output with it. `log_init()` (first line of `main()`, before `pe_init_memory()`)
-opens **`/tmp/swordfish.log`**, or `$SWORDFISH_LOG`, and `log_info(...)` /
+opens **`/tmp/sword.log`**, or `$SWORD_LOG`, and `log_info(...)` /
 `log_debug` / `log_warn` / `log_error` write a timestamped record to it.
 The previous run is kept as `<path>.old`, since the run that crashed is the one
 worth reading and it is easy to start the next one before reading it.
 
-**Swordfish's own diagnostics are all `log_*` calls** — the ~150 `printf`,
+**Sword's own diagnostics are all `log_*` calls** — the ~150 `printf`,
 `fprintf(stderr, ...)` and `perror()` calls that used to be scattered across
 these files were converted, and a new one should be too. `log_debug` is where
 the per-frame and per-buffer chatter went (`surface.c`'s attach/commit/damage,
 `dma.c`'s plane and retire lines, `seat.c`'s dispatch loop), so
-`SWORDFISH_LOG_LEVEL=info` leaves a log that can be read.
+`SWORD_LOG_LEVEL=info` leaves a log that can be read.
 
 Three things it does that a `printf` wrapper would not:
 
 - **`log_redirect_stdio()`** dups the log fd onto stdout and stderr, so what
-  swordfish does *not* write itself — pengine's `LOG` (which is still `printf`),
+  sword does *not* write itself — pengine's `LOG` (which is still `printf`),
   the Vulkan validation layer, libwayland's own errors — lands in the same file
   anyway. `main()` calls it only on the **bare DRM path**, in the
   `create_wayland_window()` failure branch — on the pway path the terminal is
@@ -694,10 +694,10 @@ Three things it does that a `printf` wrapper would not:
   makes that call while the program is still healthy. **`-rdynamic` in
   `source_code/Makefile` is what makes the trace readable**; without it the
   stack is a column of addresses with no names.
-- **`SWORDFISH_LOG_SYNC=1`** `fdatasync`es every record. The page cache keeps
+- **`SWORD_LOG_SYNC=1`** `fdatasync`es every record. The page cache keeps
   what a process wrote before it segfaulted, but not what it wrote before it
   hard-locked the machine — which is the failure a KMS compositor actually has.
-  `SWORDFISH_LOG_LEVEL=debug|info|warn|error` filters.
+  `SWORD_LOG_LEVEL=debug|info|warn|error` filters.
 
 ### Layer conventions
 
@@ -705,7 +705,7 @@ Three things it does that a `printf` wrapper would not:
 - **`engine/`** (in pengine) — reusable engine (hence the `pe_` prefix): custom allocator, `Array` container, glTF/PNG loading, camera, 2D/text.
 - **The Wayland server implementation** — `compositor.c`, `surface.c`, `tasks.c`, `top_level.c`, `data_device.c`, `dma.c`, `shared_memory.c`, and the rest of what used to live under a `compositor/` subdirectory, now flattened into `source_code/` alongside everything else: this *is* the main code, not a piece tucked away from it. It includes the one piece of window-manager *policy* (`layout.c`): which window gets which piece of the output. It is written against `Task` and `TopLevel` and sends configures, not because it draws anything.
 - **`wayland_window/`** — the pway windowed dev path (`window.c`/`window.h`), off in its own directory precisely because it is a *tool* for developing without a VT switch, not the main path: bare DRM (see **Two orthogonal mode flags**) is. `device_input.c` still branches on `is_wayland_window` to pump `pway_handle_events()` instead of libinput, but the pway-specific glue itself — connecting to the host compositor, translating its mouse/keyboard callbacks — lives only here.
-- Everything else at the top level — `main.c`, `device_input.c` (libinput/pway event pump), `keyboard.c`, `mouse.c`, `outputs.c`, `launch.c` (spawning a program from a keybinding), `swordfish.c` (compositor-side drawing: client quads, the cursor), `cursor.c`, `tty.c`, `log.c` (see **The log**).
+- Everything else at the top level — `main.c`, `device_input.c` (libinput/pway event pump), `keyboard.c`, `mouse.c`, `outputs.c`, `launch.c` (spawning a program from a keybinding), `sword.c` (compositor-side drawing: client quads, the cursor), `cursor.c`, `tty.c`, `log.c` (see **The log**).
 
 ### Memory
 

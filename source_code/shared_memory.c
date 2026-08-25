@@ -290,7 +290,7 @@ static void create_shared_memory_buffer(WClient *client, WResource *resource,
 //pool only ever grows, and the mapping has to grow with it or the buffers made
 //afterwards are read past the end of it. leaving this NULL is dispatched as a
 //call and aborts the whole compositor - libwayland says "listener function for
-//opcode 2 of wl_shm_pool is NULL" and takes swordfish down with the client
+//opcode 2 of wl_shm_pool is NULL" and takes sword down with the client
 static void resize_shared_memory_pool(WClient *client, WResource *resource,
                                       int32_t size) {
 

@@ -156,7 +156,7 @@ void send_wayland_pointer_button(uint32_t button, bool pressed){
   if(pressed && pointer_focus && pointer_focus != focused_task){
     focused_task = pointer_focus;
 
-    //swordfish_frame_step()'s handle_focus() is what turns this into
+    //sword_frame_step()'s handle_focus() is what turns this into
     //wl_keyboard.leave, enter and a fresh clipboard offer
     is_focus_completed = false;
     log_info("Focus moved to the clicked window");

@@ -1,4 +1,4 @@
-#include "swordfish.h"
+#include "sword.h"
 #include "cursor.h"
 #include "compositor.h"
 #include "retire.h"
@@ -37,8 +37,8 @@ bool can_draw_surfaces = true;
 void draw_surface(Task* surface, PRenderTarget *render_target,
                   VkCommandBuffer *cmd_buffer, uint32_t index){
 
-  SwordfishOutput *out =
-      &swordfish_outputs[render_target - pe_render_targets];
+  SwordOutput *out =
+      &sword_outputs[render_target - pe_render_targets];
 
   //the cell the layout gave this window, in the virtual desktop - the
   //output's own origin comes back out since this target only draws its own
@@ -150,7 +150,7 @@ void draw_surfaces(PRenderTarget *render_target, VkCommandBuffer *command,
 //via a timerfd instead of a separate thread with its own usleep(16667). now
 //that drawing, wayland dispatch and input are all on the one thread, nothing
 //in end_frame()/draw_surfaces() needs a lock any more
-void swordfish_frame_step(void) {
+void sword_frame_step(void) {
   handle_focus();
   pe_frame_draw();
   update_delta_time();
@@ -161,7 +161,7 @@ void swordfish_frame_step(void) {
 //is its own program now: 3dtop, an ordinary wayland client. it was never
 //visible from behind the tiling anyway, and as a client it gets composited
 //like anything else. what is left here is the compositor's own drawing
-void swordfish_draw_scene(PRenderTarget *target, VkCommandBuffer *cmd_buffer, uint32_t index){
+void sword_draw_scene(PRenderTarget *target, VkCommandBuffer *cmd_buffer, uint32_t index){
 
   int output_index = target - pe_render_targets;
 
@@ -170,17 +170,17 @@ void swordfish_draw_scene(PRenderTarget *target, VkCommandBuffer *cmd_buffer, ui
   //the pointer over the windows, on whichever output it is actually over. no
   //client has ever handed over a cursor image - set_cursor keeps the surface
   //out of the draw list - so this arrow is the only pointer there is
-  if (swordfish_output_index_at(cursor_x) == output_index)
+  if (sword_output_index_at(cursor_x) == output_index)
     cursor_draw(&cursor, target, cmd_buffer, index);
 }
 
-void clean_swordfish(){
+void clean_sword(){
 
   cursor_clean(&cursor);
 
 }
 
-void swordfish_init(){
+void sword_init(){
 
   //fills in the ortho projection cursor_init() copies, so it comes first
   pe_2d_init();

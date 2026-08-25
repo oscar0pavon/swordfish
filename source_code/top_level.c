@@ -10,7 +10,7 @@
 #include "output.h"
 #include "surface.h"
 #include <engine/array.h>
-#include "swordfish.h"
+#include "sword.h"
 #include "input.h"
 #include "mouse.h"
 #include "outputs.h"
@@ -257,7 +257,7 @@ void get_top_level_implementation(WClient *client,
   //which output is wherever the cursor happened to be when the window was
   //created - there is no other signal to place it by, and it stays put after
   //this: nothing currently moves a mapped window to a different output
-  surface->surface->output_index = swordfish_output_index_at(cursor_x);
+  surface->surface->output_index = sword_output_index_at(cursor_x);
   output_send_surface_enter(surface->surface->resource,
                             surface->surface->output_index);
 

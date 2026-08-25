@@ -1,16 +1,16 @@
-# Swordfish
+# Sword
 
-Swordfish is a **Wayland compositor** with a **Vulkan renderer**: a tiling
+Sword is a **Wayland compositor** with a **Vulkan renderer**: a tiling
 window manager that draws every client as a textured quad. The renderer lives
 in a separate repo, [pengine](https://github.com/oscar0pavon/pengine), linked
 in as `libpengine.a`.
 
 It used to be more than that — one binary that was also a small 3D engine,
 compositing client windows into a 3D scene of the machine itself (inspired by
-the movie *Swordfish*). That scene moved out to its own repo,
+the movie *Sword*). That scene moved out to its own repo,
 [3dtop](https://github.com/oscar0pavon/3dtop), because the tiling layout covers
 the whole output and the scene was never actually visible behind the windows.
-As a standalone Wayland client it is, and it now doubles as swordfish's own
+As a standalone Wayland client it is, and it now doubles as sword's own
 test client.
 
 It runs two ways: as a **Wayland client** of another compositor (a window
@@ -57,7 +57,7 @@ to build. To regenerate it, from inside `source_code/compositor`:
 
 # To test
 
-The repo path is hardcoded in the build, so it has to live at `/root/swordfish`
+The repo path is hardcoded in the build, so it has to live at `/root/sword`
 (and pway at `/root/pway`).
 
     make
@@ -77,5 +77,5 @@ everything else is passed on to the focused client.
 | `m` | open firefox |
 | `j` / `k` | cycle focus to the next / previous window |
 | `c` | close the focused window |
-| `q` | quit swordfish |
+| `q` | quit sword |
 | `w` | switch virtual terminal (DRM only) |

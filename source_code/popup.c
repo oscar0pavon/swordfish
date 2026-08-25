@@ -6,7 +6,7 @@
 #include <wayland-server.h>
 #include "log.h"
 
-//a positioner is client-side bookkeeping until a popup uses it, and swordfish
+//a positioner is client-side bookkeeping until a popup uses it, and sword
 //never gets that far. the requests still need handlers: libwayland dispatches
 //a NULL entry as a call and takes the compositor down with the client
 static void positioner_destroy(WClient *client, WResource *resource) {
@@ -112,5 +112,5 @@ void create_popup(WClient *client, WResource *resource, uint32_t id,
   //never answering leaves a client that took a grab waiting forever
   xdg_popup_send_popup_done(popup);
 
-  log_info("Popup dismissed, swordfish has nowhere to put it");
+  log_info("Popup dismissed, sword has nowhere to put it");
 }

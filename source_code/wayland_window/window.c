@@ -7,15 +7,15 @@
 
 #include "keyboard.h"
 #include "mouse.h"
-#include "swordfish.h"
+#include "sword.h"
 
-bool swordfish_running = true;
+bool sword_running = true;
 
 static void pway_window_closed(void) {
-  swordfish_running = false;
+  sword_running = false;
 }
 
-//the raw key from the host compositor, not pway->input's utf8: swordfish has
+//the raw key from the host compositor, not pway->input's utf8: sword has
 //to pass these on to its own clients, and text carries neither the keycode nor
 //the release
 static void pway_window_key(uint32_t key_code, uint32_t state) {
@@ -23,7 +23,7 @@ static void pway_window_key(uint32_t key_code, uint32_t state) {
 }
 
 //the host reports the cursor in the window's own pixels, and the window is not
-//the size swordfish renders at: resizing is not implemented, so a tiled window
+//the size sword renders at: resizing is not implemented, so a tiled window
 //is handed a WINDOW_WIDTH x WINDOW_HEIGHT image scaled into whatever size it
 //actually got. the cursor has to be scaled the same way or it lands somewhere
 //other than where the user is pointing
@@ -102,8 +102,8 @@ static void pway_window_resized(int width, int height) {
 }
 
 //pway connects with whatever WAYLAND_DISPLAY points at, and run_compositor()
-//later overwrites that with swordfish's own socket. this has to run before
-//the compositor thread starts or swordfish tries to be a client of itself
+//later overwrites that with sword's own socket. this has to run before
+//the compositor thread starts or sword tries to be a client of itself
 bool create_wayland_window(void) {
 
   if (pway_init() == NULL)
@@ -120,7 +120,7 @@ bool create_wayland_window(void) {
   pway->click = pway_window_click;
   pway->click_release = pway_window_click_release;
 
-  if (!pway_create_window("swordfish", WINDOW_WIDTH, WINDOW_HEIGHT))
+  if (!pway_create_window("sword", WINDOW_WIDTH, WINDOW_HEIGHT))
     return false;
 
   //deliberately no pway_init_egl(): the wl_surface goes to vulkan instead, so

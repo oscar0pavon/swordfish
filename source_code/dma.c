@@ -10,7 +10,7 @@
 #include <fcntl.h>
 #include <engine/images.h>
 #include "feedback.h"
-#include "swordfish.h"
+#include "sword.h"
 #include "linux-dmabuf.h"
 #include "compositor.h"
 
@@ -33,7 +33,7 @@ static struct zwp_linux_dmabuf_v1_interface dmabuf_data;
 uint64_t get_drm_device_id(const char *device_path);
 
 //clients must be handed the *render* node, never the primary one. on the tty
-//swordfish is DRM master on card0, so a client that opens it cannot
+//sword is DRM master on card0, so a client that opens it cannot
 //authenticate and mesa ends up with no device at all: eglChooseConfig returns
 //nothing, egl_config stays garbage and eglCreateWindowSurface fails. the node
 //permissions say the same thing - card0 is root:video, renderD128 is world

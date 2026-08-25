@@ -18,7 +18,7 @@ extern Cursor cursor;
 void cursor_init(Cursor *target);
 
 //render_target is whichever output is being recorded - the cursor only ever
-//actually draws on the one it is currently over, see swordfish_draw_scene()
+//actually draws on the one it is currently over, see sword_draw_scene()
 void cursor_draw(Cursor *target, PRenderTarget *render_target,
                  VkCommandBuffer *cmd_buffer, u32 image_index);
 

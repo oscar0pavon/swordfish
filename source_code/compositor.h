@@ -9,13 +9,13 @@
 
 #include "types.h"
 
-//the versions swordfish advertises on the registry. a client binding above
+//the versions sword advertises on the registry. a client binding above
 //these is a protocol error and gets disconnected, so they have to cover what
 //the clients actually ask for - pway binds wl_compositor and wl_seat at 4
 #define COMPOSITOR_VERSION 4
 #define SEAT_VERSION 4
 
-typedef struct SwordfishCompositor{
+typedef struct SwordCompositor{
     struct wl_display *display;
     struct wl_event_loop *event_loop;
     struct wl_list surfaces; 
@@ -28,11 +28,11 @@ typedef struct SwordfishCompositor{
     struct wl_list tasks_input;
 
     // libinput components
-}SwordfishCompositor;
+}SwordCompositor;
 
 
 //this thread also drives input (pway or libinput) and the render loop; see
-//the stage-3 note in swordfish.c's swordfish_frame_step(). there is only one
+//the stage-3 note in sword.c's sword_frame_step(). there is only one
 //thread now, so nothing that sends to a client needs a lock any more
 void run_compositor(void);
 
@@ -45,5 +45,5 @@ uint32_t next_serial(void);
 extern bool is_focus_completed;
 extern bool is_opengl;
 
-extern SwordfishCompositor compositor;
+extern SwordCompositor compositor;
 #endif

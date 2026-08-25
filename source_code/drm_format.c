@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 //the 8 bit formats are sRGB: that is what a wayland client renders into its
-//buffer unless a colour management protocol says otherwise, and swordfish's
+//buffer unless a colour management protocol says otherwise, and sword's
 //swapchain is VK_FORMAT_B8G8R8A8_SRGB. sampling them as UNORM hands the
 //framebuffer a value that is already gamma encoded and lets it encode the
 //whole thing a second time, which is what made client windows look washed out

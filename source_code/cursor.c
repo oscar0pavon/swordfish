@@ -90,8 +90,8 @@ void cursor_init(Cursor *target) {
   PCreateShaderInfo cursor_shader = {
       .transparency = true,
       .out_shader = &target->model.shader,
-      .vertex_path = "/usr/libexec/swordfish/shaders/dimention_2d_vert.spv",
-      .fragment_path = "/usr/libexec/swordfish/shaders/cursor_frag.spv",
+      .vertex_path = "/usr/libexec/sword/shaders/dimention_2d_vert.spv",
+      .fragment_path = "/usr/libexec/sword/shaders/cursor_frag.spv",
       .layout = pe_vk_pipeline_layout_with_descriptors};
 
   pe_vk_create_shader(&cursor_shader);
@@ -102,8 +102,8 @@ void cursor_init(Cursor *target) {
 void cursor_draw(Cursor *target, PRenderTarget *render_target,
                  VkCommandBuffer *cmd_buffer, u32 image_index) {
 
-  SwordfishOutput *out =
-      &swordfish_outputs[render_target - pe_render_targets];
+  SwordOutput *out =
+      &sword_outputs[render_target - pe_render_targets];
 
   //the input thread owns cursor_x/y, so they are taken once here rather than
   //read again further down: a fast move must not put a new x with an old y.

@@ -1,10 +1,10 @@
-#ifndef SWORDFISH_LOG_H
-#define SWORDFISH_LOG_H
+#ifndef SWORD_LOG_H
+#define SWORD_LOG_H
 
 //INFO on tty3 there is no terminal to read: the compositor owns the display and
 //everything printf writes to the console is either invisible or scrolled away by
-//the next frame. so every message goes to a file - /tmp/swordfish.log, or
-//$SWORDFISH_LOG - that survives the run and can be read from another VT
+//the next frame. so every message goes to a file - /tmp/sword.log, or
+//$SWORD_LOG - that survives the run and can be read from another VT
 
 typedef enum LogLevel {
   LOG_LEVEL_DEBUG,
@@ -18,7 +18,7 @@ typedef enum LogLevel {
 void log_init(void);
 
 //sends stdout and stderr into the log file as well, so the printf() calls all
-//over swordfish and the vulkan validation layer's own output are captured
+//over sword and the vulkan validation layer's own output are captured
 //too. only for the bare DRM path - on the pway path the terminal is real
 void log_redirect_stdio(void);
 
@@ -39,4 +39,4 @@ void log_write(LogLevel level, const char *file, int line, const char *format,
 #define log_warn(...) log_write(LOG_LEVEL_WARN, __FILE__, __LINE__, __VA_ARGS__)
 #define log_error(...) log_write(LOG_LEVEL_ERROR, __FILE__, __LINE__, __VA_ARGS__)
 
-#endif // !SWORDFISH_LOG_H
+#endif // !SWORD_LOG_H

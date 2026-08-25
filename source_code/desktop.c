@@ -74,7 +74,7 @@ static void destroy_desktop_surface(WResource *resource) {
 void get_desktop_surface(WClient *client, WResource *resource,
     uint32_t id, WResource *surface_resource) {
 
-  SwordfishCompositor* compositor = wl_resource_get_user_data(resource);
+  SwordCompositor* compositor = wl_resource_get_user_data(resource);
   Task* surface = wl_resource_get_user_data(surface_resource);
 
   DesktopSurface *desktop_surface = calloc(1, sizeof(DesktopSurface));
@@ -106,7 +106,7 @@ const struct xdg_wm_base_interface desktop_implementation = {
 void bind_desktop(WClient *client, void *data, uint32_t version,
                        uint32_t id) {
   
-  SwordfishCompositor* compositor = (SwordfishCompositor*)data;
+  SwordCompositor* compositor = (SwordCompositor*)data;
   WResource *resource;
 
   resource = wl_resource_create(client, &xdg_wm_base_interface, version, id);

@@ -1,10 +1,10 @@
 
 
-all: swordfish
+all: sword
 	make install
 	
 
-swordfish:
+sword:
 	make -C source_code
 
 
@@ -17,8 +17,8 @@ compile_commands:
 
 
 install:#TODO create directories in /usr/libexec/
-	cp swordfish /usr/bin
-	cp -r shaders /usr/libexec/swordfish
-	cp images/* /usr/libexec/swordfish/images
+	cp sword /usr/bin
+	cp -r shaders /usr/libexec/sword
+	cp images/* /usr/libexec/sword/images
 
-.PHONY: swordfish
+.PHONY: sword

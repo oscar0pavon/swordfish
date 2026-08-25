@@ -11,7 +11,7 @@
 #include "surface.h"
 #include <libinput.h>
 #include <time.h>
-#include "swordfish.h"
+#include "sword.h"
 #include "pointer.h"
 #include "log.h"
 
@@ -217,7 +217,7 @@ void send_keyboard_configuration(WResource *resource){
 
 }
 
-//called once a frame from swordfish_frame_step(). focus is settled here rather
+//called once a frame from sword_frame_step(). focus is settled here rather
 //than when the surface is created because the client creates its surface and
 //its keyboard as two separate requests, in either order
 void handle_focus(){
@@ -355,7 +355,7 @@ static void bind_input_handler(WClient *client, void* data,
 
   //since version 2
   if (version >= WL_SEAT_NAME_SINCE_VERSION)
-    wl_seat_send_name(resource, "swordfish");
+    wl_seat_send_name(resource, "sword");
 
 
   log_info("Bound input");

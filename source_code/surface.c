@@ -15,7 +15,7 @@
 #include <engine/engine2d.h>
 #include <engine/renderer/pipeline.h>
 #include <engine/renderer/descriptor_set.h>
-#include "swordfish.h"
+#include "sword.h"
 #include <engine/renderer/vk_images.h>
 #include "input.h"
 #include "layout.h"
@@ -339,7 +339,7 @@ void handle_frame(WClient *client, WResource *resource, uint32_t callback_id){
 }
 
 //every request in the interface needs a handler, NULL is dispatched as a call
-//and takes the compositor down with the client. these are the ones swordfish
+//and takes the compositor down with the client. these are the ones sword
 //has nothing to do with: the quad is drawn from the whole buffer at whatever
 //size it arrives, so regions, transform and scale change nothing yet
 static void surface_set_opaque_region(WClient *client, WResource *resource,
@@ -421,7 +421,7 @@ static void destroy_surface(WResource *resource) {
 void create_surface(WClient *client, WResource *resource,
                     uint32_t id) {
 
-  SwordfishCompositor *compositor = wl_resource_get_user_data(resource);
+  SwordCompositor *compositor = wl_resource_get_user_data(resource);
 
   Task *surface = calloc(1, sizeof(Task));
 
@@ -433,8 +433,8 @@ void create_surface(WClient *client, WResource *resource,
   PCreateShaderInfo quad_shader = {
       .transparency = true,
       .out_shader = &surface->model.shader,
-      .vertex_path = "/usr/libexec/swordfish/shaders/dimention_2d_vert.spv",
-      .fragment_path = "/usr/libexec/swordfish/shaders/texture_frag.spv",
+      .vertex_path = "/usr/libexec/sword/shaders/dimention_2d_vert.spv",
+      .fragment_path = "/usr/libexec/sword/shaders/texture_frag.spv",
       .layout = pe_vk_pipeline_layout3
   };
   pe_vk_create_shader(&quad_shader);

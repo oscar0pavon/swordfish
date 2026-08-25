@@ -13,7 +13,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define LOG_PATH_DEFAULT "/tmp/swordfish.log"
+#define LOG_PATH_DEFAULT "/tmp/sword.log"
 #define LOG_LINE_MAX 1024
 #define LOG_BACKTRACE_MAX 32
 
@@ -142,7 +142,7 @@ static void write_number(int file, unsigned long value) {
 }
 
 static void handle_crash_signal(int signal_number) {
-  static const char message[] = "\n=== swordfish died on signal ";
+  static const char message[] = "\n=== sword died on signal ";
 
   //before the backtrace: giving the console back is what decides whether the
   //machine can be used to read the log at all
@@ -181,13 +181,13 @@ static void arm_crash_handler(void) {
 void log_init(void) {
   clock_gettime(CLOCK_MONOTONIC, &start_time);
 
-  const char *level = getenv("SWORDFISH_LOG_LEVEL");
+  const char *level = getenv("SWORD_LOG_LEVEL");
   if (level)
     minimum_level = level_from_name(level);
 
-  sync_every_record = getenv("SWORDFISH_LOG_SYNC") != NULL;
+  sync_every_record = getenv("SWORD_LOG_SYNC") != NULL;
 
-  const char *path = getenv("SWORDFISH_LOG");
+  const char *path = getenv("SWORD_LOG");
   if (!path)
     path = LOG_PATH_DEFAULT;
 
@@ -210,7 +210,7 @@ void log_init(void) {
   strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S",
            localtime(&wall_clock));
 
-  log_info("Swordfish started %s, pid %d, log %s", stamp, getpid(), path);
+  log_info("Sword started %s, pid %d, log %s", stamp, getpid(), path);
 }
 
 void log_redirect_stdio(void) {
@@ -239,7 +239,7 @@ void log_end(void) {
   if (log_file < 0)
     return;
 
-  log_info("Swordfish closed after %.3f seconds", seconds_since_start());
+  log_info("Sword closed after %.3f seconds", seconds_since_start());
 
   fflush(stdout);
   fflush(stderr);

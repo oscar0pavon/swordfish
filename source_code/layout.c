@@ -4,7 +4,7 @@
 #include "surface.h"
 #include "top_level.h"
 #include "outputs.h"
-#include "swordfish.h"
+#include "sword.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -134,7 +134,7 @@ static int count_windows_on_output(int output_index){
 //space, so neither has to know outputs exist
 static void layout_apply_output(int output_index){
 
-  SwordfishOutput *out = &swordfish_outputs[output_index];
+  SwordOutput *out = &sword_outputs[output_index];
 
   int count = count_windows_on_output(output_index);
 
@@ -182,7 +182,7 @@ static void layout_apply_output(int output_index){
 
 void layout_apply(void){
 
-  for(int i = 0; i < swordfish_outputs_count; i++)
+  for(int i = 0; i < sword_outputs_count; i++)
     layout_apply_output(i);
 }
 
@@ -240,7 +240,7 @@ void layout_focus_next(int direction){
 
     if(task){
       focused_task = task;
-      //swordfish_frame_step()'s handle_focus() is what turns this into
+      //sword_frame_step()'s handle_focus() is what turns this into
       //wl_keyboard.leave, enter, and a fresh clipboard offer
       is_focus_completed = false;
       log_info("Focus moved to window %i of %i", next + 1, count);
@@ -278,7 +278,7 @@ void layout_focus_fallback(void){
 
     focused_task = next;
 
-    //swordfish_frame_step()'s handle_focus() is what turns this into
+    //sword_frame_step()'s handle_focus() is what turns this into
     //wl_keyboard.leave, enter and a fresh clipboard offer
     is_focus_completed = false;
 

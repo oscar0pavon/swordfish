@@ -8,7 +8,7 @@
 #include "tty.h"
 #include "surface.h"
 #include <engine/array.h>
-#include "swordfish.h"
+#include "sword.h"
 
 #include <engine/camera.h>
 #include "device_input.h"
@@ -26,10 +26,10 @@
 
 
 
-void close_swordfish() {
-  log_info("Closing Swordfish");
+void close_sword() {
+  log_info("Closing Sword");
 
-  swordfish_running = false;
+  sword_running = false;
 
   //INFO first, before any of the teardown below. giving the display back is
   //the one step that must not be skipped: leaving VT_PROCESS set with nobody
@@ -42,7 +42,7 @@ void close_swordfish() {
     tty_session_finish();
   }
 
-  clean_swordfish();
+  clean_sword();
   pe_vk_end();
 
   finish_keyboard();
@@ -51,7 +51,7 @@ void close_swordfish() {
 }
 
 void handle_signal(int sig_num) {
-  close_swordfish();
+  close_sword();
 }
 
 int main(void){
@@ -75,7 +75,7 @@ int main(void){
     is_drm_rendering = true;
 
     //no host compositor: this is a VT, and the console the printf() calls all
-    //over swordfish are writing to is about to be under the frames we draw
+    //over sword are writing to is about to be under the frames we draw
     log_redirect_stdio();
 
     compositor.gpu_path = "/dev/dri/card0";
@@ -83,27 +83,27 @@ int main(void){
     //INFO before pe_vk_init(), and that ordering is the whole trick: this
     //takes DRM master, which makes the fd radv opens for itself non-master,
     //which leaves mesa's wsi_display with no fd of its own - so the hook below
-    //can install ours instead and swordfish can drop the display again when
+    //can install ours instead and sword can drop the display again when
     //the VT is switched away. taking master after vulkan is up is too late
     if (!tty_session_init(compositor.gpu_path))
       log_warn("No VT session: switching away will not release the display");
 
-    pe_vk_acquire_display = swordfish_acquire_drm_display;
+    pe_vk_acquire_display = sword_acquire_drm_display;
   }
 
   pe_window_width = WINDOW_WIDTH;
   pe_window_height = WINDOW_HEIGHT;
 
-  pe_vk_draw_scene = swordfish_draw_scene;
+  pe_vk_draw_scene = sword_draw_scene;
 
   pe_vk_init();
 
-  swordfish_outputs_init();
+  sword_outputs_init();
 
   camera_init(&main_camera);
 
 
-  swordfish_init();
+  sword_init();
 
   init_compositor();
 
@@ -114,7 +114,7 @@ finish:
     close_wayland_window();
 
 
-  log_info("Goobye from Swordfish");
+  log_info("Goobye from Sword");
 
   log_end();
 

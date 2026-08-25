@@ -258,7 +258,7 @@ static void set_selection(WClient *client, WResource *resource,
                           WResource *source, uint32_t serial) {
 
   //the serial should be checked against the input event the client is claiming
-  //the clipboard on behalf of. swordfish does not keep its serials around long
+  //the clipboard on behalf of. sword does not keep its serials around long
   //enough to tell, and refusing on a serial it cannot verify would mean no
   //clipboard at all
 

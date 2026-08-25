@@ -13,7 +13,7 @@ void init_output();
 //tell a client which output its window is on. a toolkit that picks its scale
 //from the output it landed on waits for this before it draws anything, so a
 //window that never gets it never maps. output_index is an index into
-//swordfish_outputs - see outputs.h
+//sword_outputs - see outputs.h
 void output_send_surface_enter(WResource *surface_resource, int output_index);
 
 #endif

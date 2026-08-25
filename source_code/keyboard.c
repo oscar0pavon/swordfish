@@ -5,7 +5,7 @@
 #include "compositor.h"
 #include "layout.h"
 #include "device_input.h"
-#include "swordfish.h"
+#include "sword.h"
 #include <complex.h>
 #include <stdio.h>
 #include <libinput.h>
@@ -37,7 +37,7 @@ int create_keymap_file_descriptor(off_t *size_out){
 
   size_t size = strlen(keymap_string);
 
-  int fd = memfd_create("swordfish-keyboard", MFD_CLOEXEC);
+  int fd = memfd_create("sword-keyboard", MFD_CLOEXEC);
   if(fd < 0){
     log_error("Can't create file descriptor for keyboard");
     free(keymap_string);
@@ -98,9 +98,9 @@ static void swallow_key(uint32_t key_code) {
 }
 
 //the shortcuts of the compositor itself, shared by both input paths: libinput
-//on bare DRM, and the host compositor through pway when swordfish is a wayland
+//on bare DRM, and the host compositor through pway when sword is a wayland
 //client. returns whether the key was consumed
-static bool handle_swordfish_key(uint32_t unicode) {
+static bool handle_sword_key(uint32_t unicode) {
 
   switch (unicode) {
   case 'y':
@@ -172,7 +172,7 @@ void handle_key_code(uint32_t key_code, bool pressed) {
     xkb_keysym_t sym = xkb_state_key_get_one_sym(xkb_state, xkb_keycode);
     uint32_t unicode = xkb_keysym_to_utf32(sym);
 
-    if (unicode && handle_swordfish_key(unicode)) {
+    if (unicode && handle_sword_key(unicode)) {
       swallow_key(key_code);
       return;
     }

@@ -20,11 +20,11 @@ static void clamp_cursor(void) {
   if (cursor_y < 0)
     cursor_y = 0;
 
-  int32_t max_x = swordfish_virtual_width() - 1;
+  int32_t max_x = sword_virtual_width() - 1;
   if (cursor_x > max_x)
     cursor_x = max_x;
 
-  SwordfishOutput *out = swordfish_output_at(cursor_x);
+  SwordOutput *out = sword_output_at(cursor_x);
   int32_t max_y = (out ? out->height : WINDOW_HEIGHT) - 1;
   if (cursor_y > max_y)
     cursor_y = max_y;
@@ -71,9 +71,9 @@ void handle_libinput_pointer_event(InputEvent *event) {
   case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE:
     move_cursor_to(
         libinput_event_pointer_get_absolute_x_transformed(
-            pointer, swordfish_virtual_width()),
+            pointer, sword_virtual_width()),
         libinput_event_pointer_get_absolute_y_transformed(
-            pointer, swordfish_max_output_height()));
+            pointer, sword_max_output_height()));
     break;
 
   case LIBINPUT_EVENT_POINTER_BUTTON:

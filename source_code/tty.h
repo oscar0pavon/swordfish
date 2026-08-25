@@ -28,7 +28,7 @@ void tty_session_handle_pending(void);
 
 bool tty_session_is_active(void);
 
-//the fd swordfish holds DRM master on, handed to vulkan so mesa scans out
+//the fd sword holds DRM master on, handed to vulkan so mesa scans out
 //through it and this file can take it away again. -1 when there is none
 int tty_drm_fd(void);
 

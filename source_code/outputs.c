@@ -10,7 +10,7 @@
 #include "tty.h"
 
 //INFO mesa's wsi_display takes the primary node fd radv opened for itself and
-//uses it only while that fd is DRM master (wsi_display_init_wsi). swordfish
+//uses it only while that fd is DRM master (wsi_display_init_wsi). sword
 //takes master first, in tty_session_init(), precisely so that check fails and
 //wsi is left with no fd - which is what makes the acquire below succeed and
 //install *ours*. after that every enumeration, mode set and page flip goes
@@ -21,7 +21,7 @@
 //and one is all that is needed: installing the fd serves every connector on
 //the device, so the ordinary vkGetPhysicalDeviceDisplayPropertiesKHR walk in
 //pengine's vk_get_displays() finds them all afterwards
-bool swordfish_acquire_drm_display(void) {
+bool sword_acquire_drm_display(void) {
 
   int drm_fd = tty_drm_fd();
   if (drm_fd < 0) {
@@ -91,24 +91,24 @@ bool swordfish_acquire_drm_display(void) {
   return acquired;
 }
 
-SwordfishOutput swordfish_outputs[PE_VK_MAX_RENDER_TARGETS];
-int swordfish_outputs_count;
+SwordOutput sword_outputs[PE_VK_MAX_RENDER_TARGETS];
+int sword_outputs_count;
 
-void swordfish_outputs_init(void) {
+void sword_outputs_init(void) {
 
   int32_t x = 0;
 
-  swordfish_outputs_count = pe_render_targets_count;
+  sword_outputs_count = pe_render_targets_count;
 
   for (u32 i = 0; i < pe_render_targets_count; i++) {
     PRenderTarget *target = &pe_render_targets[i];
 
-    SwordfishOutput *out = &swordfish_outputs[i];
+    SwordOutput *out = &sword_outputs[i];
     out->x = x;
     out->y = 0;
     out->width = target->width;
     out->height = target->heigth;
-    snprintf(out->name, sizeof(out->name), "swordfish-%u", i);
+    snprintf(out->name, sizeof(out->name), "sword-%u", i);
 
     log_info("Output %s: %ix%i at x=%i", out->name, out->width, out->height,
              out->x);
@@ -117,13 +117,13 @@ void swordfish_outputs_init(void) {
   }
 }
 
-SwordfishOutput *swordfish_output_at(double x) {
+SwordOutput *sword_output_at(double x) {
 
-  if (swordfish_outputs_count == 0)
+  if (sword_outputs_count == 0)
     return NULL;
 
-  for (int i = 0; i < swordfish_outputs_count; i++) {
-    SwordfishOutput *out = &swordfish_outputs[i];
+  for (int i = 0; i < sword_outputs_count; i++) {
+    SwordOutput *out = &sword_outputs[i];
     if (x >= out->x && x < out->x + out->width)
       return out;
   }
@@ -131,31 +131,31 @@ SwordfishOutput *swordfish_output_at(double x) {
   //off either end of the virtual desktop - clamp to the nearest output
   //rather than answering NULL, since a cursor position always has to resolve
   //to some output
-  return (x < 0) ? &swordfish_outputs[0]
-                 : &swordfish_outputs[swordfish_outputs_count - 1];
+  return (x < 0) ? &sword_outputs[0]
+                 : &sword_outputs[sword_outputs_count - 1];
 }
 
-int swordfish_output_index_at(double x) {
-  SwordfishOutput *out = swordfish_output_at(x);
-  return out ? (int)(out - swordfish_outputs) : 0;
+int sword_output_index_at(double x) {
+  SwordOutput *out = sword_output_at(x);
+  return out ? (int)(out - sword_outputs) : 0;
 }
 
-int32_t swordfish_virtual_width(void) {
+int32_t sword_virtual_width(void) {
 
-  if (swordfish_outputs_count == 0)
+  if (sword_outputs_count == 0)
     return 0;
 
-  SwordfishOutput *last = &swordfish_outputs[swordfish_outputs_count - 1];
+  SwordOutput *last = &sword_outputs[sword_outputs_count - 1];
   return last->x + last->width;
 }
 
-int32_t swordfish_max_output_height(void) {
+int32_t sword_max_output_height(void) {
 
   int32_t max = 0;
 
-  for (int i = 0; i < swordfish_outputs_count; i++)
-    if (swordfish_outputs[i].height > max)
-      max = swordfish_outputs[i].height;
+  for (int i = 0; i < sword_outputs_count; i++)
+    if (sword_outputs[i].height > max)
+      max = sword_outputs[i].height;
 
   return max;
 }

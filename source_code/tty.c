@@ -31,7 +31,7 @@ static bool keyboard_silenced;
 //INFO there is no libseat here on purpose. seatd exists to hand a DRM and
 //input fds to a compositor that is *not* root, and to arbitrate between the
 //sessions of several users - neither of which is a problem on a single user
-//machine where swordfish runs as root and can open /dev/dri/card0 itself.
+//machine where sword runs as root and can open /dev/dri/card0 itself.
 //what libseat also did, and what is not about multiple users at all, is tell
 //a compositor when its VT went away so it can let go of the display: one user
 //still has more than one VT. that half is the kernel's own VT_PROCESS
@@ -103,7 +103,7 @@ void tty_save_state() {
 //the kernel keyboard driver goes on translating every key on this VT into
 //characters for whoever holds the tty, so everything typed into a client is
 //also echoed onto the console under the frames we present, and ctrl+c is
-//still turned into a SIGINT on swordfish's own process group - which is what
+//still turned into a SIGINT on sword's own process group - which is what
 //closes the compositor when a client was the one being typed into. libinput
 //reads the same keys from /dev/input/event* directly, so the console's copy
 //is pure duplication. K_OFF makes the driver deliver nothing at all and
@@ -127,9 +127,9 @@ static void tty_silence_keyboard(void) {
 }
 
 //INFO the console is unusable until this runs - no key typed on it produces
-//anything - so every way out of swordfish has to reach it. that is why
+//anything - so every way out of sword has to reach it. that is why
 //tty_session_init() hands it to atexit() and to the crash handler as well as
-//close_swordfish() calling tty_session_finish()
+//close_sword() calling tty_session_finish()
 static void tty_restore_keyboard(void) {
 
   if (!keyboard_silenced)
@@ -196,7 +196,7 @@ bool tty_session_is_active(void) {
 
 //INFO master has to be taken *before* vulkan is initialised. mesa's wsi_display
 //keeps the primary node fd radv opened for itself and only uses it if that fd
-//is master (wsi_display_init_wsi), which is what happens when swordfish is the
+//is master (wsi_display_init_wsi), which is what happens when sword is the
 //first thing to touch card0 - and then the fd doing the scanout belongs to
 //mesa and nothing here can hand the display back on a VT switch. holding
 //master first makes radv's own fd non-master, so wsi keeps fd -1 and
@@ -236,7 +236,7 @@ bool tty_session_init(const char *gpu_path) {
   tty_silence_keyboard();
 
   //super+q calls exit() and a fatal signal never comes back here at all, so
-  //the restore cannot live on the one path close_swordfish() takes. both of
+  //the restore cannot live on the one path close_sword() takes. both of
   //these end in tty_restore_state(), which is a no-op the second time
   atexit(tty_session_finish);
   log_crash_hook = tty_emergency_restore;

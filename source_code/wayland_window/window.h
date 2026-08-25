@@ -9,7 +9,7 @@
 #define WINDOW_WIDTH 1916
 #define WINDOW_HEIGHT 1040
 
-extern bool swordfish_running;
+extern bool sword_running;
 
 bool create_wayland_window(void);
 

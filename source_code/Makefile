@@ -4,7 +4,7 @@ CLINKS += -linput -ludev -lxkbcommon
 CLINKS += -lwayland-server
 CLINKS += -lpway -lwayland-client -lwayland-egl
 #INFO no -lseat. seatd hands DRM and input fds to a compositor that is not
-#root and arbitrates between several users' sessions; swordfish is root on a
+#root and arbitrates between several users' sessions; sword is root on a
 #single user machine and opens /dev/dri/card0 itself. the half of libseat that
 #is not about multiple users - being told when the VT went away - is the
 #kernel's own VT_PROCESS protocol, and lives in tty.c
@@ -30,7 +30,7 @@ PENGINE_INCLUDES := -I/usr/local/include/pengine
 #that camera_init() and pe_camera_look_at() take
 CFLAGS += -Wno-incompatible-pointer-types
 
-CFLAGS_ENGINE := $(CFLAGS) -I/root/swordfish/source_code $(PENGINE_INCLUDES) -I/usr/include/libdrm -I/usr/include -I/usr/local/include
+CFLAGS_ENGINE := $(CFLAGS) -I/root/sword/source_code $(PENGINE_INCLUDES) -I/usr/include/libdrm -I/usr/include -I/usr/local/include
 
 wayland_window_src := $(wildcard ./wayland_window/*.c)
 wayland_window_objs := $(wayland_window_src:%.c=%.o)
@@ -38,15 +38,15 @@ wayland_window_objs := $(wayland_window_src:%.c=%.o)
 #everything that used to be compositor/*.c is flattened in here now - only the
 #pway windowed dev path is still off in its own directory
 SRCS := $(wildcard *.c)
-SWORDFISHOBJS := $(SRCS:c=o)
+SWORDOBJS := $(SRCS:c=o)
 
-OBJS := $(SWORDFISHOBJS) $(wayland_window_objs)
+OBJS := $(SWORDOBJS) $(wayland_window_objs)
 
-#-rdynamic puts swordfish's own symbols in the dynamic symbol table, which is
+#-rdynamic puts sword's own symbols in the dynamic symbol table, which is
 #what backtrace_symbols_fd() reads. without it the crash backtrace log.c writes
 #is a column of addresses with no names on it
-swordfish: $(OBJS) shaders
-	cc $(CFLAGS_ENGINE) -rdynamic -L/usr/local/lib $(OBJS) -o ../swordfish $(CLINKS)
+sword: $(OBJS) shaders
+	cc $(CFLAGS_ENGINE) -rdynamic -L/usr/local/lib $(OBJS) -o ../sword $(CLINKS)
 
 %.o: %.c
 	cc $(CFLAGS_ENGINE) -c $<
@@ -62,7 +62,7 @@ shaders: shaders/texture.frag shaders/dimention_2d.vert
 	glslc shaders/cursor.frag -o ../shaders/cursor_frag.spv
 
 clean:
-	rm -f ../swordfish
+	rm -f ../sword
 	rm -f *.o
 	rm -f ./wayland_window/*.o
 	rm -f ../shaders/*.spv
