@@ -14,6 +14,7 @@
 #include <time.h>
 #include "sword.h"
 #include "pointer.h"
+#include "popup.h"
 #include "log.h"
 
 //milliseconds before a held key repeats, and repeats per second after that
@@ -246,7 +247,14 @@ void send_keyboard_configuration(WResource *resource){
 //than when the surface is created because the client creates its surface and
 //its keyboard as two separate requests, in either order
 void handle_focus(){
-  focus_task(focused_task);
+
+  //a menu holding a grab owns the keyboard while it is up, and focused_task
+  //stays where it was underneath - only a window can be the focused window,
+  //and the popup is not one. when the menu closes this goes back to NULL by
+  //itself and the next frame hands the keyboard back
+  Task *grab = popup_grab_task();
+
+  focus_task(grab ? grab : focused_task);
 }
 
 

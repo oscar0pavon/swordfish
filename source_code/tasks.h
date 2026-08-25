@@ -76,7 +76,7 @@ typedef struct Task{
     //wl_subcompositor: the surface this one was made a child of, and the
     //children it was made the parent of. a subsurface is not a window - it
     //takes no cell in the layout and gets no toplevel - it is drawn inside its
-    //parent's cell at subsurface_x/y, above the parent. firefox puts its whole
+    //parent's cell at child_x/y, above the parent. firefox puts its whole
     //rendering container in one, so this is not an optional corner of the
     //protocol. see subcompositor.c
     struct Task *parent;
@@ -86,10 +86,15 @@ typedef struct Task{
     //this task's link into parent->children. inited in create_surface() even
     //for a surface that never becomes a child, so unlinking is always safe
     struct wl_list parent_link;
-    //where the child's origin sits in the parent's surface coordinates
-    int32_t subsurface_x, subsurface_y;
+    //where the child's origin sits in the parent's surface coordinates. both
+    //roles that hang a surface off another one use it: a subsurface puts it
+    //there with set_position, a popup has it worked out from its positioner
+    int32_t child_x, child_y;
     //the wl_subsurface resource, and what says this surface has that role
     WResource *subsurface_resource;
+    //the xdg_popup resource, the other role that makes a surface a child of
+    //another one. a menu, a dropdown or a tooltip
+    WResource *popup_resource;
     //set_sync/set_desync. recorded and not yet acted on - every commit is
     //applied where it arrives, see subcompositor.c
     bool subsurface_synchronized;

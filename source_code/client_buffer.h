@@ -49,6 +49,14 @@ typedef struct ClientBuffer {
   //attach and commit, cleared by the render thread when the copy is made
   bool needs_upload;
 
+  //the image is written by the upload and read by the quad, and those two want
+  //different layouts. it used to be transitioned to TRANSFER_DST_OPTIMAL once
+  //and sampled from there ever after, which is undefined: the validation layer
+  //said so on every single frame, and in practice the quad drew nothing, which
+  //is why no shm client had ever been visible. true while the image is in
+  //SHADER_READ_ONLY_OPTIMAL, so the next upload knows to move it back
+  bool in_sampled_layout;
+
   //the host visible buffer the pixels are staged through on their way to the
   //image. allocated once and rewritten, not made per upload: a window this size
   //is eight megabytes, and a fresh vkAllocateMemory every frame costs more than

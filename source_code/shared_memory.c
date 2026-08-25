@@ -118,9 +118,9 @@ static bool create_buffer_texture(ClientBuffer *buffer) {
     return false;
   }
 
-  //once, and it stays there. pengine samples its own textures in
-  //TRANSFER_DST_OPTIMAL as well, and leaving the image in it means every later
-  //upload is a copy and nothing else
+  //ready to be written into. shared_memory_upload() takes it on to
+  //SHADER_READ_ONLY_OPTIMAL once there are pixels in it, and brings it back
+  //here before each later copy: one layout cannot be both written and sampled
   pe_vk_transition_image_layout(buffer->texture.image, buffer->format,
                                 VK_IMAGE_LAYOUT_UNDEFINED,
                                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -152,6 +152,16 @@ bool shared_memory_upload(ClientBuffer *buffer) {
   if (buffer->texture.image == VK_NULL_HANDLE && !create_buffer_texture(buffer))
     return false;
 
+  //the quad has been sampling this image since the last upload, so it has to
+  //come back to a layout that can be written before anything is copied into it
+  if (buffer->in_sampled_layout) {
+    pe_vk_transition_image_layout(buffer->texture.image, buffer->format,
+                                  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                  buffer->texture.mip_level);
+    buffer->in_sampled_layout = false;
+  }
+
   const uint8_t *rows = (const uint8_t *)buffer->pool->data + buffer->offset;
 
   uint32_t packed_stride = buffer->width * 4;
@@ -176,6 +186,18 @@ bool shared_memory_upload(ClientBuffer *buffer) {
 
   pe_vk_image_copy_buffer(buffer->staging.buffer, buffer->texture.image,
                           buffer->width, buffer->height);
+
+  //and into the layout the fragment shader is allowed to read. sampling an
+  //image in TRANSFER_DST_OPTIMAL is undefined, and what it did here was draw
+  //nothing: every shm client - which on this desktop means every menu, every
+  //tooltip and every context menu firefox opens - was uploaded correctly, put
+  //in the right place, and then not drawn
+  pe_vk_transition_image_layout(buffer->texture.image, buffer->format,
+                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                buffer->texture.mip_level);
+
+  buffer->in_sampled_layout = true;
 
   buffer->needs_upload = false;
 

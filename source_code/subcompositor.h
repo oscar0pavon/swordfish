@@ -8,17 +8,26 @@
 
 void init_subcompositor(void);
 
-//a surface with a parent is a subsurface: not a window, and drawn as part of
-//the tree its root is the window of
-bool task_is_subsurface(Task *task);
+//a surface with a parent is not a window: it is drawn as part of the tree its
+//root is the window of. two roles put a surface there - a subsurface and a
+//popup - and everything downstream of this treats them the same way
+bool task_is_child(Task *task);
 
 //where this surface is drawn on the virtual desktop, in the same coordinates
 //the layout writes tiles in and mouse.c reports the cursor in. a window gets
-//its cell; a subsurface gets its parent's rectangle plus its own offset,
-//scaled the way the parent's buffer is scaled into that rectangle. false when
-//there is no size to speak of yet
+//its cell; a child gets its parent's rectangle plus its own offset, scaled the
+//way the parent's buffer is scaled into that rectangle. false when there is no
+//size to speak of yet
 bool task_screen_rect(Task *task, double *x, double *y, double *width,
                       double *height);
+
+//dump every surface, its role, its parent and where it is placed. a window
+//that is a tree of surfaces cannot be read any other way from this side
+void log_surface_tree(const char *why);
+
+//set to a number of frames to have end_frame() dump the tree that many frames
+//from now: the state at drawing time rather than mid-request
+extern int surface_tree_dump_countdown;
 
 //let go of a parent and of any children, called from the wl_surface's own
 //destructor. a child whose parent went away is unmapped: the protocol has

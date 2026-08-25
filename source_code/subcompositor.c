@@ -9,7 +9,7 @@
 #include "log.h"
 #include "surface.h"
 
-bool task_is_subsurface(Task *task) { return task->parent != NULL; }
+bool task_is_child(Task *task) { return task->parent != NULL; }
 
 //the surface's own size, which is the size of the buffer it last attached.
 //a parent that has not drawn anything yet still has a rectangle - its cell -
@@ -29,59 +29,119 @@ static void task_surface_size(Task *task, double fallback_width,
   *height = fallback_height;
 }
 
-bool task_screen_rect(Task *task, double *x, double *y, double *width,
-                      double *height) {
+//where a surface's own origin lands on the virtual desktop, and how much its
+//coordinates are stretched on the way there.
+//
+//deliberately separate from the surface's *size*, because a surface with no
+//buffer still has a position and things hang off it. firefox's menus are
+//exactly that: the popup's own wl_surface carries no pixels and the menu is
+//drawn by a subsurface inside it. a rectangle that could not be worked out
+//without a buffer made that whole subtree unpositionable, and the menu never
+//appeared at all
+static bool task_origin_and_scale(Task *task, double *x, double *y,
+                                  double *scale_x, double *scale_y) {
 
-  if (!task_is_subsurface(task)) {
+  if (!task_is_child(task)) {
 
-    //a window's cell, exactly what draw_surface() used to read straight out of
-    //the task
+    //a window is stretched into the cell the layout gave it, and that ratio is
+    //the scale everything inside it inherits
     if (task->tile_width > 0) {
+
+      double surface_width, surface_height;
+      task_surface_size(task, task->tile_width, task->tile_height,
+                        &surface_width, &surface_height);
+
       *x = task->tile_x;
       *y = task->tile_y;
-      *width = task->tile_width;
-      *height = task->tile_height;
+      *scale_x = task->tile_width / surface_width;
+      *scale_y = task->tile_height / surface_height;
       return true;
     }
 
-    //a surface the layout never reached is drawn at the corner at its own
-    //size - the old fallback, kept so a client without a toplevel still shows
-    if (!task->image)
-      return false;
-
+    //no cell: drawn where it is, at its own size
     *x = 0;
     *y = 0;
-    *width = task->image->width;
-    *height = task->image->heigth;
+    *scale_x = 1;
+    *scale_y = 1;
     return true;
   }
 
-  double parent_x, parent_y, parent_width, parent_height;
+  double parent_x, parent_y;
 
-  if (!task_screen_rect(task->parent, &parent_x, &parent_y, &parent_width,
-                        &parent_height))
+  if (!task_origin_and_scale(task->parent, &parent_x, &parent_y, scale_x,
+                             scale_y))
     return false;
 
-  //the parent's buffer is stretched into its cell, so a child placed at
-  //surface coordinates has to be stretched the same way or it lands somewhere
-  //other than the part of the parent it was put over. this is the same scale
-  //pointer_inside() divides by, one level further in
-  double parent_surface_width, parent_surface_height;
-  task_surface_size(task->parent, parent_width, parent_height,
-                    &parent_surface_width, &parent_surface_height);
+  //the child is placed in the parent's surface coordinates, so its offset is
+  //stretched the same way the parent's own pixels are - and it goes on
+  //carrying that scale to its own children. this is the ratio pointer_inside()
+  //divides the cursor back through
+  *x = parent_x + task->child_x * *scale_x;
+  *y = parent_y + task->child_y * *scale_y;
 
-  double scale_x = parent_width / parent_surface_width;
-  double scale_y = parent_height / parent_surface_height;
+  return true;
+}
 
-  if (!task->image)
+bool task_screen_rect(Task *task, double *x, double *y, double *width,
+                      double *height) {
+
+  double scale_x, scale_y;
+
+  if (!task_origin_and_scale(task, x, y, &scale_x, &scale_y))
     return false;
 
-  *x = parent_x + task->subsurface_x * scale_x;
-  *y = parent_y + task->subsurface_y * scale_y;
+  //a surface with no buffer has a position and no extent, and both callers
+  //read that correctly: nothing is drawn for it, and the cursor is inside
+  //nothing
+  if (!task->image) {
+    *width = 0;
+    *height = 0;
+    return true;
+  }
+
   *width = task->image->width * scale_x;
   *height = task->image->heigth * scale_y;
 
   return true;
+}
+
+//what the scene actually looks like from the compositor's side: every surface,
+//what role it is playing, what it hangs off and where that puts it. a window
+//made of a tree of surfaces has no other way of being read - the client's own
+//protocol log says what it asked for, not what sword made of it
+//frames to wait before dumping the tree again, so the picture is the one at
+//drawing time rather than the one in the middle of the request that changed it
+int surface_tree_dump_countdown;
+
+void log_surface_tree(const char *why) {
+
+  log_info("--- surface tree (%s) ---", why);
+
+  Task *task;
+
+  wl_list_for_each_reverse(task, &compositor.surfaces, link) {
+
+    const char *role = "none";
+
+    if (task->top_level)
+      role = "window";
+    else if (task->popup_resource)
+      role = "popup";
+    else if (task->subsurface_resource)
+      role = "subsurface";
+    else if (task->is_cursor)
+      role = "cursor";
+
+    double x = 0, y = 0, width = 0, height = 0;
+    bool placed = task_screen_rect(task, &x, &y, &width, &height);
+
+    log_info("  task %p %-10s parent %p at %+i%+i buffer %s draw %i "
+             "children %i -> screen %.0f %.0f %.0fx%.0f%s",
+             (void *)task, role, (void *)task->parent, task->child_x,
+             task->child_y, task->image ? "yes" : "no", task->can_draw,
+             wl_list_length(&task->children), x, y, width, height,
+             placed ? "" : " (no position)");
+  }
 }
 
 //a subsurface whose parent is gone has nowhere to be drawn. it keeps its
@@ -126,8 +186,8 @@ static void subsurface_set_position(WClient *client, WResource *resource,
   if (!child)
     return;
 
-  child->subsurface_x = x;
-  child->subsurface_y = y;
+  child->child_x = x;
+  child->child_y = y;
 
   log_debug("Subsurface positioned at %i %i", x, y);
 }

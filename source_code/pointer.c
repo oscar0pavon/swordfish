@@ -1,5 +1,6 @@
 
 #include "pointer.h"
+#include "popup.h"
 #include "subcompositor.h"
 #include "surface.h"
 #include "input.h"
@@ -222,6 +223,19 @@ static void set_pointer_focus(Task *task){
   send_pointer_enter();
 }
 
+//the scene can change under a cursor that has not moved: a menu maps over the
+//surface the pointer was on, or a window closes out from under it. nothing in
+//the input path notices, because the hit test only ran when the mouse moved -
+//so the button release after a click that opened a menu was still delivered to
+//the window behind it, and a toolkit reads that as a click outside the menu and
+//takes the menu straight back down. called once a frame from sword_frame_step()
+void pointer_refresh_focus(void){
+
+  //cheap when nothing changed: set_pointer_focus() only sends leave and enter
+  //when the surface under the cursor is a different one
+  set_pointer_focus(pointer_hit_task());
+}
+
 void send_wayland_pointer_motion(double x, double y){
 
   pointer_x = x;
@@ -242,6 +256,16 @@ void send_wayland_pointer_motion(double x, double y){
 }
 
 void send_wayland_pointer_button(uint32_t button, bool pressed){
+
+  //a menu is up and the press landed somewhere else: that is the gesture that
+  //closes it. the client is told and destroys the popup itself - it is a
+  //request, not something the compositor does behind its back. only on the
+  //press, since the release of the click that opened the menu would otherwise
+  //close it again immediately
+  log_info("Pointer button %u %s", button, pressed ? "pressed" : "released");
+
+  if(pressed && popups_are_open())
+    popups_dismiss_outside(pointer_focus);
 
   //click to focus. the pointer already goes to whatever cell the cursor is in,
   //but the keyboard follows focused_task, which until now only super+j/k and a

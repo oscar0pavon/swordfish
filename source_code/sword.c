@@ -6,6 +6,7 @@
 #include "subcompositor.h"
 #include "surface.h"
 #include "mouse.h"
+#include "pointer.h"
 #include "outputs.h"
 #include <engine/renderer/sync.h>
 #include <engine/array.h>
@@ -32,6 +33,7 @@
 #include <wayland-server-core.h>
 
 #include "input.h"
+#include "log.h"
 
 bool can_draw_surfaces = true;
 
@@ -56,6 +58,12 @@ void draw_surface(Task* surface, PRenderTarget *render_target,
 
   vec2 position = {x - out->x, y - out->y};
   vec2 size = {width, height};
+
+  //a menu is the one surface whose placement is worked out rather than handed
+  //to it by the layout, so it is the one worth being able to see go wrong
+  if (surface->popup_resource)
+    log_debug("Drawing popup at %.0f %.0f, %.0fx%.0f, parent %p", x, y, width,
+              height, (void *)surface->parent);
 
   pe_2d_draw_on_target(&surface->model, render_target, index, position, size);
 
@@ -130,6 +138,11 @@ void end_frame() {
     task_release_old_buffer(surface);
   }
 
+  //the tree as it stands at drawing time, a few frames after a menu appeared -
+  //which is after the shm upload above has had its chance to run
+  if (surface_tree_dump_countdown > 0 && --surface_tree_dump_countdown == 0)
+    log_surface_tree("frames after the popup appeared");
+
   wl_display_flush_clients(compositor.display);
   //array_clean(&tasks_for_draw);
 }
@@ -169,6 +182,16 @@ void draw_surfaces(PRenderTarget *render_target, VkCommandBuffer *command,
     if (task->parent || task->is_cursor)
       continue;
 
+    //and a surface with no role at all is drawn by nobody. it has no cell,
+    //because only a window gets one, so drawing it anyway put it at the corner
+    //of the screen at its own size - which is where firefox's tooltips ended
+    //up: the popup is dismissed, the client drops the xdg_popup role and keeps
+    //the wl_surface mapped with its buffer still on it, and what was a menu a
+    //moment ago becomes a rectangle stuck at 0,0. an unroled surface is not
+    //something the protocol says to show
+    if (!task->top_level)
+      continue;
+
     if (task->output_index != output_index)
       continue;
 
@@ -190,6 +213,11 @@ void draw_surfaces(PRenderTarget *render_target, VkCommandBuffer *command,
 //in end_frame()/draw_surfaces() needs a lock any more
 void sword_frame_step(void) {
   handle_focus();
+
+  //the surface under the cursor, against a scene that may have changed since
+  //the last mouse movement - a menu that just mapped over it, most of all
+  pointer_refresh_focus();
+
   pe_frame_draw();
   update_delta_time();
   end_frame();

@@ -13,4 +13,8 @@ extern Task *pointer_window;
 
 void get_pointer(WClient *client, WResource *resource, uint32_t id);
 
+//redo the hit test against a scene that may have changed while the cursor sat
+//still, and send the leave and enter that follows. once a frame
+void pointer_refresh_focus(void);
+
 #endif

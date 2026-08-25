@@ -20,6 +20,7 @@
 #include "input.h"
 #include "layout.h"
 #include "retire.h"
+#include "popup.h"
 #include "shared_memory.h"
 #include "subcompositor.h"
 #include "top_level.h"
@@ -264,6 +265,15 @@ void surface_attach(WClient *client, WResource *resource,
   surface->x = x;
   surface->y = y;
 
+  //the moment a menu actually has pixels is the moment its placement matters,
+  //and it is the one placement nothing else in the compositor can check. the
+  //second look is a few frames later, once the shm upload has had a chance to
+  //run - at this point can_draw is false for every shm buffer by construction
+  if (surface->popup_resource) {
+    log_surface_tree("popup attached a buffer");
+    surface_tree_dump_countdown = 20;
+  }
+
   log_debug("Surface attached");
 }
 
@@ -427,6 +437,7 @@ static void destroy_surface(WResource *resource) {
   //directions - the parent still holds it in its children list, and every child
   //still points at it as a parent - before the memory goes away
   forget_subsurface_role(surface);
+  forget_popup_role(surface);
   task_detach_subsurfaces(surface);
 
   //the surface's own copy of whatever region the client last handed it
