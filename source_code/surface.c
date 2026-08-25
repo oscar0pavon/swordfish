@@ -379,8 +379,14 @@ static void surface_set_input_region(WClient *client, WResource *resource,
   region_copy(&surface->input_region, region);
   surface->has_input_region = true;
 
-  log_debug("Surface input region set, %i rectangles",
+  log_debug("Surface %p input region set, %i rectangles", (void *)surface,
             surface->input_region.count);
+
+  for (int i = 0; i < surface->input_region.count; i++) {
+    RegionOperation *operation = &surface->input_region.operations[i];
+    log_debug("  %s %i %i %ix%i", operation->subtract ? "subtract" : "add",
+              operation->x, operation->y, operation->width, operation->height);
+  }
 }
 
 //since version 2

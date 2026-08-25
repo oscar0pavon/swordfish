@@ -3,11 +3,15 @@
 
 //a surface and the seat are separate objects, so the Task has to be matched up
 //with whichever TaskInput belongs to the same client before it can be sent a
-//key
-void focus_task(Task *task) {
+//key - or a pointer event. the keyboard is not the only thing that needs it,
+//which is why this is no longer buried in focus_task(): a popup or a
+//subsurface is pointed at without ever being focused, and a NULL input is a
+//pointer that silently sends nothing - a menu that draws and cannot be
+//selected in
+TaskInput *task_resolve_input(Task *task) {
 
   if(!task)
-    return;
+    return NULL;
 
   if(!task->input){
     TaskInput *temp_input;
@@ -16,6 +20,16 @@ void focus_task(Task *task) {
         task->input = temp_input;
     }
   }
+
+  return task->input;
+}
+
+void focus_task(Task *task) {
+
+  if(!task)
+    return;
+
+  task_resolve_input(task);
 
   //cheap when nothing changed, and it is what finally sends wl_keyboard.enter
   //once the client has got round to asking for a keyboard

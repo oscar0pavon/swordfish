@@ -25,12 +25,19 @@ static double pointer_local_x, pointer_local_y;
 
 
 static WResource *focused_pointer(void){
-  if(!pointer_focus || !pointer_focus->input)
+
+  //not pointer_focus->input on its own: only focus_task() ever filled that in,
+  //and the keyboard is the only thing that goes through it. a popup or a
+  //subsurface is pointed at without ever being focused, so the lookup has to
+  //happen here too
+  TaskInput *input = task_resolve_input(pointer_focus);
+
+  if(!input)
     return NULL;
 
   //a client binds wl_seat before it asks for a pointer, so the resource can
   //still be missing here
-  return pointer_focus->input->pointer_resource;
+  return input->pointer_resource;
 }
 
 static void send_pointer_enter(void){
@@ -133,10 +140,18 @@ static Task *pointer_hit_child(Task *task){
 
   wl_list_for_each_reverse(child, &task->children, parent_link){
 
-    if(!child->can_draw || !child->image)
+    //not can_draw/image: a popup's own role surface is exactly the case
+    //task_origin_and_scale() (subcompositor.c) already documents - no pixels
+    //of its own, its content drawn by a subsurface hanging off it. gating on
+    //the child's own buffer here skipped that subsurface's hit test too, so a
+    //click inside a menu fell through to whatever was behind it
+    if(!tree_can_draw(child))
       continue;
 
-    if(!pointer_in_rect(child))
+    //a childless-of-content node has no meaningful screen rect of its own -
+    //task_screen_rect() reports it as zero-sized - so only surfaces that
+    //actually own a buffer get pre-filtered by their rect before the descent
+    if(child->can_draw && child->image && !pointer_in_rect(child))
       continue;
 
     Task *hit = pointer_hit_child(child);

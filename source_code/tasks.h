@@ -115,4 +115,6 @@ extern Task *focused_task;
 
 void focus_task(Task *task);
 
+TaskInput *task_resolve_input(Task *task);
+
 #endif
