@@ -257,8 +257,9 @@ void get_top_level_implementation(WClient *client,
   //resource exists by the time it gets this far
   //
   //which output is wherever the cursor happened to be when the window was
-  //created - there is no other signal to place it by, and it stays put after
-  //this: nothing currently moves a mapped window to a different output
+  //created - there is no other signal to place it by. a tiled window stays
+  //put after this; a floating one's output_index can still move, but only
+  //by being dragged there - see apply_drag() in pointer.c
   surface->surface->output_index = sword_output_index_at(cursor_x);
   output_send_surface_enter(surface->surface->resource,
                             surface->surface->output_index);

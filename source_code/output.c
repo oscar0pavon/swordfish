@@ -109,6 +109,20 @@ void output_send_surface_enter(WResource *surface_resource,
   }
 }
 
+void output_send_surface_leave(WResource *surface_resource,
+                               int output_index) {
+
+  WClient *client = wl_resource_get_client(surface_resource);
+  SwordOutput *out = &sword_outputs[output_index];
+
+  WResource *output;
+  wl_resource_for_each(output, &output_resources) {
+    if (wl_resource_get_client(output) == client &&
+        (SwordOutput *)wl_resource_get_user_data(output) == out)
+      wl_surface_send_leave(surface_resource, output);
+  }
+}
+
 void init_output() {
 
   wl_list_init(&output_resources);

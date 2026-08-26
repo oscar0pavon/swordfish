@@ -10,6 +10,7 @@
 #include "top_level.h"
 #include "keyboard.h"
 #include "outputs.h"
+#include "output.h"
 #include "log.h"
 
 //the task the cursor is inside, and whether it has been sent wl_pointer.enter.
@@ -340,14 +341,56 @@ static void apply_drag(void){
 
   }else{
 
-    //kept within drag_task's own output. pointer_hit_task() tests virtual
-    //coordinates with no output check of its own - draw_surfaces() is what
-    //stops a window being drawn outside the render target that owns it, but
-    //nothing stops it being dragged there, and output_index never follows a
-    //drag across monitors. a float let loose past its own output's edge would
-    //still be drawn (clipped) on the target it started on, while the cursor
-    //over the neighbour's screen - a different render target entirely - would
-    //keep hitting it: an invisible window eating another monitor's clicks
+    //which output the cursor is over right now, not drag_task->output_index -
+    //that only catches up below once a crossing is confirmed. outputs are laid
+    //left to right in one continuous virtual coordinate space (outputs.h), so
+    //dx/dy above already carry across a boundary on their own; what still has
+    //to follow the cursor is output_index itself, since that is what
+    //draw_surfaces() filters render targets by and what pointer_hit_task() has
+    //no boundary check of its own against - a float whose output_index lagged
+    //behind a drag would keep being drawn (and clamped, below) on the monitor
+    //it left, while the cursor on the one it entered kept hitting it: an
+    //invisible window eating another monitor's clicks
+    int new_output_index = sword_output_index_at(pointer_x);
+    bool crossed_output = (new_output_index != drag_task->output_index);
+
+    if(crossed_output){
+
+      //the same enter a window gets once at map time
+      //(get_top_level_implementation()) - a client that picks its scale from
+      //the output it is on needs to hear about the move as it happens
+      output_send_surface_leave(drag_task->resource, drag_task->output_index);
+      drag_task->output_index = new_output_index;
+      output_send_surface_enter(drag_task->resource, drag_task->output_index);
+
+      SwordOutput *new_out = &sword_outputs[new_output_index];
+
+      //a float sized off the output it was toggled on
+      //(layout_toggle_floating(), 60% of it) does not necessarily fit the one
+      //it just crossed into. the same "wider than the output" hole the
+      //position clamp below and apply_drag()'s resize branch each close from
+      //their own direction, closed here from the third: without this a float
+      //larger than the monitor it lands on pins to that monitor's corner and
+      //overflows into the neighbour's virtual range - drawn clipped on the
+      //small one, hit-testable on the large one
+      int32_t width = drag_task->tile_width;
+      int32_t height = drag_task->tile_height;
+
+      if(width > new_out->width)
+        width = new_out->width;
+      if(height > new_out->height)
+        height = new_out->height;
+
+      if(drag_task->top_level &&
+         (drag_task->top_level->width != width ||
+          drag_task->top_level->height != height))
+        send_top_level_configure(drag_task->top_level, width, height);
+
+      drag_task->tile_width = width;
+      drag_task->tile_height = height;
+    }
+
+    //kept within whichever output that now is
     SwordOutput *out = &sword_outputs[drag_task->output_index];
 
     int32_t x = drag_start_x + (int32_t)dx;
@@ -372,6 +415,21 @@ static void apply_drag(void){
 
     drag_task->tile_x = x;
     drag_task->tile_y = y;
+
+    //rebased only now, from the position just computed for the new output -
+    //not from tile_x/y as they stood before the crossing, which would render
+    //one frame at the pre-crossing spot on the post-crossing render target: a
+    //stale position drawn relative to the new output's origin is a flicker on
+    //exactly the frame the cursor crossed. rebasing here instead means the
+    //next motion event resumes 1:1 rather than leaving a dead zone the width
+    //of the grab offset, which the unrebased drag_start_x/y would otherwise
+    //leave until the cursor travelled back past that same offset
+    if(crossed_output){
+      drag_start_x = x;
+      drag_start_y = y;
+      drag_start_pointer_x = pointer_x;
+      drag_start_pointer_y = pointer_y;
+    }
   }
 }
 

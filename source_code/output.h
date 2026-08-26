@@ -16,4 +16,9 @@ void init_output();
 //sword_outputs - see outputs.h
 void output_send_surface_enter(WResource *surface_resource, int output_index);
 
+//the other half, owed when a window stops being on an output it was sent
+//enter for - a floating window dragged across monitors (pointer.c) is the one
+//thing that moves a mapped window's output_index today
+void output_send_surface_leave(WResource *surface_resource, int output_index);
+
 #endif

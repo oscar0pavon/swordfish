@@ -26,9 +26,11 @@ typedef struct Task{
     struct wl_list link;
     int32_t x,y;
     bool can_draw;
-    //which SwordOutput this window is tiled on, decided once at map time
-    //from wherever the cursor was - an index into sword_outputs, and
-    //what both layout_apply() and draw_surfaces() filter on
+    //which SwordOutput this window is on - an index into sword_outputs, and
+    //what both layout_apply() and draw_surfaces() filter on. decided at map
+    //time from wherever the cursor was, and fixed from then on for a tiled
+    //window; a floating one's follows the cursor across monitors during a
+    //super+drag instead - see apply_drag() in pointer.c
     int output_index;
     //a cursor image the client handed to wl_pointer.set_cursor. it arrived as
     //an ordinary surface and there is nothing to draw a cursor into yet, so it
