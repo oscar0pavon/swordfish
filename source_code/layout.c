@@ -48,6 +48,15 @@ static bool task_is_window(Task *task){
   return task->top_level != NULL && !task->is_cursor;
 }
 
+//is this surface a window the layout is responsible for placing. a floating
+//window is still a window - it keeps the keyboard focus cycle, it still
+//closes on super+c - it has just been pulled out of the grid, so every count
+//and every cell assignment below has to skip it or it would be handed a tile
+//out from under itself the next time anything else maps or closes
+static bool task_is_tiled(Task *task){
+  return task_is_window(task) && !task->is_floating;
+}
+
 //split what is left in two, hand one half to this window and keep the other.
 //which half depends on the step: in spiral mode the direction cycles through
 //right, down, left, up so the free area winds inward, in dwindle mode it only
@@ -121,7 +130,7 @@ static int count_windows_on_output(int output_index){
   Task *task;
 
   wl_list_for_each(task, &compositor.surfaces, link){
-    if(task_is_window(task) && task->output_index == output_index)
+    if(task_is_tiled(task) && task->output_index == output_index)
       count++;
   }
 
@@ -155,7 +164,7 @@ static void layout_apply_output(int output_index){
 
   wl_list_for_each_reverse(task, &compositor.surfaces, link){
 
-    if(!task_is_window(task) || task->output_index != output_index)
+    if(!task_is_tiled(task) || task->output_index != output_index)
       continue;
 
     //the last window is not split off anything, it takes whatever is left
@@ -243,6 +252,10 @@ void layout_focus_next(int direction){
       //sword_frame_step()'s handle_focus() is what turns this into
       //wl_keyboard.leave, enter, and a fresh clipboard offer
       is_focus_completed = false;
+      //deliberately not layout_raise() here: cycling and stacking read the
+      //same list, so raising the window this just landed on would move it to
+      //index count-1 and make the next super+j land on it again instead of
+      //advancing - a float keeps the keyboard without needing to be on top
       log_info("Focus moved to window %i of %i", next + 1, count);
     }
   }
@@ -297,4 +310,69 @@ void layout_close_focused(void){
   //sent right away rather than waiting for the loop's own flush at the top of
   //its next iteration - the same reason send_wayland_key() flushes by hand
   wl_display_flush_clients(compositor.display);
+}
+
+//moves a floating window to the head of compositor.surfaces - the very same
+//list draw_surfaces() and pointer_hit_task() walk to decide stacking order
+//among floats, so raising is nothing more than relinking. a no-op on anything
+//not floating: that list is also layout_apply_output()'s map order, and
+//reordering it there would hand an unrelated tiled window a different cell
+//the next time the layout runs
+void layout_raise(Task *task){
+
+  if(!task || !task->is_floating)
+    return;
+
+  wl_list_remove(&task->link);
+  wl_list_insert(&compositor.surfaces, &task->link);
+}
+
+//a floating window is shrunk to this fraction of its output rather than kept
+//at whatever size the tiling last gave it, so floating always looks like the
+//floating window it is - a dialog sitting over the tiling, not a tile with
+//nothing tiled around it
+#define FLOAT_WIDTH_FRACTION 0.6
+#define FLOAT_HEIGHT_FRACTION 0.6
+
+//flip the focused window between tiled and floating. going floating gives it
+//a centered rectangle sized off its output and raises it above everything
+//else; coming back hands it to the layout again. either direction changes how
+//many windows the tiling on this output has to divide the space between, so
+//layout_apply() runs at the end regardless of which way it went
+void layout_toggle_floating(void){
+
+  Task *task = focused_task;
+
+  if(!task || !task_is_window(task))
+    return;
+
+  task->is_floating = !task->is_floating;
+
+  if(task->is_floating){
+
+    SwordOutput *out = &sword_outputs[task->output_index];
+
+    int32_t width = at_least(out->width * FLOAT_WIDTH_FRACTION, LAYOUT_MIN_SIZE);
+    int32_t height = at_least(out->height * FLOAT_HEIGHT_FRACTION, LAYOUT_MIN_SIZE);
+
+    task->tile_x = out->x + (out->width - width) / 2;
+    task->tile_y = out->y + (out->height - height) / 2;
+
+    //a configure the client already has is one it would repaint for nothing -
+    //the same guard layout_apply_output() makes for a tiled resize
+    if(task->top_level->width != width || task->top_level->height != height)
+      send_top_level_configure(task->top_level, width, height);
+
+    task->tile_width = width;
+    task->tile_height = height;
+
+    layout_raise(task);
+
+    log_info("Window floated");
+
+  }else{
+    log_info("Window tiled");
+  }
+
+  layout_apply();
 }

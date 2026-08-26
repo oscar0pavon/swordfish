@@ -176,34 +176,47 @@ void draw_surfaces(PRenderTarget *render_target, VkCommandBuffer *command,
   //layout walks in, which for cells that cannot overlap is any order at all
   Task *task;
 
-  wl_list_for_each_reverse(task, &compositor.surfaces, link) {
+  //two passes so every floating window is drawn over every tiled one no
+  //matter where the two land in map order - the first pass paints the tiles,
+  //the second the floats. within a pass this is still just map order, which
+  //is why layout_raise() moving a float toward the head of the list (visited
+  //last by the reverse walk below) is what makes a raised float draw on top
+  //of the rest
+  for (int floating_pass = 0; floating_pass <= 1; floating_pass++) {
 
-    //a child is drawn by its parent, at the parent's position
-    if (task->parent || task->is_cursor)
-      continue;
+    wl_list_for_each_reverse(task, &compositor.surfaces, link) {
 
-    //and a surface with no role at all is drawn by nobody. it has no cell,
-    //because only a window gets one, so drawing it anyway put it at the corner
-    //of the screen at its own size - which is where firefox's tooltips ended
-    //up: the popup is dismissed, the client drops the xdg_popup role and keeps
-    //the wl_surface mapped with its buffer still on it, and what was a menu a
-    //moment ago becomes a rectangle stuck at 0,0. an unroled surface is not
-    //something the protocol says to show
-    if (!task->top_level)
-      continue;
+      //a child is drawn by its parent, at the parent's position
+      if (task->parent || task->is_cursor)
+        continue;
 
-    if (task->output_index != output_index)
-      continue;
+      //and a surface with no role at all is drawn by nobody. it has no cell,
+      //because only a window gets one, so drawing it anyway put it at the
+      //corner of the screen at its own size - which is where firefox's
+      //tooltips ended up: the popup is dismissed, the client drops the
+      //xdg_popup role and keeps the wl_surface mapped with its buffer still
+      //on it, and what was a menu a moment ago becomes a rectangle stuck at
+      //0,0. an unroled surface is not something the protocol says to show
+      if (!task->top_level)
+        continue;
 
-    draw_surface_tree(task, render_target, command, index);
+      if (task->output_index != output_index)
+        continue;
 
-    //no release goes out here. a dmabuf buffer is sampled straight out of the
-    //client's memory, and this quad goes on sampling this one every frame
-    //until the client attaches another - so telling the client it is free the
-    //first time it is drawn hands back a buffer that is still on screen. the
-    //client then picks it as its next render target and the frame that lands
-    //mid-repaint shows the clear rather than the content. task_release_old_buffer()
-    //in end_frame() is where it is answered instead
+      if (task->is_floating != (bool)floating_pass)
+        continue;
+
+      draw_surface_tree(task, render_target, command, index);
+
+      //no release goes out here. a dmabuf buffer is sampled straight out of
+      //the client's memory, and this quad goes on sampling this one every
+      //frame until the client attaches another - so telling the client it is
+      //free the first time it is drawn hands back a buffer that is still on
+      //screen. the client then picks it as its next render target and the
+      //frame that lands mid-repaint shows the clear rather than the content.
+      //task_release_old_buffer() in end_frame() is where it is answered
+      //instead
+    }
   }
 }
 

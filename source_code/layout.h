@@ -1,6 +1,8 @@
 #ifndef LAYOUT_H
 #define LAYOUT_H
 
+#include "tasks.h"
+
 //the window manager half of the compositor: which window gets which piece of
 //the output, which one has the keyboard, and closing one. nothing here talks
 //to the gpu - it writes a rectangle onto every Task and draw_surface() puts
@@ -18,5 +20,12 @@ void layout_focus_next(int direction);
 void layout_focus_fallback(void);
 
 void layout_close_focused(void);
+
+//pull a floating window to the front of the stacking order among floats.
+//a no-op on a tiled window - see the comment on the definition
+void layout_raise(Task *task);
+
+//flip the focused window between tiled and floating
+void layout_toggle_floating(void);
 
 #endif

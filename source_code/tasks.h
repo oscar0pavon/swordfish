@@ -59,11 +59,13 @@ typedef struct Task{
     //handed straight back; a dmabuf is sampled where it lies and released only
     //when a newer one replaces it
     ClientBuffer *client_buffer;
-    //the rectangle the layout gave this window, in the render target's own
+    //the rectangle this window is drawn in, in the render target's own
     //pixels: the space draw_surface() draws in and the space mouse.c reports
     //the cursor in. nothing to do with x,y above, which is the attach offset.
-    //a zero width means the layout has not reached it yet and the quad falls
-    //back to its own buffer size
+    //a zero width means nothing has placed this window yet and the quad falls
+    //back to its own buffer size. for a tiled window the layout owns these
+    //four; for a floating one layout_toggle_floating() and the super+drag in
+    //pointer.c do, and layout.c never writes them again until it floats back
     int32_t tile_x, tile_y, tile_width, tile_height;
     //wl_surface.set_input_region: where on this surface the client is willing
     //to be pointed at, in its own coordinates. no region set means all of it,
@@ -109,6 +111,20 @@ typedef struct Task{
     //listeners above, and for the same reason
     struct wl_listener top_level_destroy;
     bool listening_to_top_level;
+    //pulled out of the tiling and given its own rectangle - the tile_* four
+    //above - to sit on top of it at. layout_apply_output() skips it,
+    //draw_surfaces() and pointer_hit_task() both give it priority over every
+    //tiled window. see layout_toggle_floating()
+    //
+    //INFO on the end of the struct on purpose, the same rule pway's header
+    //carries: neither Makefile tracks header dependencies, so a `make` after
+    //this file changes relinks stale objects built against the previous
+    //layout. added in the middle - it was, next to tile_* - every field after
+    //it moves, and surface.c goes on writing top_level at the offset it was
+    //compiled with while sword.c reads it at the new one. on the end, a
+    //stale object is merely one that never heard of floating. `make clean` in
+    //sword after touching this file regardless
+    bool is_floating;
 }Task;
 
 extern Task *focused_task;

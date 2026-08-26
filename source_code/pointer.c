@@ -1,9 +1,15 @@
 
+#include <linux/input-event-codes.h>
+
 #include "pointer.h"
 #include "popup.h"
 #include "subcompositor.h"
 #include "surface.h"
 #include "input.h"
+#include "layout.h"
+#include "top_level.h"
+#include "keyboard.h"
+#include "outputs.h"
 #include "log.h"
 
 //the task the cursor is inside, and whether it has been sent wl_pointer.enter.
@@ -22,6 +28,19 @@ Task *pointer_window;
 //inside the surface under it
 static double pointer_x, pointer_y;
 static double pointer_local_x, pointer_local_y;
+
+//super+drag on a floating window, started in send_wayland_pointer_button()
+//and applied every motion event in send_wayland_pointer_motion() until the
+//matching release. drag_task doubles as "a drag is in progress" - NULL means
+//motion and button events go through the ordinary path below
+static Task *drag_task;
+static bool drag_is_resize;
+static double drag_start_pointer_x, drag_start_pointer_y;
+static int32_t drag_start_x, drag_start_y, drag_start_width, drag_start_height;
+
+//a resized floating window still has to clear the same floor a tiled cell
+//does - zero-sized is a protocol error to configure
+#define FLOAT_MIN_SIZE 32
 
 
 static WResource *focused_pointer(void){
@@ -184,34 +203,46 @@ static Task *pointer_hit_task(void){
 
   Task *task;
 
-  wl_list_for_each(task, &compositor.surfaces, link){
+  //two passes: floating windows first, since draw_surfaces() puts every one
+  //of them over every tiled window, and over each other in the same list
+  //order layout_raise() moves the front of to the head of - so list order
+  //within a pass is already stacking order, topmost first. tiled cells cannot
+  //overlap, so the pass order does not matter for them
+  for(int floating_pass = 1; floating_pass >= 0; floating_pass--){
 
-    //only a surface the client made a toplevel out of has a cell to be inside -
-    //a cursor image or a surface still on its way to being a window would
-    //otherwise take the pointer over the whole rectangle it would be drawn at.
-    //a subsurface is reached through its parent below, never from here
-    if(!task->top_level || task->is_cursor || task->parent)
-      continue;
+    wl_list_for_each(task, &compositor.surfaces, link){
 
-    if(!tree_can_draw(task))
-      continue;
+      //only a surface the client made a toplevel out of has a cell to be
+      //inside - a cursor image or a surface still on its way to being a
+      //window would otherwise take the pointer over the whole rectangle it
+      //would be drawn at. a subsurface is reached through its parent below,
+      //never from here
+      if(!task->top_level || task->is_cursor || task->parent)
+        continue;
 
-    //the window's own cell, tested before its input region: the cells cannot
-    //overlap, so this is the one window the cursor can be over and there is no
-    //point looking at another. inside it the tree decides, and it may decide
-    //nothing takes the pointer here - the shadow around a client-side
-    //decorated window is exactly that
-    if(!pointer_in_rect(task))
-      continue;
+      if(task->is_floating != (bool)floating_pass)
+        continue;
 
-    Task *hit = pointer_hit_child(task);
+      if(!tree_can_draw(task))
+        continue;
 
-    //the window keeps the click-to-focus half even when the events go to a
-    //child of it: only a toplevel can hold the keyboard
-    if(hit)
+      if(!pointer_in_rect(task))
+        continue;
+
+      Task *hit = pointer_hit_child(task);
+
+      //an empty input region rejected the point even though the rectangle
+      //contained it - fall through to whatever is behind it instead of
+      //coming back empty-handed, which only overlapping floats can make
+      //happen: a tiled window's cell has nothing behind it to fall through to
+      if(!hit)
+        continue;
+
+      //the window keeps the click-to-focus half even when the events go to a
+      //child of it: only a toplevel can hold the keyboard
       pointer_window = task;
-
-    return hit;
+      return hit;
+    }
   }
 
   return NULL;
@@ -244,17 +275,115 @@ static void set_pointer_focus(Task *task){
 //so the button release after a click that opened a menu was still delivered to
 //the window behind it, and a toolkit reads that as a click outside the menu and
 //takes the menu straight back down. called once a frame from sword_frame_step()
+//a client can die mid-drag, taking drag_task with it - called from
+//forget_task() (input.c), the same place focused_task, pointer_focus and
+//pointer_window are cleared for the same reason. without this the next
+//motion event wrote through a freed Task
+void pointer_forget_task(Task *task){
+  if(drag_task == task)
+    drag_task = NULL;
+}
+
 void pointer_refresh_focus(void){
+
+  //a super+drag in progress is not a hover - the cursor sweeping over other
+  //windows on its way across the screen must not steal them the pointer focus
+  //out from under the window being dragged
+  if(drag_task)
+    return;
 
   //cheap when nothing changed: set_pointer_focus() only sends leave and enter
   //when the surface under the cursor is a different one
   set_pointer_focus(pointer_hit_task());
 }
 
+//apply the drag started in send_wayland_pointer_button() to drag_task's
+//floating rectangle. a resize sends a configure exactly when
+//layout_apply_output() would for a tiled one: only once the size actually
+//changed, so the client is not made to repaint for nothing
+static void apply_drag(void){
+
+  double dx = pointer_x - drag_start_pointer_x;
+  double dy = pointer_y - drag_start_pointer_y;
+
+  if(drag_is_resize){
+
+    int32_t width = drag_start_width + (int32_t)dx;
+    int32_t height = drag_start_height + (int32_t)dy;
+
+    //anchored at tile_x/tile_y, which this branch never moves - so growing
+    //past the output's own right/bottom edge is the same cross-output hit
+    //rect apply_drag()'s move branch clamps against, just from the other
+    //corner. the size floor below still wins in the corner where an output is
+    //too small to fit it, same tradeoff every WM makes near an edge
+    SwordOutput *out = &sword_outputs[drag_task->output_index];
+    int32_t max_width = out->x + out->width - drag_task->tile_x;
+    int32_t max_height = out->y + out->height - drag_task->tile_y;
+
+    if(width > max_width)
+      width = max_width;
+    if(height > max_height)
+      height = max_height;
+
+    if(width < FLOAT_MIN_SIZE)
+      width = FLOAT_MIN_SIZE;
+    if(height < FLOAT_MIN_SIZE)
+      height = FLOAT_MIN_SIZE;
+
+    if(drag_task->top_level &&
+       (drag_task->top_level->width != width ||
+        drag_task->top_level->height != height))
+      send_top_level_configure(drag_task->top_level, width, height);
+
+    drag_task->tile_width = width;
+    drag_task->tile_height = height;
+
+  }else{
+
+    //kept within drag_task's own output. pointer_hit_task() tests virtual
+    //coordinates with no output check of its own - draw_surfaces() is what
+    //stops a window being drawn outside the render target that owns it, but
+    //nothing stops it being dragged there, and output_index never follows a
+    //drag across monitors. a float let loose past its own output's edge would
+    //still be drawn (clipped) on the target it started on, while the cursor
+    //over the neighbour's screen - a different render target entirely - would
+    //keep hitting it: an invisible window eating another monitor's clicks
+    SwordOutput *out = &sword_outputs[drag_task->output_index];
+
+    int32_t x = drag_start_x + (int32_t)dx;
+    int32_t y = drag_start_y + (int32_t)dy;
+
+    int32_t max_x = out->x + out->width - drag_task->tile_width;
+    int32_t max_y = out->y + out->height - drag_task->tile_height;
+
+    if(max_x < out->x)
+      max_x = out->x;
+    if(max_y < out->y)
+      max_y = out->y;
+
+    if(x < out->x)
+      x = out->x;
+    if(x > max_x)
+      x = max_x;
+    if(y < out->y)
+      y = out->y;
+    if(y > max_y)
+      y = max_y;
+
+    drag_task->tile_x = x;
+    drag_task->tile_y = y;
+  }
+}
+
 void send_wayland_pointer_motion(double x, double y){
 
   pointer_x = x;
   pointer_y = y;
+
+  if(drag_task){
+    apply_drag();
+    return;
+  }
 
   set_pointer_focus(pointer_hit_task());
 
@@ -279,6 +408,41 @@ void send_wayland_pointer_button(uint32_t button, bool pressed){
   //close it again immediately
   log_info("Pointer button %u %s", button, pressed ? "pressed" : "released");
 
+  //the release matching a super+drag's press. eaten the same way the press
+  //was - the client never saw that one either, so it must not see this one
+  if(!pressed && drag_task){
+    drag_task = NULL;
+    return;
+  }
+
+  //super+left-drag moves a floating window, super+right-drag resizes it -
+  //only on a window already floating, since a tiled one's rectangle belongs
+  //to the layout, not the mouse. swallowed exactly like an unrecognized
+  //super+key is not: only when it actually starts a drag, so a super+click
+  //anywhere else still reaches the client normally
+  if(pressed && super_key_held() && (button == BTN_LEFT || button == BTN_RIGHT) &&
+     pointer_window && pointer_window->is_floating){
+
+    drag_task = pointer_window;
+    drag_is_resize = (button == BTN_RIGHT);
+    drag_start_pointer_x = pointer_x;
+    drag_start_pointer_y = pointer_y;
+    drag_start_x = drag_task->tile_x;
+    drag_start_y = drag_task->tile_y;
+    drag_start_width = drag_task->tile_width;
+    drag_start_height = drag_task->tile_height;
+
+    layout_raise(drag_task);
+
+    if(drag_task != focused_task){
+      focused_task = drag_task;
+      is_focus_completed = false;
+    }
+
+    log_info("Started %s floating window", drag_is_resize ? "resizing" : "moving");
+    return;
+  }
+
   if(pressed && popups_are_open())
     popups_dismiss_outside(pointer_focus);
 
@@ -289,6 +453,9 @@ void send_wayland_pointer_button(uint32_t button, bool pressed){
   //whoever took the press. pointer_window rather than pointer_focus, because
   //the surface under the cursor may be a subsurface and the keyboard belongs
   //to the window it hangs under
+  if(pressed && pointer_window && pointer_window->is_floating)
+    layout_raise(pointer_window);
+
   if(pressed && pointer_window && pointer_window != focused_task){
     focused_task = pointer_window;
 

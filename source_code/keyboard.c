@@ -123,6 +123,9 @@ static bool handle_sword_key(uint32_t unicode) {
     //the focused window, not the compositor - q below is what closes that
     layout_close_focused();
     return true;
+  case ' ':
+    layout_toggle_floating();
+    return true;
   case 'q':
     log_info("Closing from keyboard");
     exit(0);
@@ -143,7 +146,7 @@ static bool handle_sword_key(uint32_t unicode) {
 //shortcuts are behind super, so everything else belongs to the focused client.
 //unconditional shortcuts meant a terminal could never type d, and typing q
 //killed the compositor
-static bool shortcut_modifier_held(void) {
+bool super_key_held(void) {
   return xkb_state_mod_name_is_active(xkb_state, XKB_MOD_NAME_LOGO,
                                       XKB_STATE_MODS_EFFECTIVE) > 0;
 }
@@ -219,7 +222,7 @@ void handle_key_code(uint32_t key_code, bool pressed) {
     }
   }
 
-  if (shortcut_modifier_held()) {
+  if (super_key_held()) {
     xkb_keysym_t sym = xkb_state_key_get_one_sym(xkb_state, xkb_keycode);
     uint32_t unicode = xkb_keysym_to_utf32(sym);
 

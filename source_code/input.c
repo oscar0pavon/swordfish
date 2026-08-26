@@ -167,6 +167,10 @@ void forget_task(Task *task){
 
   if(focused_task == task)
     focused_task = NULL;
+
+  //a super+drag in progress on this task - the client dying mid-drag is the
+  //same shape of bug as the three above
+  pointer_forget_task(task);
 }
 
 void forget_task_input(TaskInput *input){

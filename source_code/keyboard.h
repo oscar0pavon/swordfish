@@ -20,6 +20,11 @@ void handle_xkb_keyboard_event(InputEvent *event);
 void handle_key_code(uint32_t key_code, bool pressed);
 void finish_keyboard(void);
 
+//is the compositor's own modifier down right now. pointer.c reads this too -
+//super+drag moves and resizes a floating window the same way super+key runs
+//one of the shortcuts below
+bool super_key_held(void);
+
 
 off_t get_keymap_file_size(int fd);
 

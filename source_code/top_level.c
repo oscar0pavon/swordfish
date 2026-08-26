@@ -125,11 +125,13 @@ static void set_min_size(WClient *client, WResource *resource, int32_t width,
 static void set_parent(WClient *client, WResource *resource,
                        WResource *parent){}
 
-//the three requests a client makes on behalf of the pointer. the seat does
-//advertise one now, so these do arrive - and a tiled window's position and
-//size are not the client's to ask for. dragging one somewhere else would mean
-//a layout that remembers a window was pulled out of the tiling, which is a
-//floating layer and does not exist
+//the three requests a client makes on behalf of the pointer. a tiled window's
+//position and size are still not the client's to ask for. there is a floating
+//layer now (layout_toggle_floating(), pointer.c's super+drag) but these three
+//stay declined even for a floating window: super+drag already covers move and
+//resize from the compositor's own side, and wiring a CSD client's own
+//titlebar drag through wl_seat's grab/serial machinery is its own chunk of
+//work that nothing here has needed yet
 static void show_window_menu(WClient *client, WResource *resource,
                              WResource *seat, uint32_t serial, int32_t x,
                              int32_t y){}
