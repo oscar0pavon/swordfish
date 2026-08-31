@@ -514,12 +514,27 @@ going wherever they already went. A **press** stores `pointer_focus` in
 press, and moving the focus on it would hand the keyboard away when the button
 comes up over a different tile.
 
-The **second scale** lives here. `draw_surface()` stretches a client's buffer
-into its tile, so the buffer is not the size of the rectangle on screen and
+The **second scale** lives here. A client's buffer may be stretched into its
+tile, so the buffer is not the size of the rectangle on screen and
 `pointer_inside()` has to divide the position back into buffer coordinates —
 a client told the cursor is at the tile's own coordinates draws its cursor
 somewhere other than where the user is pointing, which is the same bug as the
-outer scale one level up.
+outer scale one level up. Both sides read the scale off the same function,
+`task_origin_and_scale()` (`subcompositor.c`), which is why the branch below
+belongs there and not in `draw_surface()`.
+
+**A buffer that fits its cell is drawn at its own size, not stretched up to
+fill it.** The stretch only ever covered the frames between a configure and
+the client repainting, and in the direction where the cell *grew* — close a
+window and the survivor is handed the whole output — that cover was a 2x
+upscale of the old buffer: four frames (~66ms, measured) of a visibly blurred
+window. An unpainted band beside a crisp window reads better, and it is what
+every other tiler shows there. The other direction still stretches: minifying
+for two frames does not read as broken, and a buffer *larger* than its cell
+drawn at its own size would spill over the window next to it, which nothing
+here scissors against. Choosing 1:1 only when the buffer already fits inside
+the cell is what makes the spill impossible by construction rather than by a
+clip.
 
 A client's **cursor image is a surface like any other** — it comes through
 `wl_compositor.create_surface` and would otherwise be drawn as a full quad in

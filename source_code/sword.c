@@ -34,6 +34,7 @@
 
 #include "input.h"
 #include "log.h"
+#include "top_level.h"
 
 bool can_draw_surfaces = true;
 
@@ -98,9 +99,9 @@ void draw_surface(Task* surface, PRenderTarget *render_target,
   //offset. task_screen_rect() (subcompositor.c) is the one place that knows
   //which, and pointer.c divides the cursor back through the same arithmetic.
   //the output's own origin comes back out here since this target only draws
-  //its own slice of the desktop. a window's buffer is stretched into its cell
-  //rather than drawn at its own size, so the tiling has no hole in it during
-  //the frame or two between the configure and the client repainting
+  //its own slice of the desktop. a window's buffer is drawn at its own size
+  //while it fits the cell and stretched into it while it does not - see
+  //task_origin_and_scale()
   double x, y, width, height;
 
   if (!task_screen_rect(surface, &x, &y, &width, &height))
@@ -108,6 +109,32 @@ void draw_surface(Task* surface, PRenderTarget *render_target,
 
   vec2 position = {x - out->x, y - out->y};
   vec2 size = {width, height};
+
+  //a window whose buffer is not the size of its cell, which is the frame or
+  //two between a configure and the client repainting. it is drawn at its own
+  //size when it fits and stretched when it does not
+  //(task_origin_and_scale(), subcompositor.c), and the log says which - a
+  //pair that never goes away is a client that never took the resize
+  if (surface->top_level && surface->image && surface->tile_width > 0 &&
+      (surface->image->width != surface->tile_width ||
+       surface->image->heigth != surface->tile_height) &&
+      (surface->image->width != surface->logged_image_width ||
+       surface->image->heigth != surface->logged_image_height ||
+       surface->tile_width != surface->logged_tile_width ||
+       surface->tile_height != surface->logged_tile_height)) {
+
+    surface->logged_image_width = surface->image->width;
+    surface->logged_image_height = surface->image->heigth;
+    surface->logged_tile_width = surface->tile_width;
+    surface->logged_tile_height = surface->tile_height;
+
+    log_info("Drawing buffer %ix%i in cell %ix%i (%s) for \"%s\"",
+             surface->image->width, surface->image->heigth,
+             surface->tile_width, surface->tile_height,
+             width == surface->image->width ? "own size" : "stretched",
+             surface->top_level->title ? surface->top_level->title
+                                       : "(no title)");
+  }
 
   //a menu is the one surface whose placement is worked out rather than handed
   //to it by the layout, so it is the one worth being able to see go wrong

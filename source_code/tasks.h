@@ -127,6 +127,13 @@ typedef struct Task{
     //stale object is merely one that never heard of floating. `make clean` in
     //sword after touching this file regardless
     bool is_floating;
+    //the last buffer/tile size pair draw_surface() reported as not matching.
+    //a window whose buffer is not the size of its cell is drawn stretched into
+    //it, which is what a blurry window is - logged once per pair rather than
+    //once per frame, so the two frames between a configure and the client
+    //repainting read differently in the log from a client that never resized
+    int32_t logged_image_width, logged_image_height;
+    int32_t logged_tile_width, logged_tile_height;
 }Task;
 
 extern Task *focused_task;

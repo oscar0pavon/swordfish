@@ -43,8 +43,8 @@ static bool task_origin_and_scale(Task *task, double *x, double *y,
 
   if (!task_is_child(task)) {
 
-    //a window is stretched into the cell the layout gave it, and that ratio is
-    //the scale everything inside it inherits
+    //a window is drawn in the cell the layout gave it, and whichever scale
+    //that works out to is what everything inside it inherits
     if (task->tile_width > 0) {
 
       double surface_width, surface_height;
@@ -53,6 +53,25 @@ static bool task_origin_and_scale(Task *task, double *x, double *y,
 
       *x = task->tile_x;
       *y = task->tile_y;
+
+      //a buffer that already fits the cell is drawn at its own size rather
+      //than stretched up to fill it. the stretch is only there to cover the
+      //frames between a configure and the client repainting, and in the
+      //direction where the cell grew - close a window and the survivor is
+      //given the whole output - that cover is a 2x upscale of the old buffer:
+      //four frames of a visibly blurred window, which is worse than four
+      //frames of an unpainted band beside a crisp one. the other direction
+      //still stretches, both because minifying for two frames does not read
+      //as broken and because a buffer larger than its cell drawn at its own
+      //size would spill over the window next to it - there is no scissor here
+      //to stop it
+      if (surface_width <= task->tile_width &&
+          surface_height <= task->tile_height) {
+        *scale_x = 1;
+        *scale_y = 1;
+        return true;
+      }
+
       *scale_x = task->tile_width / surface_width;
       *scale_y = task->tile_height / surface_height;
       return true;

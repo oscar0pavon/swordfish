@@ -68,6 +68,12 @@ void send_top_level_configure(TopLevel* toplevel, int width, int height){
 
   xdg_surface_send_configure(toplevel->surface->resource, serial);
 
+  //the one record of what the compositor actually asked a client for. every
+  //"the window is stretched" report is a question about whether this went out
+  //and whether the client answered it, and without the line there is nothing
+  //in the log but the buffer sizes to infer it from
+  log_info("Configure %ix%i serial %u to \"%s\"", width, height, serial,
+           toplevel->title ? toplevel->title : "(no title)");
 }
 
 //the protocol has no way to make a client go away - xdg_toplevel.close is a
