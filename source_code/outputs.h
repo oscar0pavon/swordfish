@@ -11,9 +11,29 @@
 //layout.c tiles into and mouse.c's cursor moves through
 typedef struct SwordOutput {
   int32_t x, y; //origin in the virtual desktop; y is always 0
-  int32_t width, height; //the render target's own mode
+  int32_t width, height; //logical size - width/height are swapped from the
+                         //render target's own mode when rotated is true
   char name[24];
+
+  //true if this output is mounted rotated 90 degrees counter-clockwise (the
+  //panel's native right edge points visually up). set once in
+  //sword_outputs_init() from SWORD_OUTPUT_ROTATE and never revisited.
+  //everything downstream - layout.c, mouse.c, sword.c's draw_surface(),
+  //cursor.c - works entirely in this output's logical (already-rotated)
+  //width/height and never needs to read this flag at all. sword_draw_rotated()
+  //(sword.h) is the one place that looks past it to the physical render
+  //target underneath, at draw time
+  bool rotated;
 } SwordOutput;
+
+//SWORD_OUTPUT_ROTATE is a comma-separated list of output indices (0-based,
+//in the connector order sword_sort_displays_by_connector() already fixed) to
+//mount rotated 90 degrees counter-clockwise, e.g. "1" or "0,2". mesa's
+//wsi_display hardcodes VkDisplayPropertiesKHR.supportedTransforms to
+//IDENTITY only (src/vulkan/wsi/wsi_common_display.c), so there is no
+//hardware rotation to ask the display plane for here - this is entirely a
+//software rotation of what sword draws, done once per quad in
+//sword_draw_rotated()
 
 extern SwordOutput sword_outputs[PE_VK_MAX_RENDER_TARGETS];
 extern int sword_outputs_count;

@@ -37,6 +37,56 @@
 
 bool can_draw_surfaces = true;
 
+//derivation (mount rotated 90 degrees counter-clockwise, so the panel's
+//native right edge is what now points visually up - see outputs.h's
+//SWORD_OUTPUT_ROTATE): a point (x, y) in this output's logical space maps to
+//physical render-target pixels (Wp - y, x), where Wp is the render target's
+//own physical width - which is out->height, since a 90 degree rotation is
+//exactly what swaps them (sword_outputs_init() is where that swap happens).
+//applying that same map to a rect's two edges rather than a single point
+//swaps which local quad axis becomes which physical one: local x (the rect's
+//logical width) becomes a vertical physical extent, local y (the rect's
+//logical height) becomes a horizontal one - so this is a real rotation of
+//the quad, not just a repositioning of it, and the client's buffer content
+//comes out rotated with it. flip the signs below to get the other direction
+//(mounted clockwise) if this reads upside-down on the hardware
+void sword_draw_rotated(PModel *model, PRenderTarget *render_target,
+                        SwordOutput *out, u32 image_index, vec2 position,
+                        vec2 size) {
+
+  //the projection has to be the one pengine builds, not one built here.
+  //pengine compiles with CGLM_FORCE_DEPTH_ZERO_TO_ONE and
+  //CGLM_FORCE_LEFT_HANDED and sword's own objects deliberately do not (see
+  //CLAUDE.md), so the same glm_ortho() call means two different matrices
+  //depending on which side of the library it is compiled on. calling it here
+  //produced a right-handed -1..1 depth range, which puts the quads' own z -
+  //0.5 for a window, 0.2 for the cursor - outside Vulkan's valid depth and
+  //clips every one of them away: correct geometry, nothing on screen. so let
+  //pe_2d_draw_on_target() set up the whole uniform block as usual, and only
+  //replace the model matrix afterwards
+  pe_2d_draw_on_target(model, render_target, image_index, position, size);
+
+  float x = position[0], y = position[1];
+  float w = size[0], h = size[1];
+
+  mat4 model_matrix;
+  glm_mat4_identity(model_matrix);
+
+  model_matrix[0][0] = 0.0f;
+  model_matrix[0][1] = w;
+  model_matrix[1][0] = -h;
+  model_matrix[1][1] = 0.0f;
+  model_matrix[3][0] = (float)out->height - y;
+  model_matrix[3][1] = x;
+
+  glm_mat4_copy(model_matrix, model->uniform_buffer_object.model);
+
+  //a second send, over the one pe_2d_draw_on_target() just did: it is a
+  //memcpy into a mapped uniform buffer, and paying it twice is cheaper than
+  //teaching sword to spell pengine's depth conventions itself
+  pe_vk_send_uniform_buffer(model, image_index);
+}
+
 void draw_surface(Task* surface, PRenderTarget *render_target,
                   VkCommandBuffer *cmd_buffer, uint32_t index){
 
@@ -65,7 +115,12 @@ void draw_surface(Task* surface, PRenderTarget *render_target,
     log_debug("Drawing popup at %.0f %.0f, %.0fx%.0f, parent %p", x, y, width,
               height, (void *)surface->parent);
 
-  pe_2d_draw_on_target(&surface->model, render_target, index, position, size);
+  if (out->rotated)
+    sword_draw_rotated(&surface->model, render_target, out, index, position,
+                       size);
+  else
+    pe_2d_draw_on_target(&surface->model, render_target, index, position,
+                         size);
 
   pe_vk_descriptor_with_image_update(&surface->model, &main_render_target);//TODO
 

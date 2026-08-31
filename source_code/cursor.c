@@ -14,6 +14,7 @@
 
 #include "mouse.h"
 #include "outputs.h"
+#include "sword.h"
 #include "log.h"
 
 Cursor cursor;
@@ -112,9 +113,17 @@ void cursor_draw(Cursor *target, PRenderTarget *render_target,
   //tip is the quad's own origin, so the position needs no hotspot subtracted
   //from it
   vec2 position = {(float)(cursor_x - out->x), (float)(cursor_y - out->y)};
+  vec2 size = {CURSOR_SIZE, CURSOR_SIZE};
 
-  pe_2d_draw_on_target(&target->model, render_target, image_index, position,
-                       VEC2(CURSOR_SIZE, CURSOR_SIZE));
+  //square, so the rotation only turns the arrow shape cursor.frag shades
+  //from uv - it does not stretch it - which is the same as any other window
+  //quad rotating with a rotated output. see sword.h's sword_draw_rotated()
+  if (out->rotated)
+    sword_draw_rotated(&target->model, render_target, out, image_index,
+                       position, size);
+  else
+    pe_2d_draw_on_target(&target->model, render_target, image_index, position,
+                         size);
 
   PDrawModelCommand draw = {.model = &target->model,
                             .command_buffer = *cmd_buffer,

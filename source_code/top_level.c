@@ -264,6 +264,9 @@ void get_top_level_implementation(WClient *client,
   output_send_surface_enter(surface->surface->resource,
                             surface->surface->output_index);
 
+  log_debug("Window mapped on output %i (cursor at %.0f)",
+            surface->surface->output_index, cursor_x);
+
   //the initial configure comes out of the layout like every other one: the new
   //window is given a cell and everything already on screen is told to make
   //room for it. this is the only configure a client gets before it may draw,

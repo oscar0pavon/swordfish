@@ -2,6 +2,7 @@
 
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <xf86drm.h>
@@ -381,6 +382,38 @@ void sword_restore_display_routing(void) {
   }
 }
 
+//true if SWORD_OUTPUT_ROTATE lists this output index - see outputs.h
+static bool output_rotate_requested(int index) {
+
+  const char *list = getenv("SWORD_OUTPUT_ROTATE");
+  if (!list)
+    return false;
+
+  //no strtol here: an index is one digit for every output count this table
+  //will ever hold (PE_VK_MAX_RENDER_TARGETS is 4), so a byte-by-byte compare
+  //against each comma-delimited entry is simpler than pulling in parsing
+  char target[4];
+  snprintf(target, sizeof(target), "%d", index);
+  size_t target_len = strlen(target);
+
+  const char *p = list;
+  while (*p) {
+    while (*p == ' ')
+      p++;
+    const char *comma = strchr(p, ',');
+    size_t entry_len = comma ? (size_t)(comma - p) : strlen(p);
+
+    if (entry_len == target_len && strncmp(p, target, entry_len) == 0)
+      return true;
+
+    if (!comma)
+      break;
+    p = comma + 1;
+  }
+
+  return false;
+}
+
 SwordOutput sword_outputs[PE_VK_MAX_RENDER_TARGETS];
 int sword_outputs_count;
 
@@ -396,12 +429,19 @@ void sword_outputs_init(void) {
     SwordOutput *out = &sword_outputs[i];
     out->x = x;
     out->y = 0;
-    out->width = target->width;
-    out->height = target->heigth;
+    out->rotated = output_rotate_requested((int)i);
+
+    //a 90 degree rotation swaps which physical axis is which logical one -
+    //everything past this point (layout, the cursor, mouse.c's clamp) reads
+    //out->width/height and never target->width/heigth directly, so nothing
+    //downstream has to know rotation happened at all
+    out->width = out->rotated ? (int32_t)target->heigth : (int32_t)target->width;
+    out->height = out->rotated ? (int32_t)target->width : (int32_t)target->heigth;
+
     snprintf(out->name, sizeof(out->name), "sword-%u", i);
 
-    log_info("Output %s: %ix%i at x=%i", out->name, out->width, out->height,
-             out->x);
+    log_info("Output %s: %ix%i at x=%i%s", out->name, out->width, out->height,
+             out->x, out->rotated ? " (rotated 90)" : "");
 
     x += out->width;
   }
