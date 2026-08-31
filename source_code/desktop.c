@@ -40,8 +40,10 @@ static void desktop_surface_destroy(WClient *client, WResource *resource) {
 }
 
 //the part of the surface that is the window proper, the rest being the client's
-//own shadows and borders. recorded rather than used: the quad still samples the
-//whole buffer
+//own shadows and borders. this is the rect the layout's cell describes - a
+//configure carries a window geometry size, not a buffer size - so
+//task_window_geometry() (subcompositor.c) is what puts it on the cell, and
+//the shadow around it falls outside
 static void desktop_surface_set_window_geometry(WClient *client,
                                                 WResource *resource, int32_t x,
                                                 int32_t y, int32_t width,
@@ -53,6 +55,8 @@ static void desktop_surface_set_window_geometry(WClient *client,
   desktop_surface->geometry_y = y;
   desktop_surface->geometry_width = width;
   desktop_surface->geometry_height = height;
+
+  log_debug("Window geometry %i %i %ix%i", x, y, width, height);
 }
 
 const struct xdg_surface_interface desktop_surface_implementation = {

@@ -253,7 +253,15 @@ is entirely `wl_surface` requests — `set_buffer_transform` (v2),
 `surface.c` since the quad samples the whole buffer regardless. Child
 resources are created with `wl_resource_get_version(resource)` rather than a
 hardcoded 1, so a surface or keyboard inherits the version its parent was bound
-at.
+at. It is sometimes free — `xdg_wm_base` went from 1 to 2 for the tiled
+toplevel states and version 2 adds no request at all — but that has to be read
+off the generated header's `..._SINCE_VERSION` lines rather than assumed.
+
+The other half of the same rule runs the other way: an **event, or a value in
+one, above the version the client actually bound at** has to be gated on
+`wl_resource_get_version()`, since a client that bound lower has no way to know
+what it means. `top_level_is_tiled()` (`top_level.c`) is the shape of it — a
+client on `xdg_wm_base` 1 still gets the empty state array.
 
 **A missing global is the most expensive bug in this file, and it has cost three
 clients so far.** It produces no protocol error: the client gets a NULL proxy
@@ -283,18 +291,93 @@ capability, which is why it is still a TODO rather than a bug.
 
 ### xdg-shell
 
-`xdg_wm_base` is advertised at version 1 (`compositor.c`), and every
+`xdg_wm_base` is advertised at version 2 (`compositor.c`), and every
 request of every xdg interface has a handler for the reason above — a NULL entry
-is dispatched as a call. `xdg_toplevel` (`top_level.c`) records the
+is dispatched as a call. Version 2 is the one the **tiled toplevel states**
+arrived in and it adds no request to any of the four xdg interfaces, so the
+bump cost nothing. Version 3 is not free: it adds `xdg_popup.reposition` and
+three `xdg_positioner` requests, and going there without writing them takes the
+compositor down the first time a client repositions a menu.
+
+`xdg_toplevel` (`top_level.c`) records the
 title, app id and size limits and no-ops the rest; `set_maximized`,
 `unset_maximized`, `set_fullscreen` and `unset_fullscreen` **must** still answer
 with a configure even though sword declines them, because a client blocks
 waiting for that configure before it will draw again. `reconfigure()` sends the
-size the client already has and an empty state array, which is the protocol's
+size the client already has and neither `maximized` nor `fullscreen` among its
+states, which is the protocol's
 way of saying no — and since the layout is what keeps `TopLevel.width/height`
 up to date, that is automatically the window's own tile rather than a stale
 guess. A tiled window is already the only size it is going to get, so declining
 is the honest answer to all four.
+
+**A configure with an empty state array is a suggestion, not an order.** The
+protocol says the size in it is a *hint* and the client may take its own
+instead, and firefox does exactly that: it maps at the cell it was given, then
+restores its session and redraws at the size it remembered from the last run —
+1054x1883, from a previous session on the rotated monitor. The layout only
+sends a configure when the cell *changes*, so nothing ever took that back, and
+the window sat squashed into a cell it was nearly twice the height of until
+super+f floated it and forced a fresh configure out of
+`layout_toggle_floating()`. That "float it and it fixes itself" is the
+signature of this bug and not of a configure that never went out — the log
+shows the first one going out and being acked.
+
+So `send_top_level_configure()` sends the four `tiled_*` states for a tiled
+window. They are what say the size is not the client's to pick. They also tell
+a client with its own decorations that every edge of it is against something,
+so it narrows the shadow it draws *outside* its window geometry — firefox's
+padding went from 26px a side to 20px, buffer 1132x1972 in a 1080x1920 cell.
+It does **not** go away: the shadow is the client's own pixels and the
+protocol's answer to it is `set_window_geometry`, not a state — see **The
+window geometry is what the cell sizes** below. A **floating** window
+deliberately gets none of the states: that one really is free-standing, and
+the shadow under it is what makes it read as sitting over the tiling rather
+than in it.
+
+### The window geometry is what the cell sizes
+
+A configure carries a **window geometry** size, not a buffer size. A client
+with its own decorations draws a shadow outside that geometry and hands over a
+buffer bigger than the window in it: firefox pads 20px on all four sides, so a
+1080x1920 cell comes back as a 1120x1960 buffer. `set_window_geometry`
+(`desktop.c`) is where the client says which part of the buffer is the window,
+and `task_window_geometry()` (`subcompositor.c`) is what puts *that* rect on
+the cell.
+
+Ignoring it is what made firefox blurry, and the symptom is worth recognising
+because it is not what a scaled window usually looks like: flat areas are
+fine and only the **text** is soft. Scaling a 1120x1960 buffer into a 1080x1920
+cell is a 1.037x minification — every client pixel lands between two of the
+output's, which solid colour survives and glyph edges do not. A blur that only
+the text shows is a small non-integer scale, and the fix is always to find out
+why the two sizes differ rather than to filter differently.
+
+`task_origin_and_scale()` still returns the origin of the **buffer** and not of
+the window — the buffer is what the quad is drawn from, and a subsurface's own
+offset is measured in it. The geometry only moves that origin back by the
+shadow, so the window inside it lands on the cell. **That is what keeps the
+rest of the file honest**: because the origin is still the buffer's,
+`pointer_inside()` dividing `(cursor - origin)` by the scale goes on producing
+surface coordinates with the shadow offset already in them, `task_screen_rect()`
+goes on reporting the whole buffer — which is what a client's own input region
+is measured against — and a subsurface's `child_x * scale` still lands where the
+client put it. Returning the *window's* origin instead would have needed the
+same 20px added back in three places, and the one that was forgotten would put
+firefox's cursor 20px off everything.
+
+What that leaves is **spill**: the shadow is now drawn outside the cell, over
+whatever is next to it, since nothing scissors the quad to its tile. It is
+transparent, and `texture.frag` discards below alpha 0.1, so it does not read
+as a band — but a client whose padding is opaque would show one. The cure is a
+`vkCmdSetScissor` in `draw_surface()` (the pipeline already carries
+`VK_DYNAMIC_STATE_SCISSOR`), which has to restore `target->scissor` afterwards
+since `pe_vk_start_render_pass()` sets it once per pass, and has to apply
+`sword_draw_rotated()`'s coordinate map on a rotated output.
+
+A geometry rect that does not fit inside the buffer the client has attached is
+refused in favour of the whole buffer. The client may legally send one before
+it has attached anything at all.
 
 The **initial** configure comes out of `layout_apply()` too, not from
 `get_top_level_implementation()` itself. It is the only configure a client gets

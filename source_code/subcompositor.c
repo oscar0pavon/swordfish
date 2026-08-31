@@ -8,6 +8,7 @@
 #include "compositor.h"
 #include "log.h"
 #include "surface.h"
+#include "top_level.h"
 
 bool task_is_child(Task *task) { return task->parent != NULL; }
 
@@ -27,6 +28,51 @@ static void task_surface_size(Task *task, double fallback_width,
 
   *width = fallback_width;
   *height = fallback_height;
+}
+
+//the part of the buffer that is the window proper. a client that draws its
+//own decorations puts its shadow *outside* that - firefox pads 20 pixels on
+//all four sides of it, which is why its buffer comes out 1120x1960 in a
+//1080x1920 cell - and xdg_surface.set_window_geometry is the only thing that
+//says where the window inside the buffer begins. without it the shadow is
+//scaled into the cell along with the window and every pixel of the client
+//lands between two of the output's: a 1.037x minification of the whole
+//window, which is a permanently blurry firefox.
+//
+//the rect is the client's to send and may arrive before it has attached
+//anything, so one that does not fit inside the buffer it has is refused in
+//favour of the whole buffer
+static void task_window_geometry(Task *task, double surface_width,
+                                 double surface_height, double *x, double *y,
+                                 double *width, double *height) {
+
+  *x = 0;
+  *y = 0;
+  *width = surface_width;
+  *height = surface_height;
+
+  if (!task->top_level || !task->top_level->surface)
+    return;
+
+  DesktopSurface *desktop_surface = task->top_level->surface;
+
+  if (desktop_surface->geometry_width <= 0 ||
+      desktop_surface->geometry_height <= 0)
+    return;
+
+  if (desktop_surface->geometry_x < 0 || desktop_surface->geometry_y < 0)
+    return;
+
+  if (desktop_surface->geometry_x + desktop_surface->geometry_width >
+          surface_width ||
+      desktop_surface->geometry_y + desktop_surface->geometry_height >
+          surface_height)
+    return;
+
+  *x = desktop_surface->geometry_x;
+  *y = desktop_surface->geometry_y;
+  *width = desktop_surface->geometry_width;
+  *height = desktop_surface->geometry_height;
 }
 
 //where a surface's own origin lands on the virtual desktop, and how much its
@@ -51,10 +97,13 @@ static bool task_origin_and_scale(Task *task, double *x, double *y,
       task_surface_size(task, task->tile_width, task->tile_height,
                         &surface_width, &surface_height);
 
-      *x = task->tile_x;
-      *y = task->tile_y;
+      //the cell was configured as a *window geometry* size, so it is the
+      //geometry rect that has to land on it and not the buffer around it
+      double geometry_x, geometry_y, geometry_width, geometry_height;
+      task_window_geometry(task, surface_width, surface_height, &geometry_x,
+                           &geometry_y, &geometry_width, &geometry_height);
 
-      //a buffer that already fits the cell is drawn at its own size rather
+      //a window that already fits the cell is drawn at its own size rather
       //than stretched up to fill it. the stretch is only there to cover the
       //frames between a configure and the client repainting, and in the
       //direction where the cell grew - close a window and the survivor is
@@ -65,15 +114,22 @@ static bool task_origin_and_scale(Task *task, double *x, double *y,
       //as broken and because a buffer larger than its cell drawn at its own
       //size would spill over the window next to it - there is no scissor here
       //to stop it
-      if (surface_width <= task->tile_width &&
-          surface_height <= task->tile_height) {
+      if (geometry_width <= task->tile_width &&
+          geometry_height <= task->tile_height) {
         *scale_x = 1;
         *scale_y = 1;
-        return true;
+      } else {
+        *scale_x = task->tile_width / geometry_width;
+        *scale_y = task->tile_height / geometry_height;
       }
 
-      *scale_x = task->tile_width / surface_width;
-      *scale_y = task->tile_height / surface_height;
+      //what is returned is still the origin of the *buffer*, since that is
+      //what the quad is drawn from and what a subsurface's own offset is
+      //measured in - it is just moved back by the shadow, so that the window
+      //inside the buffer is what covers the cell
+      *x = task->tile_x - geometry_x * *scale_x;
+      *y = task->tile_y - geometry_y * *scale_y;
+
       return true;
     }
 

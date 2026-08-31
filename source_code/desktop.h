@@ -13,7 +13,8 @@ typedef struct DesktopSurface{
   //owes nothing
   uint32_t pending_serial;
   //xdg_surface.set_window_geometry: the window without the client's own
-  //shadows. recorded but not used yet, the quad samples the whole buffer
+  //shadows. this, not the buffer, is what the layout's cell sizes - see
+  //task_window_geometry() (subcompositor.c)
   int32_t geometry_x;
   int32_t geometry_y;
   int32_t geometry_width;

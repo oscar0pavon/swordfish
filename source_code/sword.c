@@ -128,8 +128,15 @@ void draw_surface(Task* surface, PRenderTarget *render_target,
     surface->logged_tile_width = surface->tile_width;
     surface->logged_tile_height = surface->tile_height;
 
-    log_info("Drawing buffer %ix%i in cell %ix%i (%s) for \"%s\"",
+    DesktopSurface *desktop_surface = surface->top_level->surface;
+
+    log_info("Drawing buffer %ix%i (window %ix%i at %i %i) in cell %ix%i (%s) "
+             "for \"%s\"",
              surface->image->width, surface->image->heigth,
+             desktop_surface ? desktop_surface->geometry_width : 0,
+             desktop_surface ? desktop_surface->geometry_height : 0,
+             desktop_surface ? desktop_surface->geometry_x : 0,
+             desktop_surface ? desktop_surface->geometry_y : 0,
              surface->tile_width, surface->tile_height,
              width == surface->image->width ? "own size" : "stretched",
              surface->top_level->title ? surface->top_level->title
