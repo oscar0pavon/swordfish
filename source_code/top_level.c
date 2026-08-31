@@ -44,13 +44,57 @@ static void set_app_id(WClient *client, WResource *resource,
   log_info("Task app id: %s", top_level->app_id);
 }
 
+static void add_state(struct wl_array *states, uint32_t state){
+  uint32_t *entry = wl_array_add(states, sizeof(*entry));
+  *entry = state;
+}
+
+//the tiled states are since version 2, so a client that bound xdg_wm_base at 1
+//still gets the empty array. a floating window is not tiled in any sense the
+//protocol means: it really is free-standing, and the shadow under it is what
+//makes it read as sitting over the tiling rather than in it
+static bool top_level_is_tiled(TopLevel *toplevel){
+
+  if(wl_resource_get_version(toplevel->resource) <
+     XDG_TOPLEVEL_STATE_TILED_LEFT_SINCE_VERSION)
+    return false;
+
+  //reconfigure() reaches this straight from a client request, so neither half
+  //of the chain back to the Task can be assumed to be there
+  if(!toplevel->surface || !toplevel->surface->surface)
+    return false;
+
+  return !toplevel->surface->surface->is_floating;
+}
+
 void send_top_level_configure(TopLevel* toplevel, int width, int height){
   struct wl_array states;
   wl_array_init(&states);
 
-  //no states: not maximized, not fullscreen. that is the honest answer to the
-  //requests below, which the protocol says must be answered with a configure
-  //whether or not the compositor grants them
+  //not maximized and not fullscreen, which is the honest answer to the
+  //requests below - the protocol says they must be answered with a configure
+  //whether or not the compositor grants them.
+  //
+  //the four tiled states are here because a configure carrying *no* states is
+  //a suggestion: the protocol says the size in it is a hint and the client may
+  //take its own instead. firefox does - it maps at the cell it was given, then
+  //restores its session and redraws at the size it remembered from the last
+  //run. the layout only sends a configure when the cell changes, so nothing
+  //ever took that back and the window sat squashed into a cell it was nearly
+  //twice the height of until super+f floated it and forced a fresh one.
+  //
+  //they also tell a client with its own decorations that every edge of it is
+  //against something, so it drops the shadow it draws *outside* its window
+  //geometry - the 26px firefox pads all four sides with, which the quad has no
+  //way to know is not part of the window and stretched into the cell along
+  //with it. the buffer comes out the size of the cell exactly
+  if(top_level_is_tiled(toplevel)){
+    add_state(&states, XDG_TOPLEVEL_STATE_TILED_LEFT);
+    add_state(&states, XDG_TOPLEVEL_STATE_TILED_RIGHT);
+    add_state(&states, XDG_TOPLEVEL_STATE_TILED_TOP);
+    add_state(&states, XDG_TOPLEVEL_STATE_TILED_BOTTOM);
+  }
+
   xdg_toplevel_send_configure(toplevel->resource,
       width,
       height,
@@ -85,8 +129,9 @@ void top_level_close(TopLevel *top_level){
 
 //a tiled window is already the only size it is going to get, so a request to
 //change state is answered with a configure carrying the size the layout gave
-//it and no states - "declined". leaving it unanswered is what hangs a client:
-//it waits for the configure before it will draw anything again
+//it and neither maximized nor fullscreen among its states - "declined".
+//leaving it unanswered is what hangs a client: it waits for the configure
+//before it will draw anything again
 static void reconfigure(WResource *resource){
   TopLevel *top_level = wl_resource_get_user_data(resource);
   send_top_level_configure(top_level, top_level->width, top_level->height);

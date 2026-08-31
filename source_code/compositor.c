@@ -113,7 +113,13 @@ void init_compositor(void){
   wl_global_create(compositor.display, &wl_compositor_interface,
                    COMPOSITOR_VERSION, &compositor, bind_compositor);
 
-  wl_global_create(compositor.display, &xdg_wm_base_interface, 1, &compositor,
+  //version 2, which is the one the tiled toplevel states arrived in - see
+  //send_top_level_configure(). the bump costs nothing: v2 adds no request to
+  //any of the four xdg interfaces, so nothing new needs a handler. v3 does,
+  //and going there without writing xdg_popup.reposition and the three
+  //xdg_positioner requests that came with it takes the compositor down the
+  //first time a client repositions a menu
+  wl_global_create(compositor.display, &xdg_wm_base_interface, 2, &compositor,
                    bind_desktop);
 
   //a window made of more than one surface. firefox aborts outright without
