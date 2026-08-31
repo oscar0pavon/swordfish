@@ -212,6 +212,15 @@ void primary_selection_offer_selection(WClient *client) {
   }
 }
 
+void primary_selection_clear_selection(WClient *client) {
+
+  WResource *device;
+  wl_resource_for_each(device, &primary_devices) {
+    if (wl_resource_get_client(device) == client)
+      zwp_primary_selection_device_v1_send_selection(device, NULL);
+  }
+}
+
 static void set_primary_selection(WClient *client, WResource *resource,
                                   WResource *source, uint32_t serial) {
 

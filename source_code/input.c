@@ -142,6 +142,15 @@ void set_keyboard_focus(Task *task){
   if(keyboard)
     wl_keyboard_send_leave(keyboard, next_serial(), keyboard_focus->resource);
 
+  //both clipboards follow the keyboard out as well as in. the offers this
+  //client was sent stop being valid the moment it stops being focused, and it
+  //only knows to destroy them because of the NULL selection sent here
+  WClient *leaving = keyboard_focus_client();
+  if(leaving){
+    data_device_clear_selection(leaving);
+    primary_selection_clear_selection(leaving);
+  }
+
   keyboard_focus = task;
   focus_entered = false;
 

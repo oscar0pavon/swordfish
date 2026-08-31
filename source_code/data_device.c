@@ -254,6 +254,19 @@ void data_device_offer_selection(WClient *client) {
   }
 }
 
+//the other half of the same rule: an offer is only valid while the client
+//holds the keyboard, and the protocol has the client destroy it when a NULL
+//selection arrives. one that is never told keeps an offer it is no longer
+//entitled to read and asks a source that has moved on for the data
+void data_device_clear_selection(WClient *client) {
+
+  WResource *device;
+  wl_resource_for_each(device, &data_devices) {
+    if (wl_resource_get_client(device) == client)
+      wl_data_device_send_selection(device, NULL);
+  }
+}
+
 static void set_selection(WClient *client, WResource *resource,
                           WResource *source, uint32_t serial) {
 

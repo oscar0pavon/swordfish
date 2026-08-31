@@ -14,4 +14,6 @@ void init_primary_selection();
 //zwp_primary_selection_offer_v1 belongs to one client
 void primary_selection_offer_selection(WClient *client);
 
+void primary_selection_clear_selection(WClient *client);
+
 #endif

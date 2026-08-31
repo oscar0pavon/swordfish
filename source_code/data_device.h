@@ -15,4 +15,9 @@ void init_data_device();
 //on every focus change rather than once when it is set
 void data_device_offer_selection(WClient *client);
 
+//and take it back when the client loses the keyboard: the protocol has a
+//client destroy its offer on a NULL selection, and only the focused client is
+//entitled to a non-NULL one
+void data_device_clear_selection(WClient *client);
+
 #endif
