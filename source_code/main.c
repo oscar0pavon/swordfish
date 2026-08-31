@@ -69,7 +69,11 @@ int main(void){
   //VT_PROCESS still set, and no VT can be switched to afterwards
   signal(SIGTERM, handle_signal);
 
-  pe_init_memory();
+  //INFO measured arena usage under normal load is ~15KB (Arrays and other
+  //bookkeeping structs only - client buffers and textures go through Vulkan,
+  //not this arena). 16MB leaves generous headroom without the old 750MB's
+  //memset committing that much RSS on every startup
+  pe_init_memory(16 * 1024 * 1024);
   
   array_init(&tasks_for_draw, sizeof(void *), 50);
 
