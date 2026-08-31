@@ -103,7 +103,7 @@ static void swallow_key(uint32_t key_code) {
 static bool handle_sword_key(uint32_t unicode) {
 
   switch (unicode) {
-  case 'y':
+  case '\r':
     //must not block: this runs on the input thread, and in the pway path that
     //thread is also what pumps the window
     launch_program((char* const[]){"/root/pterminal/pterminal", NULL});
@@ -113,20 +113,22 @@ static bool handle_sword_key(uint32_t unicode) {
     //thread is also what pumps the window
     launch_program((char* const[]){"/usr/bin/firefox", NULL});
     return true;
-  case 'j':
+  case 'l':
     layout_focus_next(1);
     return true;
-  case 'k':
+  case 'h':
     layout_focus_next(-1);
     return true;
   case 'c':
-    //the focused window, not the compositor - q below is what closes that
+  case 'Q':
+    //the focused window, not the compositor - shift+c below closes that
     layout_close_focused();
     return true;
   case ' ':
     layout_toggle_floating();
     return true;
-  case 'q':
+  case 'C':
+    //shift+c: closes sword itself, not the focused window - plain c above does that
     log_info("Closing from keyboard");
     exit(0);
     return true;

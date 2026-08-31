@@ -16,7 +16,7 @@
 //the space between two windows, in render target pixels. the whole point of it
 //is that a tiled window has an edge - without one two terminals side by side
 //read as a single wider terminal
-#define LAYOUT_GAP 8
+#define LAYOUT_GAP 0
 
 //every cell gives up half a gap on each side, so two neighbours between them
 //give up a whole one. the output starts out short of the same half gap, which

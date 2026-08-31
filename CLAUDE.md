@@ -277,11 +277,9 @@ of a missing global before a protocol error** — the protocol error at least
 prints. The absence shows up as a *gap in sword's own log*: every bind
 handler prints, so the missing line is the diagnosis.
 
-Still not advertised: `zwp_primary_selection_device_manager_v1`. GDK degrades
-without it, but pterminal's `pway_primary_copy()` wants it. The XML is at
-`/usr/share/wayland-protocols/unstable/primary-selection/`, so it needs two
-`wayland-scanner` lines in `generate_wayland_protocol_files.sh` and a near-copy
-of `data_device.c` with the drag half removed.
+Still not advertised: `ext_data_control_manager_v1`. See **The clipboard tools
+open a window** below — it is the cure for a visible glitch, not a missing
+capability, which is why it is still a TODO rather than a bug.
 
 ### xdg-shell
 
@@ -376,9 +374,10 @@ head, so that is newest first and the focus lands on the window the closed one
 was mapped over rather than on the oldest one on screen.
 
 Shortcuts live in `handle_sword_key()` (`keyboard.c`) with the rest:
-**super+j / super+k** cycle the focus, **super+c** closes the focused window —
-`q` is already the compositor's own exit. `xdg_toplevel.close` is a *request*; a
-client with unsaved work may put up a dialog and stay.
+**super+enter** opens a terminal, **super+h / super+l** cycle the focus,
+**super+c** closes the focused window, and **super+shift+c** is the
+compositor's own exit. `xdg_toplevel.close` is a *request*; a client with
+unsaved work may put up a dialog and stay.
 
 **ctrl+alt+Fn / ctrl+alt+number** switch VT, and are the one shortcut not behind
 super: it is the gesture the kernel console answers, and `tty_silence_keyboard()`
@@ -430,7 +429,7 @@ global more than once, and enter is owed on each of its own.
 pway never binds `wl_output`, so pterminal exercises none of this. It exists for
 the toolkit clients that would otherwise stall.
 
-### The clipboard (`data_device.c`)
+### The clipboard (`data_device.c`, `primary_selection.c`)
 
 `wl_data_device_manager` at version 3 — see **Advertised global versions** for
 why GDK will not start without it. **None of the data passes through the
@@ -447,6 +446,16 @@ selection is set is not enough. `send_keyboard_enter()` calls
 copy in one window paste into another. `keyboard_focus_client()` (`input.c`) is
 how the clipboard finds out who to offer to; the reads and the writes of
 `keyboard_focus` all happen on the one thread, so it needs no synchronisation.
+
+The offer is taken back the same way it was given. `set_keyboard_focus()` sends
+the client that is losing the keyboard a `selection` event with a **NULL** offer
+— `data_device_clear_selection()` and `primary_selection_clear_selection()`,
+which are the offer walk with a NULL in place of the offer. The protocol has a
+client destroy its previous offer when that arrives, and only the focused client
+is entitled to a non-NULL one; a client that is never told keeps an offer of a
+source it can no longer read. The guard is `keyboard_focus_client()`, which is
+NULL until a client has actually been sent an `enter`, so a client that never
+got an offer is not sent a clearing event it cannot make sense of.
 
 The source belongs to a client that can destroy it while another client is still
 holding an offer of it, so **every offer carries a `wl_listener` on the source's
@@ -496,7 +505,7 @@ would otherwise take the pointer over the whole rectangle it would be drawn at.
 
 **Click to focus** is in `send_wayland_pointer_button()`. The pointer and the
 keyboard are two separate focuses: `pointer_focus` follows the cursor by itself,
-but the keyboard follows `focused_task`, which only a new window and super+j/k
+but the keyboard follows `focused_task`, which only a new window and super+h/l
 ever moved — so clicking a terminal sent the pointer there and left the keys
 going wherever they already went. A **press** stores `pointer_focus` in
 `focused_task` and the frame step's `handle_focus()` turns that into
