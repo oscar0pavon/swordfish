@@ -9,6 +9,7 @@
 #include <wayland-server-core.h>
 #include "keyboard.h"
 #include "data_device.h"
+#include "primary_selection.h"
 #include "surface.h"
 #include <libinput.h>
 #include <time.h>
@@ -111,6 +112,7 @@ static void send_keyboard_enter(void){
   //the clipboard follows the keyboard: a wl_data_offer belongs to one client,
   //so whatever is on the selection has to be offered again to this one
   data_device_offer_selection(wl_resource_get_client(keyboard_focus->resource));
+  primary_selection_offer_selection(wl_resource_get_client(keyboard_focus->resource));
 
   log_debug("Keyboard focus entered");
 }

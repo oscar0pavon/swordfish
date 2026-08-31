@@ -16,6 +16,7 @@
 #include "desktop-server.h"
 #include "desktop.h"
 #include "data_device.h"
+#include "primary_selection.h"
 #include "input.h"
 #include "output.h"
 #include "region.h"
@@ -130,6 +131,10 @@ void init_compositor(void){
   //GDK will not build a seat until this global exists, so a GTK client hangs
   //in its registry roundtrip with no keyboard and no pointer without it
   init_data_device();
+
+  //degrades gracefully - a client that wants it and finds it missing just
+  //never offers a primary selection, see primary_selection.c
+  init_primary_selection();
 
 
   const char *socket = wl_display_add_socket_auto(compositor.display);

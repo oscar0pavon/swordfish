@@ -10,3 +10,11 @@ XML_PATH="/usr/share/wayland-protocols/stable/linux-dmabuf/linux-dmabuf-v1.xml"
 wayland-scanner server-header $XML_PATH linux-dmabuf.h
 
 wayland-scanner public-code $XML_PATH linux-dmabuf.c
+
+
+# Generate the primary selection files
+PRIMARY_SELECTION_XML_PATH="/usr/share/wayland-protocols/unstable/primary-selection/primary-selection-unstable-v1.xml"
+
+wayland-scanner server-header $PRIMARY_SELECTION_XML_PATH primary-selection.h
+
+wayland-scanner public-code $PRIMARY_SELECTION_XML_PATH primary-selection.c
