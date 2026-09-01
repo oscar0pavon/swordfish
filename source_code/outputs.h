@@ -8,7 +8,13 @@
 
 //one physical monitor (DRM) or, under the nested Wayland path, the one host
 //window - laid left to right in a single virtual coordinate space that
-//layout.c tiles into and mouse.c's cursor moves through
+//layout.c tiles into and mouse.c's cursor moves through.
+//
+//the table's own order is the render target order and never changes (see
+//sword_outputs_init()), but the x origins are handed out rotated outputs
+//first, so a portrait monitor sits at the left of the virtual desktop. index
+//order is therefore not left-to-right order, and nothing may take
+//sword_outputs[0] for the leftmost output or the last entry for the rightmost
 typedef struct SwordOutput {
   int32_t x, y; //origin in the virtual desktop; y is always 0
   int32_t width, height; //logical size - width/height are swapped from the

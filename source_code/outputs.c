@@ -419,15 +419,13 @@ int sword_outputs_count;
 
 void sword_outputs_init(void) {
 
-  int32_t x = 0;
-
   sword_outputs_count = pe_render_targets_count;
 
   for (u32 i = 0; i < pe_render_targets_count; i++) {
     PRenderTarget *target = &pe_render_targets[i];
 
     SwordOutput *out = &sword_outputs[i];
-    out->x = x;
+    out->x = 0;
     out->y = 0;
     out->rotated = output_rotate_requested((int)i);
 
@@ -439,11 +437,35 @@ void sword_outputs_init(void) {
     out->height = out->rotated ? (int32_t)target->width : (int32_t)target->heigth;
 
     snprintf(out->name, sizeof(out->name), "sword-%u", i);
+  }
 
-    log_info("Output %s: %ix%i at x=%i%s", out->name, out->width, out->height,
-             out->x, out->rotated ? " (rotated 90)" : "");
+  //INFO the x origins are handed out in two passes, rotated outputs first, so
+  //a portrait monitor is always the leftmost one - which is where it is
+  //physically mounted. It cannot be done by reordering sword_outputs[]
+  //instead: the index into this table *is* the render target's index
+  //(draw_surface() and cursor.c both reach it as render_target -
+  //pe_render_targets), and SWORD_OUTPUT_ROTATE names indices in that same
+  //order. So the array order stays the enumeration order and only x moves,
+  //which is why nothing downstream may assume index order is left-to-right -
+  //see sword_output_at() and sword_virtual_width()
+  int32_t x = 0;
 
-    x += out->width;
+  for (int pass = 0; pass < 2; pass++) {
+
+    bool rotated_pass = (pass == 0);
+
+    for (int i = 0; i < sword_outputs_count; i++) {
+      SwordOutput *out = &sword_outputs[i];
+
+      if (out->rotated != rotated_pass)
+        continue;
+
+      out->x = x;
+      x += out->width;
+
+      log_info("Output %s: %ix%i at x=%i%s", out->name, out->width, out->height,
+               out->x, out->rotated ? " (rotated 90)" : "");
+    }
   }
 }
 
@@ -460,9 +482,22 @@ SwordOutput *sword_output_at(double x) {
 
   //off either end of the virtual desktop - clamp to the nearest output
   //rather than answering NULL, since a cursor position always has to resolve
-  //to some output
-  return (x < 0) ? &sword_outputs[0]
-                 : &sword_outputs[sword_outputs_count - 1];
+  //to some output. the leftmost and rightmost are searched for rather than
+  //taken as the first and last entries: sword_outputs_init() puts a rotated
+  //output at the low x whatever its index is
+  SwordOutput *leftmost = &sword_outputs[0];
+  SwordOutput *rightmost = &sword_outputs[0];
+
+  for (int i = 1; i < sword_outputs_count; i++) {
+    SwordOutput *out = &sword_outputs[i];
+
+    if (out->x < leftmost->x)
+      leftmost = out;
+    if (out->x + out->width > rightmost->x + rightmost->width)
+      rightmost = out;
+  }
+
+  return (x < leftmost->x) ? leftmost : rightmost;
 }
 
 int sword_output_index_at(double x) {
@@ -475,8 +510,17 @@ int32_t sword_virtual_width(void) {
   if (sword_outputs_count == 0)
     return 0;
 
-  SwordOutput *last = &sword_outputs[sword_outputs_count - 1];
-  return last->x + last->width;
+  //the right edge of whichever output reaches furthest, not of the last one
+  //in the table - sword_outputs_init() hands out x by rotation, not by index
+  int32_t right = 0;
+
+  for (int i = 0; i < sword_outputs_count; i++) {
+    SwordOutput *out = &sword_outputs[i];
+    if (out->x + out->width > right)
+      right = out->x + out->width;
+  }
+
+  return right;
 }
 
 int32_t sword_max_output_height(void) {
