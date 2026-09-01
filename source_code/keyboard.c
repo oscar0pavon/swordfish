@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include "input.h"
 #include "log.h"
+#include "wayland_window/window.h"
 
 struct xkb_context *xkb_context;
 struct xkb_keymap *xkb_keymap;
@@ -130,7 +131,7 @@ static bool handle_sword_key(uint32_t unicode) {
   case 'C':
     //shift+c: closes sword itself, not the focused window - plain c above does that
     log_info("Closing from keyboard");
-    exit(0);
+    sword_running = false;
     return true;
   case 'w':
     //there is only a VT to switch when we own the tty. this used to call

@@ -28,6 +28,12 @@
 
 
 void close_sword() {
+
+  static bool closed;
+  if (closed)
+    return;
+  closed = true;
+
   log_info("Closing Sword");
 
   sword_running = false;
@@ -56,8 +62,11 @@ void close_sword() {
   clear_engine_memory();
 }
 
+//the teardown runs from main(); SIG_DFL back so a second ctrl+c kills a
+//wedged loop
 void handle_signal(int sig_num) {
-  close_sword();
+  signal(sig_num, SIG_DFL);
+  sword_running = false;
 }
 
 int main(void){
@@ -124,6 +133,8 @@ int main(void){
   init_compositor();
 
   run_compositor();
+
+  close_sword();
 
 finish:
   if(is_wayland_window)

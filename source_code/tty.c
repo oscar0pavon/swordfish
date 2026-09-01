@@ -40,6 +40,10 @@ static bool keyboard_silenced;
 //still has more than one VT. that half is the kernel's own VT_PROCESS
 //protocol, and it is right here
 static int drm_fd = -1;
+
+#define SAVED_CRTC_MAX 8
+#define SAVED_CRTC_MAX_CONNECTORS 8
+
 static struct vt_mode original_vt_mode;
 static bool vt_mode_taken;
 static bool session_active = true;
@@ -197,6 +201,123 @@ bool tty_session_is_active(void) {
   return session_active;
 }
 
+//INFO the mode and framebuffer fbcon left each crtc on, put back in
+//tty_session_finish(). Dropping master and exiting does not re-light a
+//monitor by itself
+typedef struct SavedCrtc {
+  uint32_t crtc_id;
+  uint32_t buffer_id;
+  uint32_t x, y;
+  drmModeModeInfo mode;
+  int mode_valid;
+  uint32_t connectors[SAVED_CRTC_MAX_CONNECTORS];
+  int connector_count;
+} SavedCrtc;
+
+static SavedCrtc saved_crtcs[SAVED_CRTC_MAX];
+static int saved_crtcs_count;
+
+static void saved_crtc_collect_connectors(drmModeRes *resources,
+                                          SavedCrtc *saved) {
+
+  saved->connector_count = 0;
+
+  for (int i = 0; i < resources->count_connectors &&
+                  saved->connector_count < SAVED_CRTC_MAX_CONNECTORS;
+       i++) {
+
+    drmModeConnector *connector =
+        drmModeGetConnector(drm_fd, resources->connectors[i]);
+    if (!connector)
+      continue;
+
+    if (connector->encoder_id) {
+      drmModeEncoder *encoder = drmModeGetEncoder(drm_fd, connector->encoder_id);
+      if (encoder) {
+        if (encoder->crtc_id == saved->crtc_id)
+          saved->connectors[saved->connector_count++] = connector->connector_id;
+        drmModeFreeEncoder(encoder);
+      }
+    }
+
+    drmModeFreeConnector(connector);
+  }
+}
+
+static void save_crtc_state(void) {
+
+  saved_crtcs_count = 0;
+
+  if (drm_fd < 0)
+    return;
+
+  drmModeRes *resources = drmModeGetResources(drm_fd);
+  if (!resources) {
+    log_warn("Can't enumerate CRTCs to save the console mode: %s",
+             strerror(errno));
+    return;
+  }
+
+  for (int i = 0;
+       i < resources->count_crtcs && saved_crtcs_count < SAVED_CRTC_MAX; i++) {
+
+    drmModeCrtc *crtc = drmModeGetCrtc(drm_fd, resources->crtcs[i]);
+    if (!crtc)
+      continue;
+
+    SavedCrtc *saved = &saved_crtcs[saved_crtcs_count++];
+
+    saved->crtc_id = crtc->crtc_id;
+    saved->buffer_id = crtc->buffer_id;
+    saved->x = crtc->x;
+    saved->y = crtc->y;
+    saved->mode = crtc->mode;
+    saved->mode_valid = crtc->mode_valid && crtc->buffer_id;
+
+    if (saved->mode_valid)
+      saved_crtc_collect_connectors(resources, saved);
+    else
+      saved->connector_count = 0;
+
+    log_info("Saved crtc %u: %s, fb %u, %u connector(s)", saved->crtc_id,
+             saved->mode_valid ? saved->mode.name : "off", saved->buffer_id,
+             saved->connector_count);
+
+    drmModeFreeCrtc(crtc);
+  }
+
+  drmModeFreeResources(resources);
+}
+
+//INFO only while we still hold master: every modeset after drmDropMaster()
+//is EACCES
+static void restore_crtc_state(void) {
+
+  if (drm_fd < 0)
+    return;
+
+  for (int i = 0; i < saved_crtcs_count; i++) {
+
+    SavedCrtc *saved = &saved_crtcs[i];
+
+    //off rather than left on a swapchain framebuffer about to be freed - that
+    //dangling scanout is what reads as "no signal"
+    if (!saved->mode_valid || saved->connector_count == 0) {
+      if (drmModeSetCrtc(drm_fd, saved->crtc_id, 0, 0, 0, NULL, 0, NULL) < 0)
+        log_warn("Can't turn crtc %u off: %s", saved->crtc_id, strerror(errno));
+      continue;
+    }
+
+    if (drmModeSetCrtc(drm_fd, saved->crtc_id, saved->buffer_id, saved->x,
+                       saved->y, saved->connectors, saved->connector_count,
+                       &saved->mode) < 0)
+      log_warn("Can't restore crtc %u to the console mode: %s", saved->crtc_id,
+               strerror(errno));
+    else
+      log_info("Restored crtc %u to %s", saved->crtc_id, saved->mode.name);
+  }
+}
+
 //INFO master has to be taken *before* vulkan is initialised. mesa's wsi_display
 //keeps the primary node fd radv opened for itself and only uses it if that fd
 //is master (wsi_display_init_wsi), which is what happens when sword is the
@@ -265,6 +386,9 @@ bool tty_session_init(const char *gpu_path) {
   if (!take_drm_master(gpu_path))
     return false;
 
+  //before vulkan modesets anything, so this records the console's own state
+  save_crtc_state();
+
   //sword may equally be started from a VT another compositor just left
   drm_disable_cursor_planes();
 
@@ -314,13 +438,17 @@ bool tty_session_init(const char *gpu_path) {
 
 void tty_session_finish(void) {
 
-  tty_restore_state();
+  //the order matters: the modeset needs master, and KD_TEXT after it so fbcon
+  //draws onto a framebuffer already scanning out
+  restore_crtc_state();
 
   if (drm_fd >= 0) {
     drmDropMaster(drm_fd);
     close(drm_fd);
     drm_fd = -1;
   }
+
+  tty_restore_state();
 }
 
 //INFO ioctl and nothing else: this runs from the crash handler on a process
@@ -330,6 +458,9 @@ void tty_emergency_restore(void) {
 
   if (tty_file < 0)
     return;
+
+  //drmModeSetCrtc is an ioctl and a stack struct, nothing more
+  restore_crtc_state();
 
   if (vt_mode_taken)
     ioctl(tty_file, VT_SETMODE, &original_vt_mode);
