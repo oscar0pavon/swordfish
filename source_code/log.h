@@ -18,17 +18,16 @@ typedef enum LogLevel {
 void log_init(void);
 
 //sends stdout and stderr into the log file as well, so the printf() calls all
-//over sword and the vulkan validation layer's own output are captured
-//too. only for the bare DRM path - on the pway path the terminal is real
+//over sword and the vulkan validation layer's own output are captured too
 void log_redirect_stdio(void);
 
 void log_end(void);
 
 //run first thing in the crash handler, before the backtrace is written. it is
 //there for tty.c: a compositor that dies with the console keyboard off and the
-//VT in graphics mode leaves a machine that cannot be typed on at all. NULL on
-//the pway path, where there is no tty to put back. whatever is hung on it runs
-//on a dying process, so it may call nothing but write() and ioctl()
+//VT in graphics mode leaves a machine that cannot be typed on at all.
+//whatever is hung on it runs on a dying process, so it may call nothing but
+//write() and ioctl()
 extern void (*log_crash_hook)(void);
 
 void log_write(LogLevel level, const char *file, int line, const char *format,

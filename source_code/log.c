@@ -19,9 +19,9 @@
 
 static int log_file = -1;
 
-//where the records are echoed as well as written. the terminal on the pway
-//path, and -1 once log_redirect_stdio() has pointed the terminal's own file
-//descriptors at the log file, which would otherwise print everything twice
+//where the records are echoed as well as written, and -1 once
+//log_redirect_stdio() has pointed the terminal's own file descriptors at the
+//log file, which would otherwise print everything twice
 static int mirror_file = STDERR_FILENO;
 
 static LogLevel minimum_level = LOG_LEVEL_DEBUG;
@@ -65,8 +65,8 @@ static double seconds_since_start(void) {
          (now.tv_nsec - start_time.tv_nsec) / 1000000000.0;
 }
 
-//"./wayland_window/window.c" is how the makefile spells it on the command line,
-//and __FILE__ repeats it. the file name on its own is what is worth reading
+//the makefile passes relative paths on the command line, and __FILE__ repeats
+//them. the file name on its own is what is worth reading
 static const char *file_name_only(const char *path) {
   const char *slash = strrchr(path, '/');
   return slash ? slash + 1 : path;

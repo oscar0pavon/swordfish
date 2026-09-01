@@ -31,7 +31,7 @@ typedef struct SwordCompositor{
 }SwordCompositor;
 
 
-//this thread also drives input (pway or libinput) and the render loop; see
+//this thread also drives input (libinput) and the render loop; see
 //the stage-3 note in sword.c's sword_frame_step(). there is only one
 //thread now, so nothing that sends to a client needs a lock any more
 void run_compositor(void);
@@ -44,6 +44,7 @@ uint32_t next_serial(void);
 
 extern bool is_focus_completed;
 extern bool is_opengl;
+extern bool sword_running;
 
 extern SwordCompositor compositor;
 #endif

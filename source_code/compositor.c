@@ -26,9 +26,7 @@
 #include "shared_memory.h"
 #include "subcompositor.h"
 #include "sword.h"
-#include "wayland_window/window.h"
 #include "device_input.h"
-#include <pway/pway.h>
 #include "log.h"
 
 //how long the compositor thread waits for a client before looking at
@@ -41,6 +39,8 @@
 #define FRAME_INTERVAL_NS 16667000L
 
 SwordCompositor compositor;
+
+bool sword_running = true;
 
 //every event a client can correlate needs its own serial. a constant made all
 //of them look like the same event, which is why clients ignored the keys
@@ -163,8 +163,7 @@ void init_compositor(void){
   log_info("Wayland socket available at %s", socket);
   log_info("Compositor running. Use a Wayland client to connect.");
 
-  if (!is_wayland_window)
-    init_input();
+  init_input();
 
 }
 
@@ -186,41 +185,16 @@ void run_compositor(void) {
 
     wl_display_flush_clients(compositor.display);
 
-    if (is_wayland_window)
-      pway_prepare_to_read_events();
-
-    struct pollfd fds[5];
-    nfds_t nfds = 2;
-
-    fds[0] = (struct pollfd){
-        .fd = wl_event_loop_get_fd(compositor.event_loop),
-        .events = POLLIN,
+    struct pollfd fds[3] = {
+        {.fd = wl_event_loop_get_fd(compositor.event_loop), .events = POLLIN},
+        {.fd = frame_timer_fd, .events = POLLIN},
+        {.fd = libinput_get_fd(libinput), .events = POLLIN},
     };
-    fds[1] = (struct pollfd){
-        .fd = frame_timer_fd,
-        .events = POLLIN,
-    };
-
-    if (is_wayland_window) {
-      //pway->fds[2] (app_fd) is unused by sword and stays fd -1, which
-      //poll() ignores - included anyway so pway->fds keeps lining up 1:1 with
-      //fds[2..4] for the revents copy-back below
-      fds[2] = pway->fds[0]; //host wayland connection
-      fds[3] = pway->fds[1]; //key repeat timerfd
-      fds[4] = pway->fds[3]; //paste event
-      nfds = 5;
-    } else if (is_drm_rendering) {
-      fds[2] = (struct pollfd){
-          .fd = libinput_get_fd(libinput),
-          .events = POLLIN,
-      };
-      nfds = 3;
-    }
 
     //a timeout rather than an infinite wait, so a quiet client does not keep
     //the thread from noticing that sword is closing - the frame timer
     //already wakes it every ~16.7ms in practice
-    if (poll(fds, nfds, COMPOSITOR_POLL_TIMEOUT_MS) < 0 &&
+    if (poll(fds, 3, COMPOSITOR_POLL_TIMEOUT_MS) < 0 &&
         errno != EINTR) {
       log_error("Compositor event loop poll failed: %m");
       break;
@@ -230,26 +204,13 @@ void run_compositor(void) {
     //waited for it
     wl_event_loop_dispatch(compositor.event_loop, 0);
 
-    //input first, and the frame only after it. pway_prepare_to_read_events()
-    //above left its connection to the host compositor in a pending read, and
-    //nothing may touch that connection until this closes it - rendering does,
-    //because presenting goes out through VK_KHR_wayland_surface on the very
-    //same wl_display. drawing before this ran wedged the connection and no
-    //input was ever read
-    if (is_wayland_window) {
-      pway->fds[0].revents = fds[2].revents;
-      pway->fds[1].revents = fds[3].revents;
-      pway->fds[3].revents = fds[4].revents;
-      pway_dispatch_events();
-    } else if (is_drm_rendering && (fds[2].revents & POLLIN)) {
+    if (fds[2].revents & POLLIN)
       dispatch_libinput_events();
-    }
 
     //a VT switch the signal handler recorded. after input, so a keypress that
     //asked for the switch is dispatched before it happens, and before the
     //frame step, which must not run once the display is gone
-    if (is_drm_rendering)
-      tty_session_handle_pending();
+    tty_session_handle_pending();
 
     if (fds[1].revents & POLLIN) {
       //must be read to re-arm a periodic timerfd's readability - otherwise
@@ -260,7 +221,7 @@ void run_compositor(void) {
       //another VT owns the screen: we dropped DRM master, so presenting would
       //be submitting to a display that is not ours. clients simply do not get
       //frame callbacks until it comes back, which is what stops them drawing
-      if (!is_drm_rendering || tty_session_is_active())
+      if (tty_session_is_active())
         sword_frame_step();
     }
   }

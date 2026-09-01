@@ -15,9 +15,9 @@
 //job and is all that is left
 //
 //a blocking spawn is exactly what a keybinding must not do: it runs on the
-//compositor loop, so waiting there stops pway from being pumped and freezes
-//the window until the program is closed. double fork so the grandchild is
-//reparented to init and nothing has to be reaped later
+//compositor loop, so waiting there freezes every client until the program is
+//closed. double fork so the grandchild is reparented to init and nothing has
+//to be reaped later
 
 //INFO the grandchild is init's now, not ours, so nothing kills it when sword
 //exits - no SIGHUP, no process group in common, and a client that never

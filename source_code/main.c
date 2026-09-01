@@ -16,7 +16,6 @@
 #include "launch.h"
 #include <engine/renderer/vulkan.h>
 #include "outputs.h"
-#include "wayland_window/window.h"
 
 #include <engine/memory.h>
 
@@ -44,10 +43,8 @@ void close_sword() {
   //machine, and it has to be reached even when the rest of the shutdown does
   //not - pe_vk_end() below aborts inside vkDestroyDevice if a client is still
   //connected, which is exactly the state a ctrl+c arrives in
-  if(is_drm_rendering){
-    finish_input();
-    tty_session_finish();
-  }
+  finish_input();
+  tty_session_finish();
 
   //before pe_vk_end(), which aborts inside vkDestroyDevice if a client is
   //still connected: the programs sword spawned are exactly those clients, and
@@ -90,26 +87,24 @@ int main(void){
 
   pe_vk_validation_layer_enable = true;
 
-  if(!create_wayland_window()){
-    is_drm_rendering = true;
+  is_drm_rendering = true;
 
-    //no host compositor: this is a VT, and the console the printf() calls all
-    //over sword are writing to is about to be under the frames we draw
-    log_redirect_stdio();
+  //the console the printf() calls all over sword are writing to is about to
+  //be under the frames we draw
+  log_redirect_stdio();
 
-    compositor.gpu_path = "/dev/dri/card0";
+  compositor.gpu_path = "/dev/dri/card0";
 
-    //INFO before pe_vk_init(), and that ordering is the whole trick: this
-    //takes DRM master, which makes the fd radv opens for itself non-master,
-    //which leaves mesa's wsi_display with no fd of its own - so the hook below
-    //can install ours instead and sword can drop the display again when
-    //the VT is switched away. taking master after vulkan is up is too late
-    if (!tty_session_init(compositor.gpu_path))
-      log_warn("No VT session: switching away will not release the display");
+  //INFO before pe_vk_init(), and that ordering is the whole trick: this
+  //takes DRM master, which makes the fd radv opens for itself non-master,
+  //which leaves mesa's wsi_display with no fd of its own - so the hook below
+  //can install ours instead and sword can drop the display again when
+  //the VT is switched away. taking master after vulkan is up is too late
+  if (!tty_session_init(compositor.gpu_path))
+    log_warn("No VT session: switching away will not release the display");
 
-    pe_vk_acquire_display = sword_acquire_drm_display;
-    pe_vk_sort_displays = sword_sort_displays_by_connector;
-  }
+  pe_vk_acquire_display = sword_acquire_drm_display;
+  pe_vk_sort_displays = sword_sort_displays_by_connector;
 
   pe_window_width = WINDOW_WIDTH;
   pe_window_height = WINDOW_HEIGHT;
@@ -120,10 +115,8 @@ int main(void){
 
   sword_outputs_init();
 
-  if (is_drm_rendering) {
-    sword_capture_display_routing();
-    sword_log_display_routing("startup");
-  }
+  sword_capture_display_routing();
+  sword_log_display_routing("startup");
 
   camera_init(&main_camera);
 
@@ -135,11 +128,6 @@ int main(void){
   run_compositor();
 
   close_sword();
-
-finish:
-  if(is_wayland_window)
-    close_wayland_window();
-
 
   log_info("Goobye from Sword");
 

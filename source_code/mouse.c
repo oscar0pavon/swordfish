@@ -4,7 +4,6 @@
 
 #include "input.h"
 #include "outputs.h"
-#include "wayland_window/window.h"
 
 double cursor_x, cursor_y;
 

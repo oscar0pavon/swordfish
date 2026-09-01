@@ -6,9 +6,11 @@
 
 #include <engine/renderer/render_target.h>
 
-//one physical monitor (DRM) or, under the nested Wayland path, the one host
-//window - laid left to right in a single virtual coordinate space that
-//layout.c tiles into and mouse.c's cursor moves through.
+#define WINDOW_WIDTH 1916
+#define WINDOW_HEIGHT 1040
+
+//one physical monitor, laid left to right in a single virtual coordinate
+//space that layout.c tiles into and mouse.c's cursor moves through.
 //
 //the table's own order is the render target order and never changes (see
 //sword_outputs_init()), but the x origins are handed out rotated outputs

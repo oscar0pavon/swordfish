@@ -16,7 +16,6 @@
 #include <unistd.h>
 #include "input.h"
 #include "log.h"
-#include "wayland_window/window.h"
 
 struct xkb_context *xkb_context;
 struct xkb_keymap *xkb_keymap;
@@ -98,20 +97,16 @@ static void swallow_key(uint32_t key_code) {
     swallowed_keys[swallowed_keys_count++] = key_code;
 }
 
-//the shortcuts of the compositor itself, shared by both input paths: libinput
-//on bare DRM, and the host compositor through pway when sword is a wayland
-//client. returns whether the key was consumed
+//the compositor's own shortcuts. returns whether the key was consumed
 static bool handle_sword_key(uint32_t unicode) {
 
   switch (unicode) {
   case '\r':
-    //must not block: this runs on the input thread, and in the pway path that
-    //thread is also what pumps the window
+    //must not block: this runs on the compositor's input thread
     launch_program((char* const[]){"/root/pterminal/pterminal", NULL});
     return true;
   case 'm':
-    //must not block: this runs on the input thread, and in the pway path that
-    //thread is also what pumps the window
+    //must not block: this runs on the compositor's input thread
     launch_program((char* const[]){"/usr/bin/firefox", NULL});
     return true;
   case 'l':
@@ -134,12 +129,11 @@ static bool handle_sword_key(uint32_t unicode) {
     sword_running = false;
     return true;
   case 'w':
-    //there is only a VT to switch when we own the tty. this used to call
-    //libseat_switch_session() on a seat that was never opened - init_seat()
-    //had been commented out in main() - so the one shortcut that needed a
-    //seat daemon was a NULL dereference. the kernel does the switching now
-    if (is_drm_rendering)
-      tty_switch_to(SWITCH_TO_VT_NUMBER);
+    //this used to call libseat_switch_session() on a seat that was never
+    //opened - init_seat() had been commented out in main() - so the one
+    //shortcut that needed a seat daemon was a NULL dereference. the kernel
+    //does the switching now
+    tty_switch_to(SWITCH_TO_VT_NUMBER);
     return true;
   }
 
@@ -211,9 +205,7 @@ void handle_key_code(uint32_t key_code, bool pressed) {
     return;
   }
 
-  //only when sword owns the tty. in a window the host compositor is the
-  //one holding the VT, so the combination belongs to the focused client
-  if (is_drm_rendering && vt_switch_modifiers_held()) {
+  if (vt_switch_modifiers_held()) {
     xkb_keysym_t sym = xkb_state_key_get_one_sym(xkb_state, xkb_keycode);
     int vt_number = vt_number_for_keysym(sym);
 

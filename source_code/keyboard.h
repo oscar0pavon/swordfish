@@ -14,9 +14,8 @@ extern struct xkb_state *xkb_state;
 void init_keyboard(void);
 void handle_xkb_keyboard_event(InputEvent *event);
 
-//one key as an evdev code, from libinput on DRM or from the host compositor
-//through pway in a window. runs the compositor's own super shortcuts and
-//passes everything else to the focused client
+//one key as an evdev code, from libinput. runs the compositor's own super
+//shortcuts and passes everything else to the focused client
 void handle_key_code(uint32_t key_code, bool pressed);
 void finish_keyboard(void);
 

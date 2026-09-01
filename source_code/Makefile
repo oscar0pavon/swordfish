@@ -1,7 +1,12 @@
 
-CLINKS := -lpthread -lm -lvulkan -ldrm -llodepng 
+CLINKS := -lpthread -lm -lvulkan -ldrm -llodepng
 CLINKS += -linput -ludev -lxkbcommon
 CLINKS += -lwayland-server
+#INFO sword itself no longer calls pway - there is no windowed dev path any
+#more - but libpengine.a's pe_vk_create_surface() still references
+#pway_display/pway_surface in its (dead, since is_drm_rendering is always
+#true here) non-DRM branch, and those symbols live in libpway. dropping this
+#link fails at link time even though nothing sword does ever reaches that code
 CLINKS += -lpway -lwayland-client -lwayland-egl
 #INFO no -lseat. seatd hands DRM and input fds to a compositor that is not
 #root and arbitrates between several users' sessions; sword is root on a
@@ -32,15 +37,9 @@ CFLAGS += -Wno-incompatible-pointer-types
 
 CFLAGS_ENGINE := $(CFLAGS) -I/root/sword/source_code $(PENGINE_INCLUDES) -I/usr/include/libdrm -I/usr/include -I/usr/local/include
 
-wayland_window_src := $(wildcard ./wayland_window/*.c)
-wayland_window_objs := $(wayland_window_src:%.c=%.o)
-
-#everything that used to be compositor/*.c is flattened in here now - only the
-#pway windowed dev path is still off in its own directory
+#everything that used to be compositor/*.c is flattened in here now
 SRCS := $(wildcard *.c)
-SWORDOBJS := $(SRCS:c=o)
-
-OBJS := $(SWORDOBJS) $(wayland_window_objs)
+OBJS := $(SRCS:c=o)
 
 #-rdynamic puts sword's own symbols in the dynamic symbol table, which is
 #what backtrace_symbols_fd() reads. without it the crash backtrace log.c writes
@@ -50,9 +49,6 @@ sword: $(OBJS) shaders
 
 %.o: %.c
 	cc $(CFLAGS_ENGINE) -c $<
-
-./wayland_window/%.o: ./wayland_window/%.c
-	cc $(CFLAGS_ENGINE) -o $@ -c $<
 
 #the client quads (surface.c) and the cursor are all that is drawn
 #now - the city, hud and model shaders went to 3dtop with the scene
@@ -64,7 +60,6 @@ shaders: shaders/texture.frag shaders/dimention_2d.vert
 clean:
 	rm -f ../sword
 	rm -f *.o
-	rm -f ./wayland_window/*.o
 	rm -f ../shaders/*.spv
 
 .PHONY: shaders
