@@ -167,7 +167,7 @@ all. Sword drives DRM/KMS directly.
 are. It used to be three threads — a render loop on `main()`, a compositor
 thread, and an input thread — with three mutexes holding them together. All of
 that is gone. Any thread left in a `ps` listing belongs to Mesa (the
-`swordfi:disk$0` shader-cache threads), not to sword.
+`sword:disk$0` shader-cache threads, named after the binary), not to sword.
 
 `main()` does setup only — `log_init()`, memory, `init_keyboard()`,
 `tty_session_init()`, `pe_vk_init()`, `sword_outputs_init()`, the display
