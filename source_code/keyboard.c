@@ -103,11 +103,17 @@ static bool handle_sword_key(uint32_t unicode) {
   switch (unicode) {
   case '\r':
     //must not block: this runs on the compositor's input thread
-    launch_program((char* const[]){"/root/pterminal/pterminal", NULL});
+    launch_program((char* const[]){"/usr/bin/pterminal", NULL});
     return true;
   case 'm':
     //must not block: this runs on the compositor's input thread
     launch_program((char* const[]){"/usr/bin/firefox", NULL});
+    return true;
+  case 'd':
+    //the launcher is the script rather than pmenu itself: pmenu only filters a
+    //list and prints what was picked, and pmenu_run is what feeds it $PATH and
+    //runs the answer
+    launch_program((char* const[]){"/usr/bin/pmenu_run", NULL});
     return true;
   case 'l':
     layout_focus_next(1);
