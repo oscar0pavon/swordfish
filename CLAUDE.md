@@ -16,13 +16,26 @@ scene moved out to **3dtop** (`/root/3dtop`), a standalone 3D system monitor tha
 is now an ordinary Wayland client. The reason was simple: the tiling layout
 covers the whole output, so the 3D world was never actually visible behind the
 windows. The build-output half (`build.c`'s `call_make`) went with it; only
-`launch_program()` survived, in `launch.c`, because a keybinding still spawns a
-terminal.
+`launch_program()` survived, in `launch.c`, because keybindings still spawn a
+terminal, a browser and the launcher.
 
 **The movie premise is gone, deliberately.** Compositing client windows *into* a
 3D world only worked while one binary owned both. Do not reintroduce the scene
 here — 3dtop is a client like any other now, and is sword's first-party test
 client for the dmabuf import path, the multimonitor layout, and rotation.
+
+**This is daily-driver software, not a demo.** It runs on a tty as the author's
+working compositor. Firefox, Thunar, GIMP and pwvucontrol all run under it —
+four independent toolkits, with working menus, clipboard and pointer input —
+alongside the first-party pterminal, pmenu and 3dtop. Treat a regression here
+as breaking someone's desktop, because it does.
+
+What is genuinely missing, in the order it is felt: **XWayland** (no X11 client
+runs at all), **workspaces** (one spiral per output and an unmap keeps its
+cell), **resize / mode change / monitor hotplug**, `wlr_layer_shell`, and
+**damage tracking** (every frame is a full redraw at ~60Hz). Note also that
+nothing here starts a D-Bus session bus, so clients that want one degrade —
+Thunar loses thumbnails and xfconf settings, and says so in the log.
 
 ## Build / install
 
@@ -35,9 +48,19 @@ make clean            # removes binary, *.o, ../shaders/*.spv
 ./source_code/generate_compile_commands.sh   # regenerate compile_commands.json for clangd
 ```
 
-`make install` copies the binary to `/usr/bin` and `shaders/`, `models/`, `images/*` to `/usr/libexec/sword/`. **Assets are loaded at runtime from absolute `/usr/libexec/sword/...` paths**, so any change to a shader, model, or image requires a reinstall before it has an effect. Note `sword.c` also loads `/root/models/nissan2026.glb`, which is outside the repo.
+`make install` copies the binary to `$(PREFIX)/bin` and the shaders and images
+to `/usr/libexec/sword/shaders` and `/usr/libexec/sword/images`. **Assets are
+loaded at runtime from absolute `/usr/libexec/sword/...` paths** — the two
+shader pairs in `surface.c` and `cursor.c` are the only ones left — so a shader
+change needs a reinstall before it has any effect. The subdirectory matters:
+`install` used to be `cp -r shaders /usr/libexec/sword`, which on a machine
+where that directory does not exist yet creates it *as* a copy of `shaders`,
+and the stray `.spv` files still sitting at the top of `/usr/libexec/sword` on
+an old install are from exactly that.
 
-Shaders are GLSL compiled with `glslc` into `shaders/*.spv` (gitignored, rebuilt every build — the `shaders` target is `.PHONY`).
+Shaders are GLSL compiled with `glslc` into `shaders/*.spv`. That directory is
+gitignored, so it does not exist on a fresh clone and the rules create it
+through an order-only prerequisite.
 
 There is no test suite and no linter.
 
@@ -91,11 +114,16 @@ before `pe_vk_init()`:
 - `pe_vk_draw_scene` - a function pointer, set to `sword_draw_scene`.
   `pe_vk_draw_commands()` calls it in the middle of the render pass.
 - `pe_window_width` / `pe_window_height` - set from `WINDOW_WIDTH` /
-  `WINDOW_HEIGHT` in `wayland_window/window.h`, which is still the app's authority on the size.
-  The swap chain extent, the camera and the 2D ortho projection all read them.
-- `is_wayland_window` and `is_drm_rendering` are declared in
-  `<engine/renderer/renderer.h>` and defined in pengine's `vulkan.c`.
-  `wayland_window/window.c` and `main()` still set them.
+  `WINDOW_HEIGHT` in `outputs.h`. The swap chain extent, the camera and the 2D
+  ortho projection all read them.
+- `is_drm_rendering` is declared in `<engine/renderer/renderer.h>` and defined
+  in pengine's `vulkan.c`. `main()` sets it to `true` unconditionally.
+- `pe_vk_acquire_display` and `pe_vk_sort_displays` - function pointers, set to
+  `sword_acquire_drm_display` and `sword_sort_displays_by_connector`
+  (`outputs.c`). The first is how sword hands the renderer the DRM display it
+  took master on rather than letting mesa open its own; the second is what puts
+  the monitors in connector order. Both are wired before `pe_vk_init()` for the
+  same reason everything else here is.
 
 ### Generated Wayland protocol code
 
@@ -103,22 +131,33 @@ before `pe_vk_init()`:
 
 ### System dependencies
 
-pengine (`libpengine.a`, see above), vulkan (+ validation layers), libdrm, gbm, EGL/GLESv2/GL, wayland-server, wayland-client, wayland-egl, libinput, libudev, xkbcommon, libseat, lodepng (`liblodepng.a`), and the header-only cglm + cgltf.
+pengine (`libpengine.a`, see above), vulkan (+ validation layers), libdrm,
+wayland-server, libinput, libudev, xkbcommon, lodepng (`liblodepng.a`), and the
+header-only cglm + cgltf. The link line also carries wayland-client,
+wayland-egl, EGL, GL and pway, none of which sword itself calls any more: they
+are there for symbols in `libpengine.a` that no live path here reaches. libseat
+is deliberately **not** linked — see the `-lseat` note in `source_code/Makefile`.
 
-**Neither Makefile tracks header dependencies.** Changing a header - especially
-`/usr/local/include/pway/pway.h` - recompiles nothing, and `make` cheerfully
-reports "Nothing to be done". A stale object linked against an older struct
-layout writes its fields at the offsets it was built with: a `pway.h` change
-once left `pway_window_resized()` storing the window width and height on top of
-the `pway->key` function pointer, and the next keypress jumped to `0x3af00000434`
-- which is just 943 x 1076, the tiled window size. After touching a header in
-either repo, `make clean` (or `touch *.c`) in **every** project that includes
-it: pengine, pway, sword, and pterminal. Adding a member to `PWay` goes on the **end**
-of the struct for the same reason.
+**Header dependencies are tracked now**, in all three repos. sword, pengine and
+pway all build with `-MMD -MP` and `-include` the resulting `.d` files, so
+touching a header recompiles what reads it. That was not always true, and the
+bug it used to cause is worth knowing because its signature is so strange: a
+stale object writes its fields at the offsets it was built with, so a `pway.h`
+change once left `pway_window_resized()` storing the window width and height on
+top of the `pway->key` function pointer, and the next keypress jumped to
+`0x3af00000434` — which is just 943 x 1076, the tiled window size. If you ever
+see a jump to an address that looks like a pair of screen coordinates, this is
+what it is. Adding a member to `PWay` still goes on the **end** of the struct.
 
-**pway** (`/root/pway`) supplies the window. It is a separate repo installed to `/usr/local/lib/libpway.a` and `/usr/local/include/pway`, which is why the build carries `-I/usr/local/include` and `-L/usr/local/lib`. If linking picks up a stale archive, rebuild it there with `make && make install` — the headers and the `.a` are not versioned against each other.
+**pway** (`/root/pway`) is no longer part of sword's own code — see **There is
+no window** below — but it is still on the link line, because `libpengine.a`'s
+`pe_vk_create_surface()` references `pway_display`/`pway_surface` in a branch
+that is dead here and still has to resolve. That is the only reason for
+`-lpway`, `-I/usr/local/include` and `-L/usr/local/lib`. If linking picks up a
+stale archive, rebuild it there with `make && make install`.
 
-There is **no X11**. Sword is a Wayland client of the host compositor, or it drives DRM/KMS directly.
+There is **no X11**, and no XWayland: an X11 client cannot run under sword at
+all. Sword drives DRM/KMS directly.
 
 ## Architecture
 
@@ -130,43 +169,54 @@ thread, and an input thread — with three mutexes holding them together. All of
 that is gone. Any thread left in a `ps` listing belongs to Mesa (the
 `swordfi:disk$0` shader-cache threads), not to sword.
 
-`main()` does setup only — memory, `init_keyboard()`, the window or the DRM
-fallback, `pe_vk_init()`, `sword_outputs_init()`, `camera_init()`,
-`sword_init()` — and then calls `run_compositor()`, which is the whole rest
-of the program. The socket goes up only after `pe_vk_init()`, because everything
-a client touches (the quad's pipeline, its buffers, the dmabuf format table the
-GPU is asked for) needs a Vulkan device; a client that connected before that
-died on `vkCreateBuffer: Invalid device` and took sword with it.
+`main()` does setup only — `log_init()`, memory, `init_keyboard()`,
+`tty_session_init()`, `pe_vk_init()`, `sword_outputs_init()`, the display
+routing capture, `camera_init()`, `sword_init()`, `init_compositor()` — and
+then calls `run_compositor()`, which is the whole rest of the program.
 
-`run_compositor()` creates the `wl_display`, registers the globals
-(wl_compositor, xdg_wm_base, shm, linux-dmabuf, seat/input, output, data
-device), sets `WAYLAND_DISPLAY`, and then loops on **one `poll()`** over:
+**`tty_session_init()` goes before `pe_vk_init()`, and that ordering is the
+whole trick.** It takes DRM master, which makes the fd radv opens for itself
+non-master, which leaves mesa's `wsi_display` with no fd of its own — so
+`pe_vk_acquire_display` can hand it ours instead, and sword can drop the
+display again when the VT is switched away. Taking master *after* Vulkan is up
+is too late.
+
+**`init_compositor()` and `run_compositor()` are separate.** The first creates
+the `wl_display`, registers every global (wl_compositor, xdg_wm_base,
+subcompositor, shm, linux-dmabuf, seat/input, output, data device, primary
+selection), claims the socket and sets `WAYLAND_DISPLAY`. The socket goes up
+only after `pe_vk_init()`, because everything a client touches (the quad's
+pipeline, its buffers, the dmabuf format table the GPU is asked for) needs a
+Vulkan device; a client that connected before that died on `vkCreateBuffer:
+Invalid device` and took sword with it.
+
+`run_compositor()` is then the loop, on **one `poll()`** over exactly three fds:
 
 - `wl_event_loop_get_fd()` — client requests, dispatched with
   `wl_event_loop_dispatch(loop, 0)` (zero timeout: the poll above is what waited)
 - a **frame timerfd** at `FRAME_INTERVAL_NS` (~16.7ms), which replaced the render
-  loop's old `usleep(16667)`. When it fires, `sword_frame_step()`
-  (`sword.c`) runs `handle_focus()` → `pe_frame_draw()` → `update_delta_time()`
-  → `end_frame()`
-- **input**: on the pway path, `pway->fds[0]` (host connection), `[1]` (key-repeat
-  timerfd) and `[3]` (paste); on bare DRM, `libinput_get_fd()`
+  loop's old `usleep(16667)`. It must be `read()` when it fires or a periodic
+  timerfd stays readable forever after its first expiry
+- `libinput_get_fd()`
 
 `wl_display_run()` is this loop with the waiting and the dispatching welded
 together inside libwayland; it is unrolled here so input and the frame timer can
 be waited on in the same `poll()`.
 
-**Ordering inside the loop matters.** Input is dispatched *before* the frame
-step. `pway_prepare_to_read_events()` (called before the poll, as pway's
-`prepare_read`/`poll`/`read_events` contract requires) leaves the connection to
-the host compositor in a pending read, and nothing may touch that connection
-until `pway_dispatch_events()` closes it — **rendering does**, because presenting
-goes out through `VK_KHR_wayland_surface` on that very same `wl_display`. Drawing
-before the dispatch wedges the connection and no input is ever read.
+**Ordering inside the loop matters.** Input is dispatched first, then
+`tty_session_handle_pending()`, then the frame step. The VT switch goes after
+input so that the keypress asking for the switch is delivered before it
+happens, and before the frame step, which must not run once the display is
+gone. The frame step itself is guarded by `tty_session_is_active()`: when
+another VT owns the screen sword has dropped DRM master, so presenting would be
+submitting to a display that is not ours. Clients simply stop getting frame
+callbacks, which is what stops them drawing.
 
 `init_keyboard()` runs in `main()`, before any of this. The xkb keymap is the
 *compositor's* — every client that calls `wl_seat.get_keyboard` is sent it — so
-it cannot live behind the libinput branch that the pway path never reaches, or
-serving a client dereferences a NULL `xkb_keymap`.
+it cannot live behind the libinput setup, or serving a client dereferences a
+NULL `xkb_keymap`. It used to sit behind a branch that one input path never
+reached, which is exactly how that happened.
 
 #### There are no locks, and adding one is a mistake
 
@@ -193,26 +243,33 @@ whole locking discipline back with it — and note that the old rule was subtle:
 and `focus_task_mutex`, never after.
 
 What single-threading does **not** remove is GPU-side synchronisation. An shm
-upload still waits on the render targets' fences in `end_frame()`, and
+upload still waits on the render targets' fences in `begin_frame()`, and
 `task_release_old_buffer()` still counts frames in flight — the GPU runs
 asynchronously whatever the CPU thread count is. See **Frame path**.
 
-### Two orthogonal mode flags
+### There is no window
 
-- `is_opengl` (`main.c`, default `false`) — selects the EGL/GLES path (`compositor/egl.c`, `buffers.c`) instead of Vulkan. The Vulkan path is the live one; the EGL path exits early via `goto finish`.
-- `is_drm_rendering` (pengine's `renderer/vulkan.c`, set by `main()`) — set to `true` when `create_wayland_window()` fails (no compositor to connect to). Then rendering targets DRM/KMS directly (`direct_render.c`, `renderer/display.c`, `compositor.gpu_path = "/dev/dri/card0"`), the swapchain/surface setup differs, `vkGetMemoryFdKHR` is resolved for buffer export, and input comes from libinput instead of pway.
+**Sword drives DRM/KMS and nothing else.** `main()` sets `is_drm_rendering =
+true` unconditionally; there is no `create_wayland_window()`, no fallback, and
+no branch to pick between them. The `wayland_window/` directory that held the
+pway nested-window development path is gone — if a `wayland_window/window.o`
+is still sitting there it is an orphan from before the removal and nothing
+links it. `is_wayland_window` is gone from sword entirely.
 
-Both flags are read all over `renderer/` (pengine) and sword's own top-level `*.c` files (what used to live under `compositor/`, before it flattened into `source_code/` — see **Layer conventions**); grep for them before changing init order.
+That path existed so the compositor could be developed inside another
+compositor without a VT switch. It was removed once sword became the thing
+being used rather than the thing being tested, and reintroducing it is a real
+cost: every `is_wayland_window` branch it needs back is one in pengine as well
+as here.
 
-### The window (`wayland_window/window.c`)
+`is_opengl` survives as a single `extern bool` in `compositor.h` with **no
+definition and no readers**. The EGL/GLES path it selected (`egl.c`,
+`buffers.c`) no longer exists. It is dead and can go.
 
-`create_wayland_window()` calls `pway_init()` then `pway_create_window()`, and deliberately **not** `pway_init_egl()` — Vulkan takes the raw `pway_surface` / `pway_display` through `VK_KHR_wayland_surface` instead, so the EGL context pway would build is never needed.
-
-Ordering matters twice over. `pway_init()` connects using `WAYLAND_DISPLAY`, and `run_compositor()` later overwrites that variable with sword's own socket, so the window must be created before `run_compositor()` claims that variable, or sword tries to be a client of itself. And within pway, `pway_init()` does all the real work (registry, `wl_surface`, `xdg_surface`, listeners, first commit); `pway_create_window()` only sets the title and size.
-
-Two things differ from the old X11 surface and are easy to reintroduce: a Wayland surface does **not** support `VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR`, so `swap_chain.c` picks a `compositeAlpha` out of `supportedCompositeAlpha` rather than assuming one; and the windowed EGL path in `compositor/egl.c` needs a `wl_egl_window` where it used to take an X11 `Window`.
-
-**Resizing is not implemented.** The swapchain and camera still use the hardcoded `WINDOW_WIDTH`/`WINDOW_HEIGHT`, so a tiled window renders a 1916x1040 image into whatever size the compositor actually gave it. `pway->resize` records the new size and nothing rebuilds from it yet.
+**Resizing is not implemented.** The swapchain, the camera and the 2D
+projection all read `WINDOW_WIDTH`/`WINDOW_HEIGHT` from `outputs.h`, which are
+compile-time constants. Nothing rebuilds from a mode change, so there is no
+monitor hotplug either.
 
 ### Frame path
 
@@ -223,17 +280,43 @@ Two things differ from the old X11 surface and are easy to reintroduce: a Waylan
 `pe_vk_draw_frame()` **no longer ends in `vkQueueWaitIdle()`** — it keeps
 `PE_VK_FRAMES_IN_FLIGHT` frames going on per-frame and per-image fences instead
 (pengine's `renderer/draw.c`). Nothing may assume the queue is drained at the end
-of a frame any more: `end_frame()` waits on the targets' fences explicitly, and
-only on the frames where an shm client actually redrew. The bare-DRM path is the
-exception — it still waits on this frame's fence between submit and present.
+of a frame any more: `begin_frame()` waits on the targets' fences explicitly, and
+only on the frames where an shm client actually redrew.
 
-**`end_frame()` (`sword.c`) is the frame's second half**, and it is where
-everything that needs the GPU to be past a frame goes: `retire_collect()`, the
-fence wait when an shm upload is pending, then per task
-`send_frame_callback_done()`, `task_upload_shared_memory()` and
-`task_release_old_buffer()`, then `wl_display_flush_clients()`.
-Anything that submits to `vk_queue` on behalf of a client belongs here and
-nowhere else — this is the one point in the loop where nothing is recording.
+**The frame has two halves, and which half a thing goes in is not arbitrary.**
+`sword_frame_step()` runs `handle_focus()` → `pointer_refresh_focus()` →
+`begin_frame()` → `pe_frame_draw()` → `update_delta_time()` → `end_frame()`.
+
+**`begin_frame()` is where shm pixels are uploaded**, and it is on this side of
+the draw deliberately. It used to be in `end_frame()`, after `pe_frame_draw()`
+had already recorded a quad reading the image — so what an shm client committed
+was never on screen until the frame *after*, and every redraw showed the
+previous one first. dmabuf never paid that, because its quad samples the
+client's pages directly; shm is a copy, and the copy has to happen before the
+thing that reads it. It walks `tasks_for_draw` once to see whether any shm
+client actually redrew and returns immediately if none did, so the fence wait
+below is paid only on the frames that need it.
+
+The fence wait is the price of moving it here. An shm upload rewrites an image
+a frame in flight may still be sampling, and the single-time commands it is
+made of carry no barrier against that. It waits on **every** render target's
+fences, not just one: with multimonitor the fences live on `PRenderTarget`, and
+an upload has no way to know which target last drew the surface it is about to
+overwrite.
+
+**`end_frame()` is everything that needs the GPU to be past a frame**:
+`retire_collect()`, then the frame callbacks, then `task_release_old_buffer()`
+per task, then `wl_display_flush_clients()`.
+
+Frame callbacks go to **every surface in `compositor.surfaces`, not just the
+ones that were drawn**. A client that asks for a frame callback before it has
+ever attached a buffer is waiting on that callback in order to draw its first
+one, and a parent surface with all its content in a subsurface may never attach
+one at all. Answering only what was drawn left both of them waiting forever.
+
+Anything that submits to `vk_queue` on behalf of a client belongs in one of
+these two functions and nowhere else — they are the only points in the loop
+where nothing is recording.
 
 ### Advertised global versions
 
@@ -285,9 +368,11 @@ of a missing global before a protocol error** — the protocol error at least
 prints. The absence shows up as a *gap in sword's own log*: every bind
 handler prints, so the missing line is the diagnosis.
 
-Still not advertised: `ext_data_control_manager_v1`. See **The clipboard tools
-open a window** below — it is the cure for a visible glitch, not a missing
-capability, which is why it is still a TODO rather than a bug.
+Still not advertised, and each of these is a real capability gap rather than a
+detail: **XWayland** (no X11 client runs at all), `wlr_layer_shell`
+(which is why the launcher is placed by app id — see **The launcher**),
+`xdg_decoration`, `viewporter`, `wp_presentation`, `idle_inhibit`, screencopy
+and any screenshot protocol, and `ext_data_control_manager_v1`.
 
 ### xdg-shell
 
@@ -388,12 +473,106 @@ Configure serials come from `wl_display_next_serial()` and are stored in
 `DesktopSurface.pending_serial`, so `do_desktop_ack()` can tell a real ack from
 a stale one. A constant serial made every configure look like the same event.
 
-`xdg_positioner` and `xdg_popup` (`popup.c`) exist only so a client
-opening a menu does not take the compositor down. There is no second quad to
-draw a popup into, so `create_popup()` creates the resource and immediately
-sends `xdg_popup.popup_done`. That is the only one of the three options that
-leaves the client alive: a protocol error kills it, and silence hangs a client
-that took a grab.
+### Popups are real menus (`popup.c`)
+
+`xdg_positioner` and `xdg_popup` used to be a stub that sent `popup_done` the
+instant a menu was created — enough to keep a client alive, not enough to have
+a menu. **They are implemented now**, and a popup is an ordinary `Task` drawn
+as its own quad, so thunar's context menus and gimp's menu bar work.
+
+`positioner_place()` resolves the anchor rect, the anchor and gravity edges and
+the client's offset into a position. Two details in it are easy to get wrong.
+The anchor rectangle is in the parent's **window geometry**, so it has to have
+`geometry_x`/`geometry_y` added to it — a client that leaves a shadow margin
+inside its surface (firefox, 20px a side) would otherwise open every menu
+offset by that margin. And a menu that does not fit is **slid back inside the
+parent** rather than flipped to the other side of its anchor, because nothing
+scissors a quad here and a popup hanging off the cell would be drawn over the
+window next door. Flipping is what the constraint adjustment usually asks for
+and would keep a submenu beside its parent item instead of on top of it; the
+`//TODO` says so.
+
+**A grab is two obligations, and leaving out either one makes the menu close
+the moment the button comes up.** `popup_grab()` records the grab, and then:
+every press outside the popup must dismiss it (`pointer.c` calls
+`popups_dismiss_outside()`), and the **keyboard must go to the popup** for as
+long as it is up. GTK asks for the grab and then waits to be told it has the
+focus; never being told, it decides the grab is broken and tears the menu down
+itself. `popup_grab_task()` is what `handle_focus()` asks every frame, and it
+walks the list newest-first so a submenu holds the keyboard over the menu it
+came out of.
+
+Popups are a `wl_list` oldest-first, chained parent to child, so a menu with a
+submenu open is two of them. `popups_dismiss_outside()` walks it in reverse and
+skips anything the pressed surface is *inside* — `task_is_inside()` follows
+`task->parent` up, so a subsurface of the menu or a submenu hanging off it does
+not dismiss its own parent. It sends `popup_done` and stops there: the client
+answers by destroying the `xdg_popup`, and *that* is what takes it off the
+list. Removing it here as well would drop it twice.
+
+**Every `xdg_popup` and `xdg_positioner` request has a handler, including all
+three that version 3 added** (`set_reactive`, `set_parent_size`,
+`set_parent_configure`) plus `xdg_popup.reposition`. So the version 3 bump on
+`xdg_wm_base` would no longer take the compositor down — but `reposition` is an
+empty stub that sends no `repositioned` event and no configure, so a client
+that repositioned a menu would be left waiting. Write it before bumping, not
+after.
+
+### Subsurfaces: a window is a tree (`subcompositor.c`)
+
+`wl_subcompositor` is advertised, and it is **not optional for a GTK client** —
+firefox aborts outright without it rather than degrading. A window is therefore
+a tree of surfaces, not one surface: `Task.parent`, `Task.child_x/child_y`, and
+`draw_surfaces()` walking the tree rather than a flat list.
+
+`task_origin_and_scale()` is the heart of it and is worth reading before
+touching anything here. It answers where a surface's origin lands on the
+virtual desktop and how much its coordinates are stretched getting there, and
+it is **deliberately separate from the surface's size**. A surface with no
+buffer still has a position and things hang off it — firefox's menus are
+exactly that shape: the popup's own `wl_surface` carries no pixels and the menu
+is drawn by a subsurface inside it. Requiring a buffer to work out a rectangle
+made that whole subtree unpositionable and the menu never appeared at all.
+
+A child inherits its parent's scale and is placed in the parent's *surface*
+coordinates, so its offset is stretched the same way the parent's pixels are,
+and it carries that scale down to its own children. That is the same ratio
+`pointer_inside()` divides the cursor back through — which is why the branch
+lives here and not in `draw_surface()`.
+
+`task_screen_rect()` builds on it: a surface with no buffer gets a position and
+a **zero extent**, and both callers read that correctly — nothing is drawn for
+it, and the cursor is inside nothing.
+
+`log_surface_tree()` dumps every surface, its role, what it hangs off and where
+that puts it. A window made of a tree of surfaces has no other way of being
+read, and `end_frame()` can fire it a few frames after a popup maps
+(`surface_tree_dump_countdown`) which is exactly when a menu that went to the
+wrong place is worth looking at.
+
+`task_detach_subsurfaces()` and `forget_subsurface_role()` are the teardown
+halves, same shape as everything else here: whichever object dies first has to
+let go of the other.
+
+**Synchronized mode is not implemented** — a `//TODO` in the file says so. The
+protocol has a synchronized child's commits cached and applied with its
+parent's; sword applies them immediately.
+
+### Input regions (`region.c`)
+
+`wl_compositor.create_region` cannot be left NULL — libwayland dispatches a NULL
+handler as a call — and the region it makes is what a client hands to
+`wl_surface.set_input_region` or `set_opaque_region`.
+
+A `Region` is stored as the **operations in the order the client sent them**,
+not as a resolved set of rectangles. That costs nothing and answers the only
+question sword asks exactly: `region_contains()` replays the adds and subtracts
+in order, so a point inside an add is in and a point inside a later subtract is
+out. No region algebra is needed to get an arbitrary add/subtract list right.
+
+The input region is honoured in the pointer hit test, which is what stops a
+client's shadow — part of its buffer, and not part of its window — from
+swallowing clicks meant for whatever is behind it.
 
 ### The tiling layout (`layout.c`)
 
@@ -402,7 +581,9 @@ onto every `Task` and `draw_surface()` puts the quad where it says. Nothing in
 it touches the GPU, which is what lets it run straight from the request handlers where the
 requests arrive.
 
-The layout is a **spiral**. Each window takes half of what is left and the split
+The layout is a **spiral**, applied per output — `layout_apply()` walks every
+`SwordOutput` and tiles each one separately, so a window belongs to the monitor
+its `output_index` names. Each window takes half of what is left and the split
 direction cycles right, down, left, up, so the free area winds inward — the
 oldest window keeps the biggest cell and a new one always appears beside the one
 before it. `LAYOUT_SPIRAL 0` switches it to dwindle, where the free area only
@@ -411,7 +592,23 @@ pixel-counting harness when it changes: at one through seven windows the cells
 must cover the output exactly, with no overlap and no hole. `LAYOUT_GAP` is the
 space *between* two windows; every cell gives up half of it on each side and the
 output starts out short of the same half, so the margin at the screen edge comes
-out the same width as the gap between neighbours.
+out the same width as the gap between neighbours. It is **0** right now.
+
+**A window can be floating instead of tiled.** `layout_toggle_floating()`
+(super+space) flips `Task.is_floating`; a floating window is skipped by the
+tiling entirely, keeps its own rectangle, stacks above the tiled ones, and is
+raised among the other floats by `layout_raise()`. It is also the one kind of
+window that can be dragged, including **across monitors** — `apply_drag()` in
+`pointer.c` moves it through the virtual coordinate space and its
+`output_index` follows. A floating window deliberately gets none of the
+`tiled_*` states in its configure: it really is free-standing, and the shadow a
+client draws under it is what makes it read as sitting over the tiling rather
+than in it.
+
+Floating is also the escape hatch for the configure-is-a-suggestion problem
+below — flipping a window floating forces a fresh configure out of
+`layout_toggle_floating()`, which is why "float it and it fixes itself" is the
+signature of a client that ignored its cell.
 
 **There is no window list of its own.** `compositor.surfaces` already holds every
 `Task` with lifetimes that are known to be right, so the layout walks that and
@@ -456,17 +653,45 @@ a path where the window that closed was not the focused one. It walks
 head, so that is newest first and the focus lands on the window the closed one
 was mapped over rather than on the oldest one on screen.
 
-Shortcuts live in `handle_sword_key()` (`keyboard.c`) with the rest:
-**super+enter** opens a terminal, **super+h / super+l** cycle the focus,
-**super+c** closes the focused window, and **super+shift+c** is the
-compositor's own exit. `xdg_toplevel.close` is a *request*; a client with
-unsaved work may put up a dialog and stay.
+Shortcuts live in `handle_sword_key()` (`keyboard.c`), keyed on the unicode the
+keymap produced, and everything is behind **super** so a client can still type
+the letters:
+
+| | |
+|---|---|
+| super+enter | pterminal |
+| super+m | firefox |
+| super+d | `pmenu_run`, the launcher |
+| super+h / super+l | cycle the focus |
+| super+c, super+shift+q | close the focused window |
+| super+space | toggle the focused window floating |
+| super+shift+c | close the compositor |
+| super+w | switch to `SWITCH_TO_VT_NUMBER` |
+
+`xdg_toplevel.close` is a *request*; a client with unsaved work may put up a
+dialog and stay.
+
+Unconditional shortcuts are what this replaced, and the failure was obvious in
+use: a terminal could never type `d`, and typing `q` killed the compositor.
+
+### The launcher
+
+**The launcher is not part of sword.** `super+d` runs `/usr/bin/pmenu_run`, a
+script outside this repo: `pmenu` only filters a list and prints what was
+picked, and `pmenu_run` is what feeds it `$PATH` and runs the answer.
+
+Because there is no `wlr_layer_shell`, pmenu cannot ask to be a panel. Sword
+recognises it instead: `layout_place_launcher()` matches `app_id` against
+`LAUNCHER_APP_ID` ("pmenu") and gives that client a `LAUNCHER_HEIGHT` (40px)
+strip across the top of its output, floating and raised, rather than a cell in
+the tiling. Every other app id falls straight through. It is a deliberate
+stopgap — the honest fix is layer-shell — and it is why the launcher's app id
+is load-bearing: pway sets one now precisely so this can key off it.
 
 **ctrl+alt+Fn / ctrl+alt+number** switch VT, and are the one shortcut not behind
 super: it is the gesture the kernel console answers, and `tty_silence_keyboard()`
 putting the console in `K_OFF` is exactly what stops it answering — so the
-compositor has to do the switch itself. Only on the DRM path; in a window the
-host compositor owns the VT and the combination belongs to the client. Both
+compositor has to do the switch itself. Both
 spellings are taken (F1 and 1 are both tty1, 0 is tty10), plus the
 `XF86Switch_VT_n` keysyms a keymap may translate ctrl+alt+Fn into by itself.
 The switch is where `input_release_pressed_keys()` (`input.c`) earns its place:
@@ -484,15 +709,44 @@ looking like an oversight.
 `move`, `resize` and `show_window_menu` stay no-ops: a tiled window's size is
 not the client's to ask for.
 
-### The output (`output.c`)
+### The monitors (`outputs.c`) and the outputs (`output.c`)
 
-One `wl_output` at version 4, and its mode is the image sword renders:
-`WINDOW_WIDTH`×`WINDOW_HEIGHT` at 60000 mHz, flagged `CURRENT | PREFERRED` since
-there is nothing to switch to. `send_output_state()` is the single place that
-describes it, so a resize has one place to send a new mode from once the swap
-chain can change size. Every event above version 1 is gated on the version the
-client bound at, and `release` — the only request the interface has — has a
-handler.
+These are two different files and two different jobs. **`outputs.c` owns the
+physical monitors**; `output.c` is the `wl_output` protocol on top of them.
+
+`SwordOutput` (`outputs.h`) is one physical monitor, and they are laid left to
+right in **a single virtual coordinate space** that `layout.c` tiles into and
+`mouse.c`'s cursor moves through. Two things about that table are traps. Its
+own order is the render-target order and never changes, but the x origins are
+handed out **rotated outputs first**, so a portrait monitor sits at the left of
+the virtual desktop — index order is therefore *not* left-to-right order, and
+nothing may take `sword_outputs[0]` for the leftmost or the last entry for the
+rightmost. Use `sword_output_at()` / `sword_output_index_at()`.
+
+**Rotation is entirely in software.** `SWORD_OUTPUT_ROTATE` is a comma-separated
+list of output indices to mount 90 degrees counter-clockwise. There is no
+hardware rotation to ask for: mesa's `wsi_display` hardcodes
+`VkDisplayPropertiesKHR.supportedTransforms` to IDENTITY only, so sword rotates
+what it draws, once per quad, in `sword_draw_rotated()`. The `rotated` flag is
+deliberately invisible to everything else — `layout.c`, `mouse.c`,
+`draw_surface()` and `cursor.c` all work in the output's **logical**
+(already-rotated) width and height and never read it. `sword_draw_rotated()` is
+the single place that looks past it at the physical target underneath. Keep it
+that way: a second reader of that flag is a second chance to rotate twice.
+
+**DRM routing has to be captured and restored.** `sword_capture_display_routing()`
+records the connector→CRTC mapping at startup and `sword_restore_display_routing()`
+puts it back, because a VT switch away and back hands the connectors over in a
+different order and the windows end up on the wrong monitors.
+`sword_sort_displays_by_connector()` is the `pe_vk_sort_displays` hook that keeps
+the render targets in connector order to begin with.
+
+**`output.c` creates one `wl_output` global per monitor**, at version 4, each
+describing its own `SwordOutput`: its logical size at 60000 mHz, flagged
+`CURRENT | PREFERRED` since there is nothing to switch to. `send_output_state()`
+is the single place that describes one. Every event above version 1 is gated on
+the version the client bound at, and `release` — the only request the interface
+has — has a handler.
 
 Two details the protocol is easy to get wrong on. **`done` is not a formality**:
 a client applies the whole burst as one unit, so leaving it out leaves the client
@@ -562,20 +816,12 @@ clipboard at all.
 ### The pointer
 
 The seat advertises `WL_SEAT_CAPABILITY_POINTER` alongside the keyboard.
-`mouse.c` owns the cursor position in the render target's own pixels and is fed
-by both input paths — `wayland_window/window.c` wires pway's `update_mouse`/`click`/
-`click_release` on the windowed path, `device_input.c` forwards libinput's pointer
-events on the DRM one. `input.c` turns a cursor position into
+`mouse.c` owns the cursor position, in the **virtual desktop's** coordinates —
+the space every monitor is laid out in, not any one output's — and
+`device_input.c` feeds it from libinput. `input.c` turns a cursor position into
 `wl_pointer` events.
 
-Three things about that are easy to get wrong. The host reports the cursor in
-the **window's** pixels and sword renders at a fixed `WINDOW_WIDTH`
-×`WINDOW_HEIGHT` that the host's own window is only scaled into, so the position
-has to be scaled the same way the image is or the cursor lands somewhere other
-than where the user is pointing. (That is the *outer* scale, sword inside
-the host compositor's window. The layout adds an inner one — see below.) pway hands over which of *its* buttons moved rather
-than an evdev code, and labels the wheel by the opposite sign convention from
-the protocol's, so `pway_window_click_release()` translates both. And libinput
+One thing about libinput is easy to get wrong: it
 sends the deprecated `LIBINPUT_EVENT_POINTER_AXIS` **as well as** the typed
 `..._SCROLL_WHEEL`/`_FINGER`/`_CONTINUOUS` events, so handling both counts every
 scroll twice.
@@ -669,7 +915,7 @@ AMD DCC modifier rather than linear.
 
 ### Wayland client → quad
 
-A client surface becomes a `Task` (`compositor.h`): it owns the `wl_resource`, the client's buffer, a `PTexture`, and a `PModel` quad — plus, once the client gives it a toplevel role, the tile the layout put it in and a listener-backed pointer to its `TopLevel`. `Task`s live in the `tasks_for_draw` array; each frame `draw_surfaces()` draws them and `end_frame()` sends the frame callbacks (`send_frame_callback_done`), uploads shm pixels, pays owed releases, and then `wl_display_flush_clients`.
+A client surface becomes a `Task` (`compositor.h`): it owns the `wl_resource`, the client's buffer, a `PTexture`, and a `PModel` quad — plus, once the client gives it a toplevel role, the tile the layout put it in and a listener-backed pointer to its `TopLevel`. `Task`s live in the `tasks_for_draw` array; each frame `begin_frame()` uploads shm pixels, `draw_surfaces()` draws the tree, and `end_frame()` sends the frame callbacks (`send_frame_callback_done`), pays owed releases, and then `wl_display_flush_clients`.
 
 #### Both buffer protocols make the same struct
 
@@ -770,11 +1016,30 @@ buffer awaiting release needs its **own** listener (`old_buffer_destroy`),
 because `listen_to_buffer()` moves the first one onto the new buffer and the
 client can destroy the old one inside that one-frame gap.
 
-On the **dmabuf** side the `PTexture` and its Vulkan image still leak, and the
-surface goes on sampling a `PTexture` the `wl_buffer` freed: destroying it where
-the request arrives would destroy an image a frame in flight is still sampling.
-The shm side answers exactly that with its retire list, and the TODO in
-`handle_buffer_destroyed()` says the dma side wants the same treatment.
+**Both protocols go through the retire list now**, and that used to be the
+dmabuf side's biggest hole. `dma.c:destroy_buffer_resource()` calls
+`retire_texture()`, and it is registered as the *resource* destructor rather
+than only as the `destroy` request handler — so it also runs when a client
+disconnects without asking, which is what used to leak every imported image a
+dying client left behind. `shared_memory.c:destroy_buffer_function()` retires
+the texture and the staging buffer both.
+
+The other half is `handle_buffer_destroyed()` (`surface.c`), which drops
+`can_draw`, NULLs `task->image` and pulls the task out of `tasks_for_draw`. The
+dma side used to keep drawing "what it had", which by then was a `PTexture` the
+buffer's destructor had already freed.
+
+Neither may destroy anything where the request arrives: that would destroy an
+image a frame in flight is still sampling, which is what the validation layer
+reported as destroying a view still in use by a descriptor set. `retire.c`
+counts frames and `retire_collect()` in `end_frame()` does the freeing.
+
+Checked against a live session on 2026-09-02: 49 imports against 46 retires
+with three windows still open, the live count flat between 2 and 4 across the
+whole run, params balanced 49/49, and the 128-slot retire list never overflowed
+with 342 buffers through it. If you are hunting a leak, `retire_slot()`
+returning NULL logs "Too many retired vulkan objects, leaking one" and is the
+one place that admits to dropping something.
 
 ### The log (`log.c`)
 
@@ -799,11 +1064,11 @@ Three things it does that a `printf` wrapper would not:
 - **`log_redirect_stdio()`** dups the log fd onto stdout and stderr, so what
   sword does *not* write itself — pengine's `LOG` (which is still `printf`),
   the Vulkan validation layer, libwayland's own errors — lands in the same file
-  anyway. `main()` calls it only on the **bare DRM path**, in the
-  `create_wayland_window()` failure branch — on the pway path the terminal is
-  real and output belongs there. The mirror to stderr that the records get on
-  the pway path is switched off at the same time, or the file would hold
-  everything twice. stdout is put back to **line buffered** afterwards: a log
+  anyway. `main()` calls it unconditionally now that DRM is the only path —
+  there is no terminal behind the frames to write to. The mirror to stderr the
+  records would otherwise get is switched off at the same time, or the file
+  would hold everything twice. stdout is put back to **line buffered**
+  afterwards: a log
   file is a regular file, so it would otherwise be fully buffered and the last
   4 KB before a crash — the interesting ones — would never be written.
 - **A crash handler** on SIGSEGV/SIGABRT/SIGBUS/SIGFPE/SIGILL writes the signal
@@ -823,13 +1088,13 @@ Three things it does that a `printf` wrapper would not:
 
 - **`renderer/`** (in pengine) — thin Vulkan wrapper, everything prefixed `pe_vk_`. `pe_vk_init()` in `renderer/vulkan.c` is the authoritative, order-sensitive init sequence; `pe_vk_end()` is its mirror.
 - **`engine/`** (in pengine) — reusable engine (hence the `pe_` prefix): custom allocator, `Array` container, glTF/PNG loading, camera, 2D/text.
-- **The Wayland server implementation** — `compositor.c`, `surface.c`, `tasks.c`, `top_level.c`, `data_device.c`, `dma.c`, `shared_memory.c`, and the rest of what used to live under a `compositor/` subdirectory, now flattened into `source_code/` alongside everything else: this *is* the main code, not a piece tucked away from it. It includes the one piece of window-manager *policy* (`layout.c`): which window gets which piece of the output. It is written against `Task` and `TopLevel` and sends configures, not because it draws anything.
-- **`wayland_window/`** — the pway windowed dev path (`window.c`/`window.h`), off in its own directory precisely because it is a *tool* for developing without a VT switch, not the main path: bare DRM (see **Two orthogonal mode flags**) is. `device_input.c` still branches on `is_wayland_window` to pump `pway_handle_events()` instead of libinput, but the pway-specific glue itself — connecting to the host compositor, translating its mouse/keyboard callbacks — lives only here.
-- Everything else at the top level — `main.c`, `device_input.c` (libinput/pway event pump), `keyboard.c`, `mouse.c`, `outputs.c`, `launch.c` (spawning a program from a keybinding), `sword.c` (compositor-side drawing: client quads, the cursor), `cursor.c`, `tty.c`, `log.c` (see **The log**).
+- **The Wayland server implementation** — `compositor.c`, `surface.c`, `tasks.c`, `top_level.c`, `desktop.c`, `popup.c`, `subcompositor.c`, `region.c`, `data_device.c`, `primary_selection.c`, `output.c`, `dma.c`, `feedback.c`, `drm_format.c`, `shared_memory.c`, `retire.c`. All of it is flat in `source_code/`, and it *is* the main code, not a piece tucked away from it. It includes the one piece of window-manager *policy* (`layout.c`): which window gets which piece of the output. It is written against `Task` and `TopLevel` and sends configures, not because it draws anything.
+- Everything else at the top level — `main.c`, `device_input.c` (the libinput event pump), `keyboard.c`, `mouse.c`, `pointer.c`, `input.c`, `outputs.c` (the physical monitors), `launch.c` (spawning a program from a keybinding), `sword.c` (compositor-side drawing: client quads, the cursor), `cursor.c`, `tty.c` (VT and DRM master), `log.c` (see **The log**).
+- **`wayland_window/`** — an empty leftover. The pway nested-window dev path that lived here is gone; only a stale `window.o` remains, and nothing links it. Delete it.
 
 ### Memory
 
-`engine/memory.c` allocates one 750 MB block up front (`pe_init_memory()` at startup, `clear_engine_memory()` at exit) and hands out bump/stack allocations from it. `Array` (`engine/array.h`) is the generic growable container built on top and is used everywhere instead of raw malloc'd buffers. Prefer these over `malloc` for engine data.
+`engine/memory.c` allocates one block up front (`pe_init_memory()` at startup, `clear_engine_memory()` at exit) and hands out bump/stack allocations from it. **It is 16 MB**, down from 750 MB: measured usage under normal load is ~15 KB, because only `Array`s and bookkeeping structs come from the arena — client buffers and textures go through Vulkan and never touch it. The old size cost that much RSS on every startup, since `pe_init_memory()` memsets what it takes. `Array` (`engine/array.h`) is the generic growable container built on top and is used everywhere instead of raw malloc'd buffers. Prefer these over `malloc` for engine data.
 
 ### Pipelines and descriptor sets
 
