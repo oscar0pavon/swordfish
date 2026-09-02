@@ -43,7 +43,6 @@ void init_compositor(void);
 uint32_t next_serial(void);
 
 extern bool is_focus_completed;
-extern bool is_opengl;
 extern bool sword_running;
 
 extern SwordCompositor compositor;

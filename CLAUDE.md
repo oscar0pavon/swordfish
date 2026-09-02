@@ -113,9 +113,12 @@ before `pe_vk_init()`:
 
 - `pe_vk_draw_scene` - a function pointer, set to `sword_draw_scene`.
   `pe_vk_draw_commands()` calls it in the middle of the render pass.
-- `pe_window_width` / `pe_window_height` - set from `WINDOW_WIDTH` /
-  `WINDOW_HEIGHT` in `outputs.h`. The swap chain extent, the camera and the 2D
-  ortho projection all read them.
+- `pe_window_width` / `pe_window_height` - **not** set here any more. sword used
+  to assign a pair of compile-time constants to them before `pe_vk_init()`;
+  `pe_vk_init()` overwrites both from `pe_render_targets[0]` once the swap
+  chains exist, so the assignment never survived to be read. The camera and the
+  2D ortho projection are initialised after `pe_vk_init()` and get the display's
+  real mode. `swap_chain.c` only reads them on the non-DRM path.
 - `is_drm_rendering` is declared in `<engine/renderer/renderer.h>` and defined
   in pengine's `vulkan.c`. `main()` sets it to `true` unconditionally.
 - `pe_vk_acquire_display` and `pe_vk_sort_displays` - function pointers, set to
@@ -254,7 +257,10 @@ true` unconditionally; there is no `create_wayland_window()`, no fallback, and
 no branch to pick between them. The `wayland_window/` directory that held the
 pway nested-window development path is gone — if a `wayland_window/window.o`
 is still sitting there it is an orphan from before the removal and nothing
-links it. `is_wayland_window` is gone from sword entirely.
+links it. `is_wayland_window` is gone from sword entirely, and so is
+`is_opengl`, the `extern bool` that used to select the EGL/GLES path (`egl.c`,
+`buffers.c`) that no longer exists — it had no definition and no readers by
+the end.
 
 That path existed so the compositor could be developed inside another
 compositor without a VT switch. It was removed once sword became the thing
@@ -262,14 +268,14 @@ being used rather than the thing being tested, and reintroducing it is a real
 cost: every `is_wayland_window` branch it needs back is one in pengine as well
 as here.
 
-`is_opengl` survives as a single `extern bool` in `compositor.h` with **no
-definition and no readers**. The EGL/GLES path it selected (`egl.c`,
-`buffers.c`) no longer exists. It is dead and can go.
-
-**Resizing is not implemented.** The swapchain, the camera and the 2D
-projection all read `WINDOW_WIDTH`/`WINDOW_HEIGHT` from `outputs.h`, which are
-compile-time constants. Nothing rebuilds from a mode change, so there is no
-monitor hotplug either.
+**Resizing is not implemented**, and the reason is not a hardcoded size — every
+size here comes from the display mode. `sword_outputs_init()` reads
+`pe_render_targets`, and `pe_vk_init()` overwrites `pe_window_width/height`
+from the same place, so the layout, the pointer and the camera are all on the
+real mode already. What is missing is the teardown: `pe_vk_init()` builds each
+target's surface, swap chain, image views, render pass and pipelines exactly
+once and nothing rebuilds them, so a mode change has nowhere to go and there is
+no monitor hotplug either. That is a pengine-side gap.
 
 ### Frame path
 

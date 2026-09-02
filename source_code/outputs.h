@@ -6,9 +6,6 @@
 
 #include <engine/renderer/render_target.h>
 
-#define WINDOW_WIDTH 1916
-#define WINDOW_HEIGHT 1040
-
 //one physical monitor, laid left to right in a single virtual coordinate
 //space that layout.c tiles into and mouse.c's cursor moves through.
 //

@@ -106,9 +106,6 @@ int main(void){
   pe_vk_acquire_display = sword_acquire_drm_display;
   pe_vk_sort_displays = sword_sort_displays_by_connector;
 
-  pe_window_width = WINDOW_WIDTH;
-  pe_window_height = WINDOW_HEIGHT;
-
   pe_vk_draw_scene = sword_draw_scene;
 
   pe_vk_init();

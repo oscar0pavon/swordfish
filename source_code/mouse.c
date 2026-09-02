@@ -24,7 +24,7 @@ static void clamp_cursor(void) {
     cursor_x = max_x;
 
   SwordOutput *out = sword_output_at(cursor_x);
-  int32_t max_y = (out ? out->height : WINDOW_HEIGHT) - 1;
+  int32_t max_y = (out ? out->height : 0) - 1;
   if (cursor_y > max_y)
     cursor_y = max_y;
 }
