@@ -168,12 +168,13 @@ void draw_surface(Task* surface, PRenderTarget *render_target,
 
 }
 
-void end_frame() {
-
-  //vulkan objects whose wl_buffer the client destroyed while a frame was
-  //still using them. retire.c counts frames in flight, so only what no frame
-  //can still be reading is destroyed here
-  retire_collect();
+//the shm clients' pixels, copied in before anything samples them. this used to
+//sit at the end of the frame, after pe_frame_draw() had already recorded a
+//quad reading the image - so what an shm client committed was never on screen
+//until the frame after, and every redraw showed the previous one first. dmabuf
+//never paid that because its quad samples the client's pages directly; shm is
+//a copy, and the copy has to happen on this side of the draw
+void begin_frame() {
 
   //an shm upload rewrites an image a frame in flight may still be sampling,
   //and the single-time commands it is made of carry no barrier against that.
@@ -191,14 +192,28 @@ void end_frame() {
     }
   }
 
+  if (!any_upload)
+    return;
+
   //INFO the fences moved onto PRenderTarget with multimonitor - wait on every
   //target's, since an shm upload has no way to know which one last drew the
   //surface it is about to overwrite
-  if (any_upload)
-    for (u32 t = 0; t < pe_render_targets_count; t++)
-      vkWaitForFences(vk_device, PE_VK_FRAMES_IN_FLIGHT,
-                      pe_render_targets[t].fence_in_flight, VK_TRUE,
-                      UINT64_MAX);
+  for (u32 t = 0; t < pe_render_targets_count; t++)
+    vkWaitForFences(vk_device, PE_VK_FRAMES_IN_FLIGHT,
+                    pe_render_targets[t].fence_in_flight, VK_TRUE, UINT64_MAX);
+
+  //nothing is recording a command buffer here either: the previous frame's
+  //recording ended in pe_frame_draw() and this one has not started
+  for (int i = 0; i < tasks_for_draw.count; i++)
+    task_upload_shared_memory(array_get_pointer(&tasks_for_draw, i));
+}
+
+void end_frame() {
+
+  //vulkan objects whose wl_buffer the client destroyed while a frame was
+  //still using them. retire.c counts frames in flight, so only what no frame
+  //can still be reading is destroyed here
+  retire_collect();
 
   //every surface, not only the ones in the draw list: a client that asks for a
   //frame callback before it has ever attached a buffer is waiting on that
@@ -214,13 +229,6 @@ void end_frame() {
   for (int i = 0; i < tasks_for_draw.count; i++) {
     Task *surface = array_get_pointer(&tasks_for_draw, i);
 
-    //an shm client's pixels are only its own memory until they are copied, and
-    //the copy is a queue submit - end_frame() is the one point in the frame
-    //where the render thread owns the queue and is not recording. it lands in
-    //the next frame rather than this one, which is a frame of latency shm pays
-    //and dmabuf does not
-    task_upload_shared_memory(surface);
-
     //any buffer the client replaced goes back once the gpu is provably past
     //the last frame that sampled it - task_release_old_buffer() counts the
     //frames itself now that pe_vk_draw_frame() no longer drains the queue
@@ -228,7 +236,7 @@ void end_frame() {
   }
 
   //the tree as it stands at drawing time, a few frames after a menu appeared -
-  //which is after the shm upload above has had its chance to run
+  //which is after begin_frame()'s shm upload has had its chance to run
   if (surface_tree_dump_countdown > 0 && --surface_tree_dump_countdown == 0)
     log_surface_tree("frames after the popup appeared");
 
@@ -319,6 +327,10 @@ void sword_frame_step(void) {
   //the surface under the cursor, against a scene that may have changed since
   //the last mouse movement - a menu that just mapped over it, most of all
   pointer_refresh_focus();
+
+  //the shm clients' pixels go on the gpu before the frame that samples them,
+  //not after it
+  begin_frame();
 
   pe_frame_draw();
   update_delta_time();

@@ -250,9 +250,10 @@ void surface_attach(WClient *client, WResource *resource,
   memcpy(&surface->model.texture, &buffer->texture, sizeof(PTexture));
 
   //a dmabuf is already on the gpu. an shm buffer is a mapping of the client's
-  //own memory and there is nothing to sample until end_frame() has copied it,
+  //own memory and there is nothing to sample until begin_frame() has copied it,
   //so the quad stays out of the picture until then rather than binding the
-  //VK_NULL_HANDLE the texture still holds
+  //VK_NULL_HANDLE the texture still holds. that copy runs before this frame's
+  //draw, so a first attach is on screen in the same frame it arrived in
   if (buffer->type == CLIENT_BUFFER_SHARED_MEMORY) {
     buffer->needs_upload = true;
     surface->can_draw = buffer->texture.image != VK_NULL_HANDLE;
@@ -277,8 +278,10 @@ void surface_attach(WClient *client, WResource *resource,
   log_debug("Surface attached");
 }
 
-//the copy, and the release that goes with it. called from end_frame(), the one
-//place where nothing is recording a command buffer
+//the copy, and the release that goes with it. called from begin_frame(), before
+//pe_frame_draw() records the quad that samples the image - nothing is recording
+//a command buffer there, and the pixels are on the gpu in time for this frame
+//rather than the next one
 void task_upload_shared_memory(Task *surface) {
 
   ClientBuffer *buffer = surface->client_buffer;

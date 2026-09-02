@@ -25,6 +25,10 @@ void sword_draw_rotated(PModel *model, PRenderTarget *render_target,
                         SwordOutput *out, u32 image_index, vec2 position,
                         vec2 size);
 
+//copies every shm client's pixels onto the gpu, before pe_frame_draw() records
+//anything that samples them
+void begin_frame(void);
+
 void end_frame(void);
 
 void sword_frame_step(void);

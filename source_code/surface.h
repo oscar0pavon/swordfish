@@ -25,7 +25,7 @@ void task_release_old_buffer(Task *surface);
 
 //copy an shm client's pixels onto the gpu, if it has drawn since the last time.
 //submits to the queue, so it belongs on the render thread and nowhere else -
-//end_frame() again, for the same reason
+//begin_frame(), which is also early enough for this frame to sample the result
 void task_upload_shared_memory(Task *surface);
 
 
