@@ -255,9 +255,8 @@ asynchronously whatever the CPU thread count is. See **Frame path**.
 **Sword drives DRM/KMS and nothing else.** `main()` sets `is_drm_rendering =
 true` unconditionally; there is no `create_wayland_window()`, no fallback, and
 no branch to pick between them. The `wayland_window/` directory that held the
-pway nested-window development path is gone — if a `wayland_window/window.o`
-is still sitting there it is an orphan from before the removal and nothing
-links it. `is_wayland_window` is gone from sword entirely, and so is
+pway nested-window development path is gone, along with the stale `window.o`
+that outlived it. `is_wayland_window` is gone from sword entirely, and so is
 `is_opengl`, the `extern bool` that used to select the EGL/GLES path (`egl.c`,
 `buffers.c`) that no longer exists — it had no definition and no readers by
 the end.
@@ -1096,7 +1095,6 @@ Three things it does that a `printf` wrapper would not:
 - **`engine/`** (in pengine) — reusable engine (hence the `pe_` prefix): custom allocator, `Array` container, glTF/PNG loading, camera, 2D/text.
 - **The Wayland server implementation** — `compositor.c`, `surface.c`, `tasks.c`, `top_level.c`, `desktop.c`, `popup.c`, `subcompositor.c`, `region.c`, `data_device.c`, `primary_selection.c`, `output.c`, `dma.c`, `feedback.c`, `drm_format.c`, `shared_memory.c`, `retire.c`. All of it is flat in `source_code/`, and it *is* the main code, not a piece tucked away from it. It includes the one piece of window-manager *policy* (`layout.c`): which window gets which piece of the output. It is written against `Task` and `TopLevel` and sends configures, not because it draws anything.
 - Everything else at the top level — `main.c`, `device_input.c` (the libinput event pump), `keyboard.c`, `mouse.c`, `pointer.c`, `input.c`, `outputs.c` (the physical monitors), `launch.c` (spawning a program from a keybinding), `sword.c` (compositor-side drawing: client quads, the cursor), `cursor.c`, `tty.c` (VT and DRM master), `log.c` (see **The log**).
-- **`wayland_window/`** — an empty leftover. The pway nested-window dev path that lived here is gone; only a stale `window.o` remains, and nothing links it. Delete it.
 
 ### Memory
 
