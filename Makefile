@@ -1,24 +1,29 @@
 
+PREFIX := /usr
+LIBEXEC := $(PREFIX)/libexec/sword
 
 all: sword
-	make install
-	
+	$(MAKE) install
+
 
 sword:
-	make -C source_code
+	$(MAKE) -C source_code
 
 
 clean:
-	make -C source_code clean
+	$(MAKE) -C source_code clean
 
 
 compile_commands:
-	make --always-make --dry-run -C ./source_code
+	$(MAKE) --always-make --dry-run -C ./source_code
 
 
-install:#TODO create directories in /usr/libexec/
-	cp sword /usr/bin
-	cp -r shaders /usr/libexec/sword
-	cp images/* /usr/libexec/sword/images
+#surface.c and cursor.c spell $(LIBEXEC)/shaders, and copying the directory
+#itself created $(LIBEXEC) as a copy of shaders the first time it ran
+install:
+	install -d $(LIBEXEC)/shaders $(LIBEXEC)/images $(PREFIX)/bin
+	install -m 755 sword $(PREFIX)/bin
+	install -m 644 shaders/*.spv $(LIBEXEC)/shaders
+	install -m 644 images/* $(LIBEXEC)/images
 
-.PHONY: sword
+.PHONY: all sword clean compile_commands install

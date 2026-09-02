@@ -37,29 +37,52 @@ CFLAGS += -Wno-incompatible-pointer-types
 
 CFLAGS_ENGINE := $(CFLAGS) -I/root/sword/source_code $(PENGINE_INCLUDES) -I/usr/include/libdrm -I/usr/include -I/usr/local/include
 
+#a .d per object, fed back by -include below, so touching a header in pengine
+#or pway rebuilds what reads it instead of leaving a stale struct layout
+CFLAGS_ENGINE += -MMD -MP
+
 #everything that used to be compositor/*.c is flattened in here now
 SRCS := $(wildcard *.c)
 OBJS := $(SRCS:c=o)
+DEPS := $(OBJS:.o=.d)
+
+#the client quads (surface.c) and the cursor are all that is drawn now - the
+#city, hud and model shaders went to 3dtop with the scene
+SPVS := ../shaders/texture_frag.spv
+SPVS += ../shaders/dimention_2d_vert.spv
+SPVS += ../shaders/cursor_frag.spv
 
 #-rdynamic puts sword's own symbols in the dynamic symbol table, which is
 #what backtrace_symbols_fd() reads. without it the crash backtrace log.c writes
 #is a column of addresses with no names on it
-sword: $(OBJS) shaders
-	cc $(CFLAGS_ENGINE) -rdynamic -L/usr/local/lib $(OBJS) -o ../sword $(CLINKS)
+#named for where it lands, or it matches no file and relinks every run
+sword: ../sword
+
+../sword: $(OBJS) $(SPVS)
+	cc $(CFLAGS_ENGINE) -rdynamic -L/usr/local/lib $(OBJS) -o $@ $(CLINKS)
 
 %.o: %.c
-	cc $(CFLAGS_ENGINE) -c $<
+	cc $(CFLAGS_ENGINE) -c $< -o $@
 
-#the client quads (surface.c) and the cursor are all that is drawn
-#now - the city, hud and model shaders went to 3dtop with the scene
-shaders: shaders/texture.frag shaders/dimention_2d.vert
-	glslc shaders/texture.frag -o ../shaders/texture_frag.spv
-	glslc shaders/dimention_2d.vert -o ../shaders/dimention_2d_vert.spv
-	glslc shaders/cursor.frag -o ../shaders/cursor_frag.spv
+shaders: $(SPVS)
+
+#../shaders is gitignored, so a fresh clone has nowhere to write. order-only,
+#or the directory's mtime would rebuild every shader
+../shaders/%_frag.spv: shaders/%.frag | ../shaders
+	glslc $< -o $@
+
+../shaders/%_vert.spv: shaders/%.vert | ../shaders
+	glslc $< -o $@
+
+../shaders:
+	mkdir -p $@
 
 clean:
 	rm -f ../sword
 	rm -f *.o
+	rm -f *.d
 	rm -f ../shaders/*.spv
 
-.PHONY: shaders
+-include $(DEPS)
+
+.PHONY: sword shaders clean

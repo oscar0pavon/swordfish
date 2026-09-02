@@ -1,4 +1,5 @@
 *.o
+*.d
 sword
 compile_commands.json
 .cache
