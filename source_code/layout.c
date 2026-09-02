@@ -8,6 +8,7 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "tasks.h"
 #include "input.h"
@@ -374,5 +375,52 @@ void layout_toggle_floating(void){
     log_info("Window tiled");
   }
 
+  layout_apply();
+}
+
+//there is no layer shell here, so a client that would be an overlay on another
+//compositor has to be an ordinary xdg toplevel that sword recognises. the app
+//id is the only thing a client says about what it is
+#define LAUNCHER_APP_ID "pmenu"
+
+//a strip across the top of the output, the shape dmenu and wmenu take. it is
+//the compositor that decides this, exactly as it decides a tile, and the
+//launcher draws whatever fits in the size it is configured at
+#define LAUNCHER_HEIGHT 40
+
+//the launcher is not given a cell: it covers the top of the output it opened
+//on and sits over the tiling, which stays where it is - nothing here reserves
+//space the way a layer surface's exclusive zone would.
+//
+//called from set_app_id(), the first moment sword knows what a client is. the
+//initial configure for a tile has already gone out by then and this sends a
+//second one, which costs nothing: the client has not drawn yet and acks the
+//last one it was sent
+void layout_place_launcher(Task *task, const char *app_id){
+
+  if(!task || !task_is_window(task) || !app_id)
+    return;
+
+  if(strcmp(app_id, LAUNCHER_APP_ID) != 0)
+    return;
+
+  SwordOutput *out = &sword_outputs[task->output_index];
+
+  int32_t height = at_least(LAUNCHER_HEIGHT, LAYOUT_MIN_SIZE);
+
+  task->is_floating = true;
+  task->tile_x = out->x;
+  task->tile_y = out->y;
+  task->tile_width = out->width;
+  task->tile_height = height;
+
+  if(task->top_level->width != out->width || task->top_level->height != height)
+    send_top_level_configure(task->top_level, out->width, height);
+
+  layout_raise(task);
+
+  log_info("Launcher placed on output %i", task->output_index);
+
+  //one window fewer for the tiling to divide the output between
   layout_apply();
 }

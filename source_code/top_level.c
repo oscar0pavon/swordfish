@@ -42,6 +42,12 @@ static void set_app_id(WClient *client, WResource *resource,
   TopLevel *top_level = wl_resource_get_user_data(resource);
   replace_string(&top_level->app_id, app_id);
   log_info("Task app id: %s", top_level->app_id);
+
+  //the one placement rule the compositor keeps: a launcher gets the top of the
+  //output rather than a cell. neither half of the chain back to the Task can be
+  //assumed, the same guard top_level_is_tiled() makes
+  if(top_level->surface && top_level->surface->surface)
+    layout_place_launcher(top_level->surface->surface, top_level->app_id);
 }
 
 static void add_state(struct wl_array *states, uint32_t state){

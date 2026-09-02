@@ -28,4 +28,8 @@ void layout_raise(Task *task);
 //flip the focused window between tiled and floating
 void layout_toggle_floating(void);
 
+//give a client that names itself the launcher a strip at the top of its output
+//instead of a cell. a no-op for every other app id
+void layout_place_launcher(Task *task, const char *app_id);
+
 #endif
