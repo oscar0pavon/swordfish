@@ -10,6 +10,7 @@
 #include "log.h"
 #include "surface.h"
 #include "keyboard.h"
+#include "timers.h"
 #include "tty.h"
 #include "outputs.h"
 #include "draw.h"
@@ -76,4 +77,7 @@ void sword_init(){
   cursor_init(&cursor);
 
   init_compositor();
+
+  init_frame_timer();
+
 }
