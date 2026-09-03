@@ -75,4 +75,5 @@ void sword_init(){
 
   cursor_init(&cursor);
 
+  init_compositor();
 }
