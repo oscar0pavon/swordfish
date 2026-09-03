@@ -362,12 +362,7 @@ static void create_params(WClient *client, WResource *resource, uint32_t id) {
 }
 
 static void destroy_dmabuf_resource(struct wl_resource *resource) {
-    // You can retrieve and free any user data attached to this resource if necessary
-    // void *data = wl_resource_get_user_data(resource);
-    // free(data); // If you allocated data specifically for this resource
-
     log_info("Destroying zwp_linux_dmabuf_v1 resource: ID %u", wl_resource_get_id(resource));
-    // The resource itself is managed by the Wayland library, no need to free 'resource'
 }
 
 void destry_dma(struct wl_client *client,

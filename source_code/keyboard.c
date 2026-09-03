@@ -21,7 +21,6 @@ struct xkb_context *xkb_context;
 struct xkb_keymap *xkb_keymap;
 struct xkb_state *xkb_state;
 
-//return file descriptor of keymap
 int create_keymap_file_descriptor(off_t *size_out){
   if(!xkb_keymap){
     log_error("No xkb keymap, init_keyboard() has not run");

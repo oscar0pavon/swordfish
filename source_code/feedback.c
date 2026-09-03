@@ -225,9 +225,6 @@ void get_feedback(WClient *client, WResource *resource,
                          wl_resource_get_version(resource), id);
 
 
-  //wl_resource_set_user_data(feedback, &compositor);
-
-
   wl_resource_set_implementation(feedback, &feedback_implementation,
                                  NULL, NULL);
 
@@ -243,15 +240,6 @@ void get_surface_feedback(WClient *client, WResource *resource,
 
   log_info("Get surface feedback");
 
-
-  // if (!surface) {
-  //   fprintf(stderr, "ERROR: Client sent get_surface_feedback with NULL surface "
-  //                   "resource. Terminating client connection.\n");
-  //
-  //   wl_resource_post_error(resource, 7,
-  //                          "Cannot get feedback for a NULL surface.");
-  //   return;
-  // }
 
   WResource *feedback =
       wl_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface,

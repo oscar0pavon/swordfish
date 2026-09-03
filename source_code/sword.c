@@ -241,7 +241,6 @@ void end_frame() {
     log_surface_tree("frames after the popup appeared");
 
   wl_display_flush_clients(compositor.display);
-  //array_clean(&tasks_for_draw);
 }
 
 //a window and everything the client hung underneath it, parent first so the
