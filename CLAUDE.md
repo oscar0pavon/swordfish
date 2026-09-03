@@ -39,7 +39,7 @@ Thunar loses thumbnails and xfconf settings, and says so in the log.
 
 ## Build / install
 
-The repo path is hardcoded in the build (`-I/root/sword/source_code` in `source_code/Makefile`, and in `generate_compile_commands.sh`), so it must live at `/root/sword`.
+The build no longer hardcodes the repo path: `source_code/Makefile` uses `-I$(CURDIR)` and `generate_compile_commands.sh` writes the actual working directory into `compile_commands.json`'s `directory` field, so the repo can live anywhere. pengine and pway still install under the fixed system prefixes `/usr/local/include` and `/usr/local/lib` (see **pengine** below), same as any other library.
 
 ```sh
 make                  # root Makefile: builds AND runs `make install` (needs root)

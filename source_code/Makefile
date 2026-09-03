@@ -35,7 +35,7 @@ PENGINE_INCLUDES := -I/usr/local/include/pengine
 #that camera_init() and pe_camera_look_at() take
 CFLAGS += -Wno-incompatible-pointer-types
 
-CFLAGS_ENGINE := $(CFLAGS) -I/root/sword/source_code $(PENGINE_INCLUDES) -I/usr/include/libdrm -I/usr/include -I/usr/local/include
+CFLAGS_ENGINE := $(CFLAGS) -I$(CURDIR) $(PENGINE_INCLUDES) -I/usr/include/libdrm -I/usr/include -I/usr/local/include
 
 #a .d per object, fed back by -include below, so touching a header in pengine
 #or pway rebuilds what reads it instead of leaving a stale struct layout
