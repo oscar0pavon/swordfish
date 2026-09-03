@@ -98,8 +98,6 @@ int main(void){
   };
   timerfd_settime(frame_timer_fd, 0, &frame_interval, NULL);
 
-  start_delta_time();
-
   struct pollfd fds[3] = {
       {.fd = wl_event_loop_get_fd(compositor.event_loop), .events = POLLIN},
       {.fd = frame_timer_fd, .events = POLLIN},

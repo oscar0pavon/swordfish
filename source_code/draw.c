@@ -335,7 +335,7 @@ void sword_frame_step(void) {
   begin_frame();
 
   pe_frame_draw();
-  update_delta_time();
+
   end_frame();
 }
 
