@@ -14,8 +14,9 @@
 
 #include "mouse.h"
 #include "outputs.h"
-#include "sword.h"
 #include "log.h"
+
+#include "draw.h"
 
 Cursor cursor;
 

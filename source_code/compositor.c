@@ -25,9 +25,10 @@
 #include "dma.h"
 #include "shared_memory.h"
 #include "subcompositor.h"
-#include "sword.h"
 #include "device_input.h"
 #include "log.h"
+
+#include "draw.h"
 
 //how long the compositor thread waits for a client before looking at
 //sword_running again. now mostly a safety net - the frame timer below

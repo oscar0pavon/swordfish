@@ -24,6 +24,7 @@
 #include "compositor.h"
 #include "log.h"
 
+#include "draw.h"
 
 
 void close_sword() {
