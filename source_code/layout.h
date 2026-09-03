@@ -32,4 +32,8 @@ void layout_toggle_floating(void);
 //instead of a cell. a no-op for every other app id
 void layout_place_launcher(Task *task, const char *app_id);
 
+//float wl-clipboard's fallback window off the virtual desktop instead of
+//giving it a tile. a no-op for every other app id
+void layout_hide_clipboard_helper(Task *task, const char *app_id);
+
 #endif

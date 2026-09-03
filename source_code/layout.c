@@ -424,3 +424,31 @@ void layout_place_launcher(Task *task, const char *app_id){
   //one window fewer for the tiling to divide the output between
   layout_apply();
 }
+
+//wl-clipboard falls back to an ordinary xdg_toplevel to grab the keyboard and
+//claim the selection when neither data-control protocol is advertised (sword
+//advertises neither - see CLAUDE.md's "Advertised global versions"). That
+//window is never meant to be seen, but it still maps as a real tile and takes
+//half the output until it exits, so every wl-copy/wl-paste briefly halves the
+//layout and reflows it back a moment later
+#define CLIPBOARD_HELPER_APP_ID "io.github.bugaevc.wl-clipboard"
+
+void layout_hide_clipboard_helper(Task *task, const char *app_id){
+
+  if(!task || !task_is_window(task) || !app_id)
+    return;
+
+  if(strcmp(app_id, CLIPBOARD_HELPER_APP_ID) != 0)
+    return;
+
+  task->is_floating = true;
+  task->tile_x = -LAYOUT_MIN_SIZE;
+  task->tile_y = -LAYOUT_MIN_SIZE;
+  task->tile_width = 1;
+  task->tile_height = 1;
+
+  log_info("Clipboard helper window hidden");
+
+  //one window fewer for the tiling to divide the output between
+  layout_apply();
+}
