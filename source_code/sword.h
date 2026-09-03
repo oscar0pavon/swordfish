@@ -12,4 +12,7 @@ void clean_sword();
 
 void sword_init();
 
+//defined in main.c, called from sword_init() to catch ctrl+c / SIGTERM
+void handle_signal(int sig_num);
+
 #endif
