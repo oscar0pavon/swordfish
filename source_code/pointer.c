@@ -331,9 +331,7 @@ static void apply_drag(void){
     if(height < FLOAT_MIN_SIZE)
       height = FLOAT_MIN_SIZE;
 
-    if(drag_task->top_level &&
-       (drag_task->top_level->width != width ||
-        drag_task->top_level->height != height))
+    if(drag_task->top_level)
       send_top_level_configure(drag_task->top_level, width, height);
 
     drag_task->tile_width = width;
@@ -381,9 +379,7 @@ static void apply_drag(void){
       if(height > new_out->height)
         height = new_out->height;
 
-      if(drag_task->top_level &&
-         (drag_task->top_level->width != width ||
-          drag_task->top_level->height != height))
+      if(drag_task->top_level)
         send_top_level_configure(drag_task->top_level, width, height);
 
       drag_task->tile_width = width;

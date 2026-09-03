@@ -22,14 +22,27 @@ typedef struct TopLevel{
   int32_t min_height;
   int32_t max_width;
   int32_t max_height;
+  //a size the layout asked for this loop iteration but has not sent yet - see
+  //send_top_level_configure()
+  bool configure_pending;
+  int32_t pending_width;
+  int32_t pending_height;
 }TopLevel;
 
 void get_top_level_implementation(WClient *client,
                                   WResource *resource, uint32_t id);
 
-//configure the window at this size and take a serial for the ack. the layout
-//is what calls this now
+//record the size the layout wants this window at. does not send anything -
+//top_level_flush_configures() does, once per loop iteration, so several
+//layout_apply() passes in the same iteration collapse into at most one
+//configure instead of a burst the client sees one at a time
 void send_top_level_configure(TopLevel *toplevel, int width, int height);
+
+//send every configure the layout asked for since the last call, one per
+//window and only where the final size actually differs from what the client
+//was last sent - called once per loop iteration, after every request and
+//input event for it has been dispatched
+void top_level_flush_configures(void);
 
 //ask the client to close. it is a request, not an order - the client is free
 //to put up a "save your work?" dialog and stay

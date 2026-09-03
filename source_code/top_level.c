@@ -76,7 +76,9 @@ static bool top_level_is_tiled(TopLevel *toplevel){
   return !toplevel->surface->surface->is_floating;
 }
 
-void send_top_level_configure(TopLevel* toplevel, int width, int height){
+//the actual protocol send, immediate and unconditional. send_top_level_configure()
+//below is what everything outside this file calls; this is what it defers to
+static void do_send_configure(TopLevel *toplevel, int width, int height){
   struct wl_array states;
   wl_array_init(&states);
 
@@ -129,6 +131,55 @@ void send_top_level_configure(TopLevel* toplevel, int width, int height){
            toplevel->title ? toplevel->title : "(no title)");
 }
 
+//layout_apply() can run more than once in the same loop iteration - mapping a
+//window whose app id later hides it (layout_hide_clipboard_helper()) reflows
+//every other tiled window twice: once to make room, once back. Sending both
+//immediately put two contradictory configures on the wire for the same
+//iteration, and at least one real client (pterminal) acted on the first one
+//before the second arrived - a visible resize-and-back that showed up as a
+//flash in whatever was inside it (nvim redraws its whole screen on SIGWINCH).
+//Recording the request and sending it later, once top_level_flush_configures()
+//runs after the whole iteration's requests and input are dispatched, lets a
+//size that was only ever transient collapse into no configure at all.
+//
+//callers do not need to check whether the size actually changed first - this
+//does, and against whichever is current: a request already queued this
+//iteration if there is one, the last size actually sent otherwise. checking
+//only the latter is what let the second layout_apply() call above go
+//unnoticed: toplevel->width still read 1920 (nothing had been sent yet), so
+//"back to 1920" looked like no change and the stale 960 pending request was
+//never replaced
+void send_top_level_configure(TopLevel *toplevel, int width, int height){
+
+  int32_t current_width =
+      toplevel->configure_pending ? toplevel->pending_width : toplevel->width;
+  int32_t current_height = toplevel->configure_pending ? toplevel->pending_height
+                                                        : toplevel->height;
+
+  if(width == current_width && height == current_height)
+    return;
+
+  toplevel->pending_width = width;
+  toplevel->pending_height = height;
+  toplevel->configure_pending = true;
+}
+
+void top_level_flush_configures(void){
+  Task *task;
+  wl_list_for_each(task, &compositor.surfaces, link){
+    TopLevel *top_level = task->top_level;
+    if(!top_level || !top_level->configure_pending)
+      continue;
+
+    top_level->configure_pending = false;
+
+    if(top_level->pending_width != top_level->width ||
+       top_level->pending_height != top_level->height)
+      do_send_configure(top_level, top_level->pending_width,
+                        top_level->pending_height);
+  }
+}
+
 //the protocol has no way to make a client go away - xdg_toplevel.close is a
 //request, and a client with unsaved work is entitled to answer it with a
 //dialog instead
@@ -140,10 +191,14 @@ void top_level_close(TopLevel *top_level){
 //change state is answered with a configure carrying the size the layout gave
 //it and neither maximized nor fullscreen among its states - "declined".
 //leaving it unanswered is what hangs a client: it waits for the configure
-//before it will draw anything again
+//before it will draw anything again. sent immediately rather than through
+//send_top_level_configure(): this is a direct answer to a client request, not
+//a layout pass that might still change its mind later in the same iteration,
+//and the client is entitled to its configure regardless of whether the size
+//actually changed
 static void reconfigure(WResource *resource){
   TopLevel *top_level = wl_resource_get_user_data(resource);
-  send_top_level_configure(top_level, top_level->width, top_level->height);
+  do_send_configure(top_level, top_level->width, top_level->height);
 }
 
 static void set_maximized(WClient *client, WResource *resource){

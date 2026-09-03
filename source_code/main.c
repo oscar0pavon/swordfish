@@ -27,6 +27,7 @@
 
 #include "draw.h"
 #include "timers.h"
+#include "top_level.h"
 
 //how long the compositor thread waits for a client before looking at
 //sword_running again. now mostly a safety net - the frame timer below
@@ -114,6 +115,11 @@ int main(void){
     //asked for the switch is dispatched before it happens, and before the
     //frame step, which must not run once the display is gone
     tty_session_handle_pending();
+
+    //every request and input event for this iteration has been dispatched by
+    //now, so whatever the layout settled on is final - see
+    //send_top_level_configure()'s comment for why this is not sent inline
+    top_level_flush_configures();
 
     if (fds[1].revents & POLLIN) {
       //must be read to re-arm a periodic timerfd's readability - otherwise

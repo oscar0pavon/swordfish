@@ -181,10 +181,10 @@ static void layout_apply_output(int output_index){
 
     //a configure the client has already answered is one it would repaint for
     //nothing, and a relayout that reaches every window twice a second is how a
-    //tiler ends up costing more than the scene it is drawn over
-    if(task->top_level->width != cell.width ||
-       task->top_level->height != cell.height)
-      send_top_level_configure(task->top_level, cell.width, cell.height);
+    //tiler ends up costing more than the scene it is drawn over.
+    //send_top_level_configure() is the one that checks whether this actually
+    //differs from what the client has or is about to be sent - see its comment
+    send_top_level_configure(task->top_level, cell.width, cell.height);
 
     index++;
   }
@@ -359,10 +359,9 @@ void layout_toggle_floating(void){
     task->tile_x = out->x + (out->width - width) / 2;
     task->tile_y = out->y + (out->height - height) / 2;
 
-    //a configure the client already has is one it would repaint for nothing -
-    //the same guard layout_apply_output() makes for a tiled resize
-    if(task->top_level->width != width || task->top_level->height != height)
-      send_top_level_configure(task->top_level, width, height);
+    //send_top_level_configure() skips this itself if it would be a no-op -
+    //the same as layout_apply_output()'s tiled resize
+    send_top_level_configure(task->top_level, width, height);
 
     task->tile_width = width;
     task->tile_height = height;
@@ -414,8 +413,7 @@ void layout_place_launcher(Task *task, const char *app_id){
   task->tile_width = out->width;
   task->tile_height = height;
 
-  if(task->top_level->width != out->width || task->top_level->height != height)
-    send_top_level_configure(task->top_level, out->width, height);
+  send_top_level_configure(task->top_level, out->width, height);
 
   layout_raise(task);
 
